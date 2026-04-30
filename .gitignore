@@ -43,3 +43,9 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+ios_distribution_private_key
+ios_distribution_private_key.pub
+ios_backup_before_regenerate_*.zip
+*.p12
+*.mobileprovision
