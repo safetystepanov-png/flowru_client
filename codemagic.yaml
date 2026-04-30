@@ -27,13 +27,20 @@
         script: |
           flutter pub get
 
+      - name: Create certificate private key
+        script: |
+          ssh-keygen -t rsa -b 2048 -m PEM -f /tmp/flowru_client_distribution_private_key -q -N ""
+          echo "CERTIFICATE PRIVATE KEY CREATED"
+          ls -la /tmp/flowru_client_distribution_private_key
+
       - name: Fetch iOS App Store signing files
         script: |
           keychain initialize
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
             --type IOS_APP_STORE \
             --platform IOS \
-            --create
+            --create \
+            --certificate-key @file:/tmp/flowru_client_distribution_private_key
           keychain add-certificates
 
       - name: Apply iOS signing settings
