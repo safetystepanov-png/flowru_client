@@ -11,20 +11,17 @@
       flutter: stable
       xcode: latest
       cocoapods: default
-
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: ru.flowru.client
-
       vars:
         BUNDLE_ID: ru.flowru.client
+        APP_NAME: Flowru Client
+        FLOWRU_API_URL: https://mapi.flowru.ru/api/v1
 
     scripts:
       - name: Show project info
         script: |
           echo "Bundle ID: $BUNDLE_ID"
+          echo "Project: flowru_client"
           flutter --version
-          xcodebuild -version
 
       - name: Get Flutter dependencies
         script: |
@@ -32,9 +29,12 @@
 
       - name: Fetch iOS App Store signing files
         script: |
+          keychain initialize
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
             --type IOS_APP_STORE \
+            --platform IOS \
             --create
+          keychain add-certificates
 
       - name: Apply iOS signing settings
         script: |
@@ -43,7 +43,7 @@
       - name: Build iOS IPA
         script: |
           flutter build ipa --release \
-            --export-options-plist="$HOME/export_options.plist"
+            --dart-define=FLOWRU_API_URL=$FLOWRU_API_URL
 
     artifacts:
       - build/ios/ipa/*.ipa
