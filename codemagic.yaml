@@ -1,0 +1,56 @@
+﻿workflows:
+  ios-testflight:
+    name: Flowru Client iOS TestFlight
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+
+    integrations:
+      app_store_connect: Apple API
+
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: ru.flowru.client
+      vars:
+        BUNDLE_ID: ru.flowru.client
+        XCODE_PROJECT: ios/Runner.xcodeproj
+        XCODE_WORKSPACE: ios/Runner.xcworkspace
+        XCODE_SCHEME: Runner
+        APP_STORE_CONNECT_APP_ID: ""
+
+    scripts:
+      - name: Get Flutter packages
+        script: |
+          flutter pub get
+
+      - name: Install pods
+        script: |
+          cd ios
+          pod install
+          cd ..
+
+      - name: Set up code signing settings on Xcode project
+        script: |
+          xcode-project use-profiles --project ios/Runner.xcodeproj
+
+      - name: Build iOS IPA
+        script: |
+          flutter build ipa --release \
+            --dart-define=FLOWRU_API_URL=https://mapi.flowru.ru/api/v1 \
+            --export-options-plist=/Users/builder/export_options.plist
+
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+      - flutter_drive.log
+
+    publishing:
+      email:
+        recipients:
+          - safetystepanov@gmail.com
+        notify:
+          success: true
+          failure: true
