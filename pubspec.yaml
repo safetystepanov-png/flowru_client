@@ -1,0 +1,33 @@
+name: flowru_client
+description: Flowru client loyalty app
+publish_to: "none"
+
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  http: ^1.2.2
+  shared_preferences: ^2.3.2
+  qr_flutter: ^4.1.0
+  cupertino_icons: ^1.0.8
+  lottie: ^3.1.0
+  flutter_animate: ^4.5.0
+  flutter_secure_storage: ^9.2.2
+  local_auth: ^2.3.0
+  particles_flutter: ^1.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/flowru_logo.png
