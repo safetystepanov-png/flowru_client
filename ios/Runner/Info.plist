@@ -15,7 +15,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>Flowru Client</string>
+	<string>flowru_client</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -26,6 +26,33 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+
+	<key>NSCameraUsageDescription</key>
+	<string>РџСЂРёР»РѕР¶РµРЅРёСЋ РЅСѓР¶РµРЅ РґРѕСЃС‚СѓРї Рє РєР°РјРµСЂРµ РґР»СЏ СЃРєР°РЅРёСЂРѕРІР°РЅРёСЏ QR-РєРѕРґРѕРІ РєР»РёРµРЅС‚РѕРІ.</string>
+
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>РџСЂРёР»РѕР¶РµРЅРёСЋ РЅСѓР¶РµРЅ РґРѕСЃС‚СѓРї Рє РіРµРѕР»РѕРєР°С†РёРё РґР»СЏ СЂР°Р±РѕС‚С‹ СЃ Р°РґСЂРµСЃР°РјРё, РєР°СЂС‚РѕР№ Рё С„СѓРЅРєС†РёСЏРјРё, СЃРІСЏР·Р°РЅРЅС‹РјРё СЃ РјРµСЃС‚РѕРїРѕР»РѕР¶РµРЅРёРµРј.</string>
+
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>РџСЂРёР»РѕР¶РµРЅРёСЋ РЅСѓР¶РµРЅ РґРѕСЃС‚СѓРї Рє РіРµРѕР»РѕРєР°С†РёРё РґР»СЏ СЂР°Р±РѕС‚С‹ СЃ Р°РґСЂРµСЃР°РјРё, РєР°СЂС‚РѕР№ Рё С„СѓРЅРєС†РёСЏРјРё, СЃРІСЏР·Р°РЅРЅС‹РјРё СЃ РјРµСЃС‚РѕРїРѕР»РѕР¶РµРЅРёРµРј.</string>
+
+	<key>NSFaceIDUsageDescription</key>
+	<string>Face ID РёСЃРїРѕР»СЊР·СѓРµС‚СЃСЏ РґР»СЏ Р±С‹СЃС‚СЂРѕРіРѕ РІС…РѕРґР° РІ Flowru Client.</string>
+
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>РџСЂРёР»РѕР¶РµРЅРёСЋ РЅСѓР¶РµРЅ РґРѕСЃС‚СѓРї Рє С„РѕС‚Рѕ, С‡С‚РѕР±С‹ РІС‹ РјРѕРіР»Рё РІС‹Р±РёСЂР°С‚СЊ Рё РѕС‚РїСЂР°РІР»СЏС‚СЊ РёР·РѕР±СЂР°Р¶РµРЅРёСЏ РІ С‡Р°С‚Рµ.</string>
+
+	<key>NSMicrophoneUsageDescription</key>
+	<string>РџСЂРёР»РѕР¶РµРЅРёСЋ РЅСѓР¶РµРЅ РґРѕСЃС‚СѓРї Рє РјРёРєСЂРѕС„РѕРЅСѓ, С‡С‚РѕР±С‹ РІС‹ РјРѕРіР»Рё Р·Р°РїРёСЃС‹РІР°С‚СЊ Рё РѕС‚РїСЂР°РІР»СЏС‚СЊ РіРѕР»РѕСЃРѕРІС‹Рµ СЃРѕРѕР±С‰РµРЅРёСЏ.</string>
+
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
+
+	<key>FirebaseAppDelegateProxyEnabled</key>
+	<true/>
+
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -47,12 +74,14 @@
 			</array>
 		</dict>
 	</dict>
+
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
+
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
@@ -68,4 +97,3 @@
 	</array>
 </dict>
 </plist>
-
