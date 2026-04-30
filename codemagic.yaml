@@ -15,7 +15,6 @@
         BUNDLE_ID: "ru.flowru.client"
         XCODE_PROJECT: "ios/Runner.xcodeproj"
         XCODE_SCHEME: "Runner"
-        APP_NAME: "Flowru Client"
 
     scripts:
       - name: Show project info
@@ -37,7 +36,8 @@
         script: |
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
             --type IOS_APP_STORE \
-            --create
+            --create \
+            --certificate-key @env:CERTIFICATE_PRIVATE_KEY
 
       - name: Add certificates to keychain
         script: |
