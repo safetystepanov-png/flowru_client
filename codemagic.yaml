@@ -45,7 +45,7 @@
 
       - name: Apply iOS signing settings
         script: |
-          xcode-project use-profiles
+          xcode-project use-profiles --project ios/Runner.xcodeproj
 
       - name: Build iOS IPA
         script: |
@@ -64,3 +64,4 @@
         notify:
           success: true
           failure: true
+
