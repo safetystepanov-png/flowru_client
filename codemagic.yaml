@@ -11,13 +11,11 @@
       flutter: stable
       xcode: latest
       cocoapods: default
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: ru.flowru.client
       vars:
-        BUNDLE_ID: ru.flowru.client
-        XCODE_PROJECT: ios/Runner.xcodeproj
-        XCODE_SCHEME: Runner
+        BUNDLE_ID: "ru.flowru.client"
+        XCODE_PROJECT: "ios/Runner.xcodeproj"
+        XCODE_SCHEME: "Runner"
+        APP_NAME: "Flowru Client"
 
     scripts:
       - name: Show project info
@@ -26,31 +24,43 @@
           echo "Project: $XCODE_PROJECT"
           echo "Scheme: $XCODE_SCHEME"
           flutter --version
-          xcodebuild -list -project "$XCODE_PROJECT"
 
       - name: Get Flutter dependencies
         script: |
-          flutter clean
           flutter pub get
+
+      - name: Initialize keychain
+        script: |
+          keychain initialize
+
+      - name: Fetch iOS App Store signing files
+        script: |
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --create
+
+      - name: Add certificates to keychain
+        script: |
+          keychain add-certificates
 
       - name: Apply iOS signing settings
         script: |
-          xcode-project use-profiles --project "$XCODE_PROJECT"
+          xcode-project use-profiles
 
       - name: Build iOS IPA
         script: |
           flutter build ipa --release \
-            --export-options-plist=/Users/builder/export_options.plist \
-            --dart-define=FLOWRU_API_URL=https://mapi.flowru.ru/api/v1
+            --build-name=1.0.0 \
+            --build-number=$BUILD_NUMBER
 
     artifacts:
       - build/ios/ipa/*.ipa
-      - /tmp/xcodebuild_logs/*.log
-      - flutter_drive.log
+      - build/ios/archive/*.xcarchive
 
     publishing:
-      app_store_connect:
-        auth: integration
-        submit_to_testflight: true
-        beta_groups:
-          - Internal
+      email:
+        recipients:
+          - safetystepanov@gmail.com
+        notify:
+          success: true
+          failure: true
