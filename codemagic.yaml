@@ -1,6 +1,6 @@
 ﻿workflows:
-  ios-testflight:
-    name: Flowru Client iOS TestFlight
+  ios-signed-ipa:
+    name: Flowru Client iOS Signed IPA
     max_build_duration: 60
     instance_type: mac_mini_m2
 
@@ -11,36 +11,39 @@
       flutter: stable
       xcode: latest
       cocoapods: default
+
       ios_signing:
         distribution_type: app_store
         bundle_identifier: ru.flowru.client
+
       vars:
         BUNDLE_ID: ru.flowru.client
-        XCODE_PROJECT: ios/Runner.xcodeproj
-        XCODE_WORKSPACE: ios/Runner.xcworkspace
-        XCODE_SCHEME: Runner
-        APP_STORE_CONNECT_APP_ID: ""
 
     scripts:
-      - name: Get Flutter packages
+      - name: Show project info
+        script: |
+          echo "Bundle ID: $BUNDLE_ID"
+          flutter --version
+          xcodebuild -version
+
+      - name: Get Flutter dependencies
         script: |
           flutter pub get
 
-      - name: Install pods
+      - name: Fetch iOS App Store signing files
         script: |
-          cd ios
-          pod install
-          cd ..
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --create
 
-      - name: Set up code signing settings on Xcode project
+      - name: Apply iOS signing settings
         script: |
-          xcode-project use-profiles --project ios/Runner.xcodeproj
+          xcode-project use-profiles
 
       - name: Build iOS IPA
         script: |
           flutter build ipa --release \
-            --dart-define=FLOWRU_API_URL=https://mapi.flowru.ru/api/v1 \
-            --export-options-plist=/Users/builder/export_options.plist
+            --export-options-plist="$HOME/export_options.plist"
 
     artifacts:
       - build/ios/ipa/*.ipa
