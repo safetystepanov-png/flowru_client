@@ -55,3 +55,11 @@ ios_distribution_private_key.pub
 ios_backup_*.zip
 *.p12
 *.mobileprovision
+
+ios_distribution_private_key
+ios_distribution_private_key.pub
+ios_backup_*.zip
+*.p12
+*.mobileprovision
+*.pbxproj.bak_*
+*.bak_*
