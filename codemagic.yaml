@@ -1,6 +1,6 @@
 ﻿workflows:
-  ios-signed-ipa:
-    name: Flowru Client iOS Signed IPA
+  ios-testflight:
+    name: Flowru Client iOS TestFlight
     max_build_duration: 60
     instance_type: mac_mini_m2
 
@@ -11,46 +11,37 @@
       flutter: stable
       xcode: latest
       cocoapods: default
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: ru.flowru.client
       vars:
         BUNDLE_ID: ru.flowru.client
-        APP_NAME: Flowru Client
-        FLOWRU_API_URL: https://mapi.flowru.ru/api/v1
+        XCODE_PROJECT: ios/Runner.xcodeproj
+        XCODE_SCHEME: Runner
 
     scripts:
       - name: Show project info
         script: |
           echo "Bundle ID: $BUNDLE_ID"
-          echo "Project: flowru_client"
+          echo "Project: $XCODE_PROJECT"
+          echo "Scheme: $XCODE_SCHEME"
           flutter --version
+          xcodebuild -list -project "$XCODE_PROJECT"
 
       - name: Get Flutter dependencies
         script: |
+          flutter clean
           flutter pub get
-
-      - name: Create certificate private key
-        script: |
-          ssh-keygen -t rsa -b 2048 -m PEM -f /tmp/flowru_client_distribution_private_key -q -N ""
-          echo "CERTIFICATE PRIVATE KEY CREATED"
-          ls -la /tmp/flowru_client_distribution_private_key
-
-      - name: Fetch iOS App Store signing files
-        script: |
-          keychain initialize
-          app-store-connect fetch-signing-files "$BUNDLE_ID" \
-            --type IOS_APP_STORE \
-            --platform IOS \
-            --create \
-            --certificate-key @file:/tmp/flowru_client_distribution_private_key
-          keychain add-certificates
 
       - name: Apply iOS signing settings
         script: |
-          xcode-project use-profiles --project ios/Runner.xcodeproj
+          xcode-project use-profiles --project "$XCODE_PROJECT"
 
       - name: Build iOS IPA
         script: |
           flutter build ipa --release \
-            --dart-define=FLOWRU_API_URL=$FLOWRU_API_URL
+            --export-options-plist=/Users/builder/export_options.plist \
+            --dart-define=FLOWRU_API_URL=https://mapi.flowru.ru/api/v1
 
     artifacts:
       - build/ios/ipa/*.ipa
@@ -58,10 +49,8 @@
       - flutter_drive.log
 
     publishing:
-      email:
-        recipients:
-          - safetystepanov@gmail.com
-        notify:
-          success: true
-          failure: true
-
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+        beta_groups:
+          - Internal
