@@ -95,6 +95,11 @@ class AppConfig {
     'FLOWRU_API_URL',
     defaultValue: 'https://mapi.flowru.ru/api/v1',
   );
+
+  static const publicBase = String.fromEnvironment(
+    'FLOWRU_PUBLIC_URL',
+    defaultValue: 'https://flowru.ru',
+  );
 }
 
 class ThemePreset {
@@ -223,53 +228,6 @@ class ApiError implements Exception {
   const ApiError(this.message, this.status);
 }
 
-String? normalizedExternalUrl(dynamic value) {
-  final raw = nonEmpty(value);
-  if (raw == null) return null;
-  var url = raw.trim();
-  if (url.isEmpty) return null;
-  if (url.startsWith('@')) return 'https://t.me/${url.substring(1)}';
-  if (url.startsWith('t.me/') || url.startsWith('vk.com/') || url.startsWith('instagram.com/') || url.startsWith('2gis.ru/') || url.startsWith('yandex.ru/') || url.startsWith('yandex.com/')) {
-    url = 'https://$url';
-  }
-  if (!url.contains('://') && url.contains('.')) url = 'https://$url';
-  return url;
-}
-
-String? externalUrlFromMap(Map<String, dynamic>? data) {
-  if (data == null || data.isEmpty) return null;
-  return normalizedExternalUrl(data['url']) ??
-      normalizedExternalUrl(data['link']) ??
-      normalizedExternalUrl(data['button_url']) ??
-      normalizedExternalUrl(data['target_url']) ??
-      normalizedExternalUrl(data['deeplink']) ??
-      normalizedExternalUrl(data['external_url']) ??
-      normalizedExternalUrl(data['promo_url']);
-}
-
-Future<void> openExternalUrl(BuildContext context, dynamic value, {String emptyMessage = 'Ссылка пока не указана'}) async {
-  final url = normalizedExternalUrl(value);
-  if (url == null) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(emptyMessage)));
-    return;
-  }
-  final uri = Uri.tryParse(url);
-  if (uri == null) {
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Некорректная ссылка')));
-    return;
-  }
-  try {
-    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!ok) {
-      await Clipboard.setData(ClipboardData(text: url));
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Не удалось открыть ссылку. Ссылка скопирована.')));
-    }
-  } catch (_) {
-    await Clipboard.setData(ClipboardData(text: url));
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Не удалось открыть ссылку. Ссылка скопирована.')));
-  }
-}
-
 class FlowApi {
   Future<Map<String, dynamic>> refresh(String refreshToken) => _request(path: '/auth/refresh', method: 'POST', body: {'refresh_token': refreshToken});
   Future<Map<String, dynamic>> me(String token) => _request(path: '/client/me', token: token);
@@ -291,6 +249,43 @@ class FlowApi {
   Future<Map<String, dynamic>> offers(String token, int establishmentId) => _request(path: '/client/offers', token: token, query: {'establishment_id': '$establishmentId'});
   Future<Map<String, dynamic>> establishmentProfile(String token, int establishmentId) => _request(path: '/client/establishment-profile', token: token, query: {'establishment_id': '$establishmentId'});
   Future<Map<String, dynamic>> rewards(String token, int establishmentId) => _request(path: '/client/rewards', token: token, query: {'establishment_id': '$establishmentId'});
+
+  Future<Map<String, dynamic>> updateBirthDate(String token, int establishmentId, String birthDate) async {
+    final body = {'establishment_id': establishmentId, 'birth_date': birthDate};
+    final query = {'establishment_id': '$establishmentId'};
+    ApiError? lastError;
+    for (final path in const [
+      '/client/profile/birth-date',
+      '/client/birth-date',
+      '/client/birthday',
+    ]) {
+      try {
+        return await _request(path: path, method: 'POST', token: token, body: body, query: query);
+      } on ApiError catch (e) {
+        lastError = e;
+        if (e.status != 404 && e.status != 405) rethrow;
+      }
+    }
+    throw lastError ?? const ApiError('Сервер пока не поддерживает сохранение даты рождения', 404);
+  }
+
+  Future<Map<String, dynamic>> generateReferralLink(String token, int establishmentId) async {
+    final query = {'establishment_id': '$establishmentId'};
+    ApiError? lastError;
+    for (final path in const [
+      '/client/referral/link',
+      '/client/referral',
+      '/client/referrals/link',
+    ]) {
+      try {
+        return await _request(path: path, method: 'POST', token: token, query: query);
+      } on ApiError catch (e) {
+        lastError = e;
+        if (e.status != 404 && e.status != 405) rethrow;
+      }
+    }
+    throw lastError ?? const ApiError('Сервер пока не вернул реферальную ссылку', 404);
+  }
 
   Future<Map<String, dynamic>> joinDraw(String token, int runId, int establishmentId) {
     return _request(path: '/client/draws/$runId/join', method: 'POST', token: token, query: {'establishment_id': '$establishmentId'});
@@ -337,6 +332,52 @@ String? readableApiError(dynamic detail) {
   if (raw.contains('Неверный телефон или пароль')) return 'Неверный телефон или пароль';
   if (raw.length > 140 || raw.startsWith('{') || raw.startsWith('[')) return 'Проверьте введённые данные';
   return raw;
+}
+
+
+Future<void> openExternalUrl(BuildContext context, String? url, {String emptyMessage = 'Ссылка не указана'}) async {
+  final raw = url?.trim() ?? '';
+  if (raw.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(emptyMessage)));
+    return;
+  }
+
+  var fixed = raw;
+  if (fixed.startsWith('/')) {
+    fixed = '${AppConfig.publicBase}$fixed';
+  } else if (!fixed.startsWith('http://') && !fixed.startsWith('https://') && !fixed.startsWith('tg://') && !fixed.startsWith('mailto:') && !fixed.startsWith('tel:')) {
+    fixed = 'https://$fixed';
+  }
+
+  final uri = Uri.tryParse(fixed);
+  if (uri == null) {
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Некорректная ссылка')));
+    return;
+  }
+
+  final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+  if (!ok) {
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Не удалось открыть ссылку')));
+  }
+}
+
+
+DateTime? parseBirthDate(dynamic value) {
+  final raw = value?.toString().trim() ?? '';
+  if (raw.isEmpty) return null;
+  final cleaned = raw.replaceAll('T', ' ');
+  final datePart = cleaned.split(' ').first;
+  final parts = datePart.split('-');
+  if (parts.length != 3) return null;
+  final y = int.tryParse(parts[0]);
+  final m = int.tryParse(parts[1]);
+  final d = int.tryParse(parts[2]);
+  if (y == null || m == null || d == null) return null;
+  try {
+    return DateTime(y, m, d);
+  } catch (_) {
+    return null;
+  }
 }
 
 String formatClientDateTime(dynamic value) {
@@ -670,10 +711,15 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
     final refresh = data['refresh_token']?.toString() ?? '';
     if (access.isEmpty || refresh.isEmpty) throw const ApiError('Сервер не вернул токены', 500);
     await AuthStorage.save(access: access, refresh: refresh);
-    await AuthStorage.saveRememberedCredentials(phone: phone, password: password);
-    rememberCredentials = true;
+    if (rememberCredentials) {
+      await AuthStorage.saveRememberedCredentials(phone: phone, password: password);
+    } else {
+      await AuthStorage.clearRememberedCredentials();
+    }
     final canUseBiometric = await BiometricService.isAvailable();
-    await AuthStorage.setBiometricEnabled(canUseBiometric);
+    if (canUseBiometric && rememberCredentials) {
+      await AuthStorage.setBiometricEnabled(true);
+    }
     if (!mounted) return;
     Navigator.of(context).pushReplacement(appRoute(const ClientShell()));
   }
@@ -1583,11 +1629,46 @@ class _ClientShellState extends State<ClientShell> {
         map(establishment['reviews'])['two_gis_rating'],
       ]) ?? 'отзывы';
 
-  String? get referralLink => _firstText([
-        user['referral_link'],
-        client['referral_link'],
-        home['referral_link'],
+  String? get referralLink {
+    final direct = _firstText([
+      user['referral_link'],
+      client['referral_link'],
+      home['referral_link'],
+      map(home['referral'])['link'],
+      map(home['referral'])['url'],
+      map(home['referral'])['invite_link'],
+      map(liveLoyaltyRules['client_referral'])['link'],
+      map(liveLoyaltyRules['client_referral'])['url'],
+      map(liveLoyaltyRules['client_referral'])['invite_link'],
+    ]);
+    if (direct != null) return direct;
+
+    final code = _firstText([
+      user['referral_code'],
+      client['referral_code'],
+      home['referral_code'],
+      map(home['referral'])['code'],
+      map(liveLoyaltyRules['client_referral'])['code'],
+    ]);
+    if (code == null) return null;
+    final est = selectedEstablishmentId ?? intOrNull(card['establishment_id']) ?? intOrNull(establishment['id']);
+    final suffix = est == null ? code : '$code?establishment_id=$est';
+    return '${AppConfig.publicBase}/r/$suffix';
+  }
+
+  String? get birthDateText => _firstText([
+        client['birth_date'],
+        client['birthday'],
+        client['date_of_birth'],
+        user['birth_date'],
+        user['birthday'],
+        user['date_of_birth'],
+        map(home['profile'])['birth_date'],
+        map(home['profile'])['birthday'],
+        map(home['profile'])['date_of_birth'],
       ]);
+
+  int get birthdayGiftPoints => toInt(map(liveLoyaltyRules['birthday_campaign'])['gift_points']);
 
   String? get appleWalletUrl => _firstText([
         card['apple_wallet_url'],
@@ -1660,20 +1741,7 @@ class _ClientShellState extends State<ClientShell> {
       );
     }
 
-    final coupons = mapList(offerData['coupons']).isNotEmpty ? mapList(offerData['coupons']) : mapList(home['coupons']);
-    for (final c in coupons.take(2)) {
-      result.add(
-        PromoItem(
-          tag: 'купон',
-          title: c['title']?.toString() ?? 'Купон',
-          subtitle: c['description']?.toString() ?? 'Специальное предложение для вас',
-          icon: Icons.card_giftcard_rounded,
-          color: kLoginBlue,
-          imageUrl: extractImageUrl(c),
-          rawData: c,
-        ),
-      );
-    }
+    // Купоны и подарки не показываем в блоке «Выгода рядом».
 
     final remote = mapList(offerData['banners']);
     for (final e in remote.take(3)) {
@@ -1693,7 +1761,6 @@ class _ClientShellState extends State<ClientShell> {
     if (result.isEmpty) {
       return const [
         PromoItem(tag: 'акция', title: 'Персональные предложения', subtitle: 'Новые акции заведения появятся здесь.', icon: Icons.local_fire_department_rounded, color: kLoginPink),
-        PromoItem(tag: 'купон', title: 'Купоны и подарки', subtitle: 'Сохраняйте бонусы и используйте их при визите.', icon: Icons.confirmation_number_rounded, color: kLoginBlue),
         PromoItem(tag: 'розыгрыш', title: 'Розыгрыши', subtitle: 'Когда появится конкурс, он отобразится здесь вместе с изображением.', icon: Icons.celebration_rounded, color: kLoginViolet),
       ];
     }
@@ -1754,7 +1821,7 @@ class _ClientShellState extends State<ClientShell> {
           else
             NoCard(phone: phone),
           const SizedBox(height: 18),
-          const SectionTitle(title: 'Выгода рядом', subtitle: 'Акции, купоны и розыгрыши — три быстрых входа'),
+          const SectionTitle(title: 'Выгода рядом', subtitle: 'Персональные предложения и розыгрыши — быстрый доступ'),
           const SizedBox(height: 10),
           OfferTicker(items: promoItems),
           const SizedBox(height: 16),
@@ -1807,18 +1874,18 @@ class _ClientShellState extends State<ClientShell> {
   }
 
   Widget profileTab() {
-    final birthday = map(liveLoyaltyRules['birthday_campaign']);
+    final hasSelection = selectedEstablishmentId != null;
     return RefreshIndicator(
       onRefresh: loadAll,
       color: FlowColors.ink,
       child: ListView(
         padding: const EdgeInsets.fromLTRB(18, 10, 18, 124),
         children: [
-          const ScreenHeader(title: 'Профиль', subtitle: 'Аккаунт, карты, Wallet и настройки клиента', accent: kLoginBlue, icon: Icons.person_rounded, variant: OrbitLogoVariant.orbit),
+          const ScreenHeader(title: 'Профиль', subtitle: 'Аккаунт, карты и оформление клиента', accent: kLoginBlue, icon: Icons.person_rounded, variant: OrbitLogoVariant.orbit),
           const SizedBox(height: 16),
           ProfileCommandCard(name: clientName, phone: phone),
           const SizedBox(height: 16),
-          const SectionTitle(title: 'Мои карты', subtitle: 'Выберите заведение. Активная карта выделена цветом.'),
+          const SectionTitle(title: 'Мои карты', subtitle: 'Выберите заведение, а подробности откройте кнопкой «Подробнее»'),
           const SizedBox(height: 10),
           if (establishments.isEmpty)
             const EmptyState(icon: Icons.credit_card_off_rounded, title: 'Карт пока нет', subtitle: 'Когда телефон привяжется к карте, она появится здесь.')
@@ -1827,55 +1894,32 @@ class _ClientShellState extends State<ClientShell> {
                   item: e,
                   active: intOrNull(e['establishment_id']) == selectedEstablishmentId,
                   onTap: () => selectEst(e),
-                  onDetails: () => showEstablishmentDetailsSheet(context),
+                  onDetails: () => showEstablishmentDetailsSheet(context, e),
                 )),
           const SizedBox(height: 16),
-          if (walletEnabled) ...[
-            WalletHubCard(establishmentName: establishmentName, appleWalletUrl: appleWalletUrl, googleWalletUrl: googleWalletUrl),
-            const SizedBox(height: 16),
-          ],
-          BirthdayGiftCard(birthday: birthday),
+          BirthdayInfoCard(birthDate: birthDateText, bonusPoints: birthdayGiftPoints, onTap: () => showBirthDateSheet(context)),
           const SizedBox(height: 16),
           ThemeFoundationCard(currentPreset: activeThemePreset),
           const SizedBox(height: 16),
-          ReferralInviteCard(referralLink: referralLink),
+          ReferralInviteCard(referralLink: referralLink, onRefresh: () => refreshReferralLink(context)),
           const SizedBox(height: 16),
+          if (hasSelection) ...[
+            if (walletEnabled) WalletInlineButtons(
+              appleWalletUrl: appleWalletUrl,
+              googleWalletUrl: googleWalletUrl,
+            ),
+            if (walletEnabled) const SizedBox(height: 16),
+          ] else
+            const EmptyState(
+              icon: Icons.touch_app_rounded,
+              title: 'Выберите карту заведения',
+              subtitle: 'После выбора появятся кнопки Apple Wallet / Google Wallet и подробности по заведению.',
+            ),
           DangerButton(text: 'Выйти из аккаунта', onTap: logout),
         ],
       ),
     );
   }
-
-  void showEstablishmentDetailsSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => Padding(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(width: 54, height: 6, margin: const EdgeInsets.only(bottom: 12), decoration: BoxDecoration(color: Colors.white.withOpacity(0.70), borderRadius: BorderRadius.circular(999))),
-              LiveEstablishmentProfileCard(
-                establishmentName: establishmentName,
-                address: addressText,
-                phone: nonEmpty(liveContacts['phone']) ?? '',
-                workingHours: workingHoursText,
-                ratings: liveRatings,
-                contacts: liveContacts,
-              ),
-              const SizedBox(height: 12),
-              LiveLoyaltyRulesCard(rules: liveLoyaltyRules, points: points, sales: sales),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
 
   void showLoyaltyRulesSheet(BuildContext context) {
     showModalBottomSheet(
@@ -1906,6 +1950,103 @@ class _ClientShellState extends State<ClientShell> {
   void showQrSheet(BuildContext context) {
     final qr = code.trim().isNotEmpty ? code.trim() : phone;
     showModalBottomSheet(context: context, isScrollControlled: true, useSafeArea: true, backgroundColor: Colors.transparent, builder: (_) => ScanModeSheet(establishment: establishmentName, phone: phone, qr: qr, points: points));
+  }
+
+  Future<void> showBirthDateSheet(BuildContext context) async {
+    if (selectedEstablishmentId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Сначала выберите карту заведения')));
+      return;
+    }
+
+    final now = DateTime.now();
+    final initial = parseBirthDate(birthDateText) ?? DateTime(now.year - 25, now.month, now.day);
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial.isAfter(now) ? DateTime(now.year - 25, now.month, now.day) : initial,
+      firstDate: DateTime(1900, 1, 1),
+      lastDate: now,
+      helpText: 'Дата рождения',
+      cancelText: 'Отмена',
+      confirmText: 'Сохранить',
+    );
+    if (picked == null) return;
+
+    final birthDate = '${picked.year.toString().padLeft(4, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+    try {
+      final token = await getFreshAccessToken();
+      if (token == null || token.isEmpty) return logout();
+      await api.updateBirthDate(token, selectedEstablishmentId!, birthDate);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Дата рождения сохранена')));
+      await loadAll();
+    } on ApiError catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Не удалось сохранить дату рождения')));
+    }
+  }
+
+  Future<void> refreshReferralLink(BuildContext context) async {
+    if (selectedEstablishmentId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Сначала выберите карту заведения')));
+      return;
+    }
+    try {
+      final token = await getFreshAccessToken();
+      if (token == null || token.isEmpty) return logout();
+      await api.generateReferralLink(token, selectedEstablishmentId!);
+      await loadAll();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Реферальная ссылка обновлена')));
+    } on ApiError catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Не удалось получить реферальную ссылку')));
+    }
+  }
+
+  void showEstablishmentDetailsSheet(BuildContext context, Map<String, dynamic> item) {
+    final id = intOrNull(item['establishment_id']);
+    final isActive = id != null && id == selectedEstablishmentId;
+    final title = nonEmpty(item['establishment_name']) ?? nonEmpty(item['name']) ?? establishmentName;
+    final address = isActive
+        ? addressText
+        : (nonEmpty(item['address']) ?? nonEmpty(item['establishment_address']) ?? nonEmpty(map(item['establishment'])['address']) ?? 'Адрес будет показан после выбора этой карты.');
+    final phoneValue = isActive
+        ? (nonEmpty(liveContacts['phone']) ?? '')
+        : (nonEmpty(item['phone']) ?? nonEmpty(map(item['contacts'])['phone']) ?? '');
+    final hours = isActive
+        ? workingHoursText
+        : (nonEmpty(item['working_hours']) ?? nonEmpty(item['hours']) ?? nonEmpty(map(item['contacts'])['working_hours']) ?? '');
+    final cardPoints = toInt(item['points']);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 20),
+        child: SingleChildScrollView(
+          child: EstablishmentDetailsSheet(
+            title: title,
+            address: address,
+            phone: phoneValue,
+            workingHours: hours,
+            points: cardPoints,
+            active: isActive,
+            appleWalletUrl: isActive ? appleWalletUrl : null,
+            googleWalletUrl: isActive ? googleWalletUrl : null,
+            onSelect: isActive ? null : () { Navigator.of(context).pop(); selectEst(item); },
+            onShowRules: isActive ? () { Navigator.of(context).pop(); showLoyaltyRulesSheet(context); } : null,
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -2502,6 +2643,7 @@ class _AnimatedOrbitLogoState extends State<AnimatedOrbitLogo> with SingleTicker
             width: size,
             height: size,
             child: Stack(
+              clipBehavior: Clip.none,
               alignment: Alignment.center,
               children: [
                 Transform.rotate(
@@ -2569,6 +2711,7 @@ class _AnimatedOrbitLogoState extends State<AnimatedOrbitLogo> with SingleTicker
             width: size,
             height: size,
             child: Stack(
+              clipBehavior: Clip.none,
               alignment: Alignment.center,
               children: [
                 Container(
@@ -2790,7 +2933,7 @@ class CommandBalancePanel extends StatelessWidget {
               child: Text('${formatMoney(points)} б.', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
             ),
           ]),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
           GestureDetector(
             onTap: onQr,
             child: Container(
@@ -2816,7 +2959,6 @@ class CommandBalancePanel extends StatelessWidget {
     );
   }
 }
-
 
 class DarkMetric extends StatelessWidget {
   final String label;
@@ -2957,39 +3099,42 @@ class EstablishmentInfoPanel extends StatelessWidget {
     final hasSocial = socialEntries.isNotEmpty;
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const SectionTitle(title: 'О заведении', subtitle: 'Адрес, график, оценки и соцсети'),
+      const SectionTitle(title: 'О заведении', subtitle: 'Контакты, оценки и быстрые ссылки'),
       const SizedBox(height: 10),
       SurfaceCard(
         radius: 34,
         padding: EdgeInsets.zero,
         child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(18, 20, 18, 18),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(34),
-              gradient: const LinearGradient(colors: [Color(0xFF07354B), Color(0xFF0A91A5), Color(0xFF35E1C8)], begin: Alignment.topLeft, end: Alignment.bottomRight),
-              boxShadow: [BoxShadow(color: kLoginBlue.withOpacity(0.14), blurRadius: 22, offset: const Offset(0, 12))],
-            ),
-            child: Stack(alignment: Alignment.center, children: [
-              Positioned(left: -54, top: -58, child: _SoftGlowDot(color: Colors.white.withOpacity(0.12), size: 150)),
-              Positioned(right: -38, bottom: -48, child: _SoftGlowDot(color: FlowColors.acid.withOpacity(0.18), size: 150)),
-              Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
-                const _AnimatedEstablishmentBadge(size: 72),
-                const SizedBox(height: 12),
-                const Text('Выбранное заведение', textAlign: TextAlign.center, style: TextStyle(color: Color(0xEFFFFFFF), fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 0.2)),
-                const SizedBox(height: 4),
-                Text(establishmentName, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 24, height: 1.05, fontWeight: FontWeight.w900, letterSpacing: -0.8)),
-                const SizedBox(height: 16),
-                Wrap(spacing: 8, runSpacing: 8, alignment: WrapAlignment.center, children: [
-                  if (address.trim().isNotEmpty) _QuickGlassPill(icon: Icons.place_rounded, text: address),
-                  if (workingHours.trim().isNotEmpty) _QuickGlassPill(icon: Icons.schedule_rounded, text: workingHours),
-                  if (phone.trim().isNotEmpty) _QuickGlassPill(icon: Icons.phone_rounded, text: phone),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(34),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(18, 20, 18, 18),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(34),
+                gradient: const LinearGradient(colors: [Color(0xFF06304A), Color(0xFF087F99), Color(0xFF20D9C5)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                boxShadow: [BoxShadow(color: kLoginBlue.withOpacity(0.14), blurRadius: 22, offset: const Offset(0, 12))],
+              ),
+              child: Stack(clipBehavior: Clip.antiAlias, alignment: Alignment.center, children: [
+                Positioned(left: -54, top: -58, child: _SoftGlowDot(color: Colors.white.withOpacity(0.12), size: 150)),
+                Positioned(right: -38, bottom: -48, child: _SoftGlowDot(color: FlowColors.acid.withOpacity(0.18), size: 150)),
+                Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                  const SizedBox(width: 90, height: 90, child: Center(child: _AnimatedEstablishmentBadge(size: 68))),
+                  const SizedBox(height: 12),
+                  const Text('Информация о заведении', textAlign: TextAlign.center, style: TextStyle(color: Color(0xEFFFFFFF), fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 0.2)),
+                  const SizedBox(height: 4),
+                  Text(establishmentName, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 24, height: 1.05, fontWeight: FontWeight.w900, letterSpacing: -0.8)),
+                  const SizedBox(height: 16),
+                  Wrap(spacing: 8, runSpacing: 8, alignment: WrapAlignment.center, children: [
+                    if (address.trim().isNotEmpty) _QuickGlassPill(icon: Icons.place_rounded, text: address),
+                    if (workingHours.trim().isNotEmpty) _QuickGlassPill(icon: Icons.schedule_rounded, text: workingHours),
+                    if (phone.trim().isNotEmpty) _QuickGlassPill(icon: Icons.phone_rounded, text: phone),
+                  ]),
+                  const SizedBox(height: 16),
+                  _ActionGradientButton(icon: Icons.auto_awesome_rounded, text: 'Правила лояльности', onTap: onShowRules),
                 ]),
-                const SizedBox(height: 16),
-                _ActionGradientButton(icon: Icons.auto_awesome_rounded, text: 'Правила лояльности', onTap: onShowRules),
               ]),
-            ]),
+            ),
           ),
           if (hasRatings) ...[
             const SizedBox(height: 16),
@@ -3030,7 +3175,6 @@ class EstablishmentInfoPanel extends StatelessWidget {
   }
 }
 
-
 class _AnimatedEstablishmentBadge extends StatefulWidget {
   final double size;
   const _AnimatedEstablishmentBadge({required this.size});
@@ -3045,7 +3189,7 @@ class _AnimatedEstablishmentBadgeState extends State<_AnimatedEstablishmentBadge
   @override
   void initState() {
     super.initState();
-    c = AnimationController(vsync: this, duration: const Duration(seconds: 5))..repeat();
+    c = AnimationController(vsync: this, duration: const Duration(milliseconds: 3400))..repeat(reverse: true);
   }
 
   @override
@@ -3059,28 +3203,71 @@ class _AnimatedEstablishmentBadgeState extends State<_AnimatedEstablishmentBadge
     return AnimatedBuilder(
       animation: c,
       builder: (_, __) {
-        final t = c.value * math.pi * 2;
-        return Container(
-          width: widget.size,
-          height: widget.size,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: const LinearGradient(colors: [Colors.white, Color(0xFFE7FBFF)], begin: Alignment.topLeft, end: Alignment.bottomRight),
-            border: Border.all(color: Colors.white.withOpacity(0.90), width: 2),
-            boxShadow: [BoxShadow(color: FlowColors.ink.withOpacity(0.18), blurRadius: 24, offset: const Offset(0, 12))],
+        final pulse = 1 + math.sin(c.value * math.pi * 2) * 0.015;
+        return Transform.scale(
+          scale: pulse,
+          child: Container(
+            width: widget.size,
+            height: widget.size,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: const LinearGradient(
+                colors: [Color(0xFFFFE9AE), Color(0xFFFFB347), Color(0xFF22D3C5)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              border: Border.all(color: Colors.white.withOpacity(0.75), width: 2),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withOpacity(0.10), blurRadius: 20, offset: const Offset(0, 10)),
+                BoxShadow(color: FlowColors.acid.withOpacity(0.18), blurRadius: 18, offset: const Offset(0, 6)),
+              ],
+            ),
+            child: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.center,
+              children: [
+                Positioned(
+                  left: 10,
+                  top: 12,
+                  child: Container(
+                    width: widget.size * 0.44,
+                    height: widget.size * 0.44,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withOpacity(0.26),
+                    ),
+                  ),
+                ),
+                Container(
+                  width: widget.size * 0.72,
+                  height: widget.size * 0.72,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withOpacity(0.20),
+                    border: Border.all(color: Colors.white.withOpacity(0.34)),
+                  ),
+                  child: Icon(Icons.storefront_rounded, color: Colors.white, size: widget.size * 0.34),
+                ),
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    width: 12,
+                    height: 12,
+                    decoration: const BoxDecoration(
+                      color: FlowColors.acid,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-          child: Stack(alignment: Alignment.center, children: [
-            Transform.rotate(angle: t, child: Container(width: widget.size * 0.78, height: widget.size * 0.78, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: FlowColors.acid.withOpacity(0.85), width: 3)))),
-            Transform.rotate(angle: -t * 0.7, child: Container(width: widget.size * 0.56, height: widget.size * 0.56, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: FlowColors.aqua.withOpacity(0.85), width: 3)))),
-            Container(width: widget.size * 0.46, height: widget.size * 0.46, decoration: const BoxDecoration(shape: BoxShape.circle, gradient: LinearGradient(colors: [FlowColors.ink, FlowColors.ink2])), child: const Icon(Icons.storefront_rounded, color: FlowColors.acid, size: 25)),
-            Positioned(right: 9 + math.cos(t) * 4, top: 8 + math.sin(t) * 4, child: Container(width: 11, height: 11, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle))),
-          ]),
         );
       },
     );
   }
 }
-
 
 class _SoftGlowDot extends StatelessWidget {
   final Color color;
@@ -3145,26 +3332,44 @@ class _RatingLinkTile extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(28),
         child: Container(
-          height: 112,
-          padding: const EdgeInsets.all(12),
+          constraints: const BoxConstraints(minHeight: 154),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            gradient: LinearGradient(colors: [Colors.white.withOpacity(0.96), color.withOpacity(0.13)], begin: Alignment.topLeft, end: Alignment.bottomRight),
-            border: Border.all(color: color.withOpacity(0.18), width: 1.1),
-            boxShadow: [BoxShadow(color: color.withOpacity(0.12), blurRadius: 16, offset: const Offset(0, 8))],
+            borderRadius: BorderRadius.circular(28),
+            gradient: LinearGradient(
+              colors: [
+                Colors.white.withOpacity(0.92),
+                color.withOpacity(0.12),
+                Colors.white.withOpacity(0.78),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            border: Border.all(color: Colors.white.withOpacity(0.96), width: 1.2),
+            boxShadow: [BoxShadow(color: color.withOpacity(0.15), blurRadius: 22, offset: const Offset(0, 11))],
           ),
-          child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.center, children: [
-            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Icon(icon, color: color, size: 19),
-              const SizedBox(width: 5),
-              Flexible(child: Text(title, textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: FlowColors.ink, fontWeight: FontWeight.w900, fontSize: 13))),
+          child: Stack(children: [
+            Positioned(right: -18, bottom: -24, child: Icon(icon, color: color.withOpacity(0.08), size: 92)),
+            Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.center, children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: color.withOpacity(0.15), border: Border.all(color: color.withOpacity(0.18))),
+                child: Icon(icon, color: color, size: 28),
+              ),
+              const SizedBox(height: 11),
+              Text(title, textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: FlowColors.ink, fontWeight: FontWeight.w900, fontSize: 15)),
+              const SizedBox(height: 7),
+              Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Text(rating, textAlign: TextAlign.center, style: const TextStyle(color: FlowColors.ink, fontWeight: FontWeight.w900, fontSize: 28, letterSpacing: -0.8)),
+                const SizedBox(width: 4),
+                const Icon(Icons.star_rounded, color: Color(0xFFFFB020), size: 20),
+              ]),
+              const SizedBox(height: 6),
+              Text(subtitle, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: FlowColors.muted, fontWeight: FontWeight.w800, fontSize: 11.5, height: 1.25)),
             ]),
-            const SizedBox(height: 8),
-            Text(rating, textAlign: TextAlign.center, style: const TextStyle(color: FlowColors.ink, fontWeight: FontWeight.w900, fontSize: 25, letterSpacing: -0.8)),
-            const SizedBox(height: 4),
-            Text(subtitle, textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: FlowColors.soft, fontWeight: FontWeight.w800, fontSize: 10.5)),
           ]),
         ),
       ),
@@ -3172,26 +3377,74 @@ class _RatingLinkTile extends StatelessWidget {
   }
 }
 
-
 class _SocialPill extends StatelessWidget {
   final String title;
   final String value;
   const _SocialPill({required this.title, required this.value});
 
-  IconData get icon {
-    final t = title.toLowerCase();
-    if (t.contains('telegram')) return Icons.send_rounded;
-    if (t.contains('vk') || t.contains('вк')) return Icons.groups_rounded;
-    if (t.contains('instagram')) return Icons.photo_camera_rounded;
-    return Icons.open_in_new_rounded;
-  }
+  String get _normalizedTitle => title.trim().toLowerCase();
+
+  bool get isTelegram => _normalizedTitle.contains('telegram') || _normalizedTitle.contains('тг');
+  bool get isVk => _normalizedTitle.contains('vk') || _normalizedTitle.contains('вк') || _normalizedTitle.contains('vkontakte');
+  bool get isInstagram => _normalizedTitle.contains('instagram') || _normalizedTitle.contains('inst');
+  bool get isWhatsapp => _normalizedTitle.contains('whatsapp') || _normalizedTitle.contains('wa');
+  bool get isWebsite => _normalizedTitle.contains('site') || _normalizedTitle.contains('сайт') || _normalizedTitle.contains('web');
 
   Color get color {
-    final t = title.toLowerCase();
-    if (t.contains('telegram')) return const Color(0xFF229ED9);
-    if (t.contains('vk') || t.contains('вк')) return const Color(0xFF0077FF);
-    if (t.contains('instagram')) return const Color(0xFFE1306C);
+    if (isTelegram) return const Color(0xFF229ED9);
+    if (isVk) return const Color(0xFF0077FF);
+    if (isInstagram) return const Color(0xFFE1306C);
+    if (isWhatsapp) return const Color(0xFF25D366);
+    if (isWebsite) return const Color(0xFF0F766E);
     return FlowColors.ink;
+  }
+
+  String get displayTitle {
+    if (isTelegram) return 'Telegram';
+    if (isVk) return 'ВКонтакте';
+    if (isInstagram) return 'Instagram';
+    if (isWhatsapp) return 'WhatsApp';
+    if (isWebsite) return 'Сайт';
+    return title;
+  }
+
+  Widget _brandIcon() {
+    if (isVk) {
+      return Container(
+        width: 38,
+        height: 38,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        alignment: Alignment.center,
+        child: const Text('VK', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 15, letterSpacing: -0.3)),
+      );
+    }
+    if (isTelegram) {
+      return Container(
+        width: 38,
+        height: 38,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: const Icon(Icons.telegram, color: Colors.white, size: 21),
+      );
+    }
+    final icon = isInstagram
+            ? Icons.camera_alt_rounded
+            : isWhatsapp
+                ? Icons.chat_rounded
+                : isWebsite
+                    ? Icons.language_rounded
+                    : Icons.open_in_new_rounded;
+    return Container(
+      width: 38,
+      height: 38,
+      decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(14)),
+      child: Icon(icon, color: color, size: 20),
+    );
   }
 
   @override
@@ -3200,22 +3453,23 @@ class _SocialPill extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: () => openExternalUrl(context, value, emptyMessage: 'Ссылка $title не указана'),
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(20),
         child: Container(
-          constraints: const BoxConstraints(minWidth: 138),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          constraints: const BoxConstraints(minWidth: 148),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            gradient: LinearGradient(colors: [Colors.white.withOpacity(0.96), color.withOpacity(0.10)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+            borderRadius: BorderRadius.circular(20),
+            color: Colors.white,
             border: Border.all(color: color.withOpacity(0.16), width: 1.1),
-            boxShadow: [BoxShadow(color: color.withOpacity(0.10), blurRadius: 15, offset: const Offset(0, 8))],
+            boxShadow: [BoxShadow(color: color.withOpacity(0.08), blurRadius: 14, offset: const Offset(0, 8))],
           ),
           child: Row(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
-            Container(width: 34, height: 34, decoration: BoxDecoration(color: color.withOpacity(0.13), shape: BoxShape.circle), child: Icon(icon, color: color, size: 18)),
-            const SizedBox(width: 8),
+            _brandIcon(),
+            const SizedBox(width: 10),
             Flexible(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-              Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: FlowColors.ink, fontWeight: FontWeight.w900, fontSize: 13)),
-              const Text('открыть', style: TextStyle(color: FlowColors.soft, fontWeight: FontWeight.w800, fontSize: 10.5)),
+              Text(displayTitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: FlowColors.ink, fontWeight: FontWeight.w900, fontSize: 13.5)),
+              const SizedBox(height: 2),
+              const Text('Открыть', style: TextStyle(color: FlowColors.soft, fontWeight: FontWeight.w800, fontSize: 10.5)),
             ])),
           ]),
         ),
@@ -3223,7 +3477,6 @@ class _SocialPill extends StatelessWidget {
     );
   }
 }
-
 
 class _QuickGlassPill extends StatelessWidget {
   final IconData icon;
@@ -3331,7 +3584,7 @@ class WalletInlineButtons extends StatelessWidget {
   const WalletInlineButtons({super.key, required this.appleWalletUrl, required this.googleWalletUrl});
 
   void _handleTap(BuildContext context, String title, String? url) {
-    openExternalUrl(context, url, emptyMessage: '$title пока не вернул ссылку');
+    openExternalUrl(context, url, emptyMessage: '$title пока не подключён для выбранного заведения');
   }
 
   @override
@@ -3341,7 +3594,7 @@ class WalletInlineButtons extends StatelessWidget {
         child: WalletPillButton(
           title: 'Apple Wallet',
           icon: Icons.phone_iphone_rounded,
-          enabled: true,
+          enabled: (appleWalletUrl ?? '').trim().isNotEmpty,
           onTap: () => _handleTap(context, 'Apple Wallet', appleWalletUrl),
         ),
       ),
@@ -3350,7 +3603,7 @@ class WalletInlineButtons extends StatelessWidget {
         child: WalletPillButton(
           title: 'Google Wallet',
           icon: Icons.account_balance_wallet_rounded,
-          enabled: true,
+          enabled: (googleWalletUrl ?? '').trim().isNotEmpty,
           onTap: () => _handleTap(context, 'Google Wallet', googleWalletUrl),
         ),
       ),
@@ -3379,11 +3632,16 @@ class WalletPillButton extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(24),
             gradient: LinearGradient(
-              colors: [
-                Colors.white.withOpacity(0.78),
-                const Color(0xFFE4FBFF).withOpacity(0.64),
-                Colors.white.withOpacity(0.54),
-              ],
+              colors: enabled
+                  ? [
+                      Colors.white.withOpacity(0.78),
+                      const Color(0xFFE4FBFF).withOpacity(0.64),
+                      Colors.white.withOpacity(0.54),
+                    ]
+                  : [
+                      Colors.white.withOpacity(0.58),
+                      Colors.white.withOpacity(0.44),
+                    ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
@@ -3394,11 +3652,11 @@ class WalletPillButton extends StatelessWidget {
             Container(
               width: 34,
               height: 34,
-              decoration: BoxDecoration(shape: BoxShape.circle, color: FlowColors.ink.withOpacity(0.08)),
-              child: Icon(icon, color: FlowColors.ink, size: 19),
+              decoration: BoxDecoration(shape: BoxShape.circle, color: FlowColors.ink.withOpacity(enabled ? 0.08 : 0.04)),
+              child: Icon(icon, color: enabled ? FlowColors.ink : FlowColors.soft.withOpacity(0.55), size: 19),
             ),
             const SizedBox(width: 9),
-            Flexible(child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: const TextStyle(color: FlowColors.ink, fontSize: 13.5, fontWeight: FontWeight.w900))),
+            Flexible(child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: TextStyle(color: enabled ? FlowColors.ink : FlowColors.soft.withOpacity(0.65), fontSize: 13.5, fontWeight: FontWeight.w900))),
           ]),
         ),
       ),
@@ -3413,8 +3671,16 @@ class WalletHubCard extends StatelessWidget {
 
   const WalletHubCard({super.key, required this.establishmentName, required this.appleWalletUrl, required this.googleWalletUrl});
 
+  void _copy(BuildContext context, String value, String message) {
+    Clipboard.setData(ClipboardData(text: value));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
   @override
   Widget build(BuildContext context) {
+    final hasApple = (appleWalletUrl ?? '').trim().isNotEmpty;
+    final hasGoogle = (googleWalletUrl ?? '').trim().isNotEmpty;
+
     return SurfaceCard(
       radius: 32,
       padding: const EdgeInsets.all(14),
@@ -3429,25 +3695,46 @@ class WalletHubCard extends StatelessWidget {
           Positioned(right: -26, bottom: -36, child: Icon(Icons.wallet_rounded, color: Colors.white.withOpacity(0.10), size: 128)),
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              Container(width: 52, height: 52, decoration: BoxDecoration(color: Colors.white.withOpacity(0.14), borderRadius: BorderRadius.circular(19), border: Border.all(color: Colors.white.withOpacity(0.18))), child: const Icon(Icons.wallet_rounded, color: FlowColors.acid, size: 26)),
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(color: Colors.white.withOpacity(0.14), borderRadius: BorderRadius.circular(19), border: Border.all(color: Colors.white.withOpacity(0.18))),
+                child: const Icon(Icons.wallet_rounded, color: FlowColors.acid, size: 26),
+              ),
               const SizedBox(width: 12),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 const Text('Wallet карта', style: TextStyle(color: Colors.white, fontSize: 21, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
                 const SizedBox(height: 4),
-                Text('Добавьте карту «$establishmentName» в Apple Wallet или Google Wallet', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xF2FFFFFF), fontWeight: FontWeight.w800, height: 1.25)),
+                Text('Для «$establishmentName» доступны Apple Wallet и Google Wallet', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xF2FFFFFF), fontWeight: FontWeight.w800, height: 1.25)),
               ])),
             ]),
             const SizedBox(height: 14),
-            WalletInlineButtons(appleWalletUrl: appleWalletUrl, googleWalletUrl: googleWalletUrl),
+            Row(children: [
+              Expanded(
+                child: hasApple
+                    ? _WalletMiniButton(title: 'Apple Wallet', onTap: () => _copy(context, appleWalletUrl!, 'Ссылка Apple Wallet скопирована'))
+                    : const _WalletStatusPill(title: 'Apple Wallet', subtitle: 'включено'),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: hasGoogle
+                    ? _WalletMiniButton(title: 'Google Wallet', onTap: () => _copy(context, googleWalletUrl!, 'Ссылка Google Wallet скопирована'))
+                    : const _WalletStatusPill(title: 'Google Wallet', subtitle: 'включено'),
+              ),
+            ]),
             const SizedBox(height: 12),
-            const Text('Кнопки открывают реальные ссылки Wallet. Если ссылка ещё не пришла из API, приложение покажет подсказку.', style: TextStyle(color: Color(0xEFFFFFFF), fontWeight: FontWeight.w800, height: 1.3)),
+            Text(
+              hasApple || hasGoogle
+                  ? 'Нажмите на Wallet-кнопку — ссылка скопируется для открытия карты.'
+                  : 'Wallet-контур подключён для Telegram/MAX и выбранного заведения. В мобильном приложении доступны аккуратные Wallet-кнопки и статус подключения.',
+              style: const TextStyle(color: Color(0xEFFFFFFF), fontWeight: FontWeight.w800, height: 1.3),
+            ),
           ]),
         ]),
       ),
     );
   }
 }
-
 
 class _WalletStatusPill extends StatelessWidget {
   final String title;
@@ -3486,42 +3773,57 @@ class _DisabledWalletButton extends StatelessWidget {
   }
 }
 
-class SelectedEstablishmentContextCard extends StatelessWidget {
-  final String establishmentName;
-  final int points;
-  final VoidCallback onShowRules;
-  final bool hasWallet;
-
-  const SelectedEstablishmentContextCard({super.key, required this.establishmentName, required this.points, required this.onShowRules, required this.hasWallet});
+class BirthdayInfoCard extends StatelessWidget {
+  final String? birthDate;
+  final int bonusPoints;
+  final VoidCallback onTap;
+  const BirthdayInfoCard({super.key, required this.birthDate, required this.bonusPoints, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
+    final cleanDate = (birthDate ?? '').trim();
+    final hasDate = cleanDate.isNotEmpty;
+    final bonusText = bonusPoints > 0 ? '$bonusPoints бонусов' : 'бонусный подарок';
     return SurfaceCard(
       radius: 28,
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Container(width: 46, height: 46, decoration: BoxDecoration(color: FlowColors.ink, borderRadius: BorderRadius.circular(16)), child: const Icon(Icons.apartment_rounded, color: FlowColors.acid)),
-          const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('Выбрано заведение', style: TextStyle(color: FlowColors.muted, fontSize: 12, fontWeight: FontWeight.w700)),
-            const SizedBox(height: 4),
-            Text(establishmentName, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: FlowColors.ink, fontSize: 19, fontWeight: FontWeight.w900, letterSpacing: -0.4)),
-          ])),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(borderRadius: BorderRadius.circular(999), gradient: const LinearGradient(colors: [Color(0xFFFF9C14), Color(0xFFFFC83F)])),
-            child: Text('${formatMoney(points)} б.', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                gradient: const LinearGradient(colors: [Color(0xFFFFE7A5), Color(0xFFFFB54C)]),
+              ),
+              child: const Icon(Icons.cake_rounded, color: Colors.white),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('День рождения', style: TextStyle(color: FlowColors.ink, fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: -0.4)),
+                const SizedBox(height: 6),
+                Text(
+                  hasDate
+                      ? 'Указанная дата: ${formatClientDateTime(cleanDate)}. В день рождения можно получить $bonusText.'
+                      : 'Укажите дату рождения, чтобы получить $bonusText от заведения.',
+                  style: const TextStyle(color: kLoginInkSoft, fontWeight: FontWeight.w700, height: 1.35),
+                ),
+              ]),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: PrimaryButton(
+            text: hasDate ? 'Изменить дату рождения' : 'Указать дату рождения',
+            icon: Icons.edit_calendar_rounded,
+            onTap: onTap,
           ),
-        ]),
-        const SizedBox(height: 12),
-        Wrap(spacing: 8, runSpacing: 8, children: const [
-          _LiveChip(icon: Icons.touch_app_rounded, text: 'Карта выбрана'),
-          _LiveChip(icon: Icons.wallet_rounded, text: 'Wallet доступен'),
-          _LiveChip(icon: Icons.sync_rounded, text: 'Данные из БД'),
-        ]),
-        const SizedBox(height: 12),
-        _ActionGhostButton(icon: Icons.auto_awesome_rounded, text: 'Правила лояльности', onTap: onShowRules),
+        ),
       ]),
     );
   }
@@ -3529,7 +3831,8 @@ class SelectedEstablishmentContextCard extends StatelessWidget {
 
 class ReferralInviteCard extends StatelessWidget {
   final String? referralLink;
-  const ReferralInviteCard({super.key, required this.referralLink});
+  final VoidCallback onRefresh;
+  const ReferralInviteCard({super.key, required this.referralLink, required this.onRefresh});
 
   @override
   Widget build(BuildContext context) {
@@ -3538,20 +3841,40 @@ class ReferralInviteCard extends StatelessWidget {
       radius: 28,
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text('Реферальная ссылка', style: TextStyle(color: kLoginInk, fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: -0.4)),
+        const Text('Реферальная программа', style: TextStyle(color: kLoginInk, fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: -0.4)),
         const SizedBox(height: 8),
-        Text(link.isNotEmpty ? link : 'Когда ссылка будет доступна из API, она появится здесь.', style: const TextStyle(color: kLoginInkSoft, fontWeight: FontWeight.w700, height: 1.35)),
+        Text(
+          link.isNotEmpty ? link : 'Ссылка пока не пришла из API. Нажмите «Обновить ссылку» — приложение запросит её с сервера.',
+          style: const TextStyle(color: kLoginInkSoft, fontWeight: FontWeight.w700, height: 1.35),
+        ),
+        const SizedBox(height: 12),
         if (link.isNotEmpty) ...[
-          const SizedBox(height: 12),
           PrimaryButton(
-            text: 'Скопировать ссылку',
-            icon: Icons.link_rounded,
-            onTap: () {
+            text: 'Открыть ссылку',
+            icon: Icons.open_in_new_rounded,
+            onTap: () => openExternalUrl(context, link),
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: () {
               Clipboard.setData(ClipboardData(text: link));
               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Реферальная ссылка скопирована')));
             },
+            icon: const Icon(Icons.copy_rounded),
+            label: const Text('Скопировать'),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(50),
+              foregroundColor: FlowColors.ink,
+              side: BorderSide(color: FlowColors.ink.withOpacity(0.12)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+            ),
           ),
-        ],
+        ] else
+          PrimaryButton(
+            text: 'Обновить ссылку',
+            icon: Icons.refresh_rounded,
+            onTap: onRefresh,
+          ),
       ]),
     );
   }
@@ -3620,36 +3943,31 @@ class OfferTicker extends StatelessWidget {
       );
       return;
     }
-    final url = externalUrlFromMap(item.rawData);
-    if (url != null) {
-      openExternalUrl(context, url);
-      return;
-    }
     showBenefitSheet(context, title: item.title, subtitle: item.subtitle, icon: item.icon, color: item.color);
   }
 
   @override
   Widget build(BuildContext context) {
-    final showcase = items.isEmpty
+    final showcase = items.where((e) => e.isRaffle || !e.tag.toLowerCase().contains('купон')).toList();
+    final visibleItems = showcase.isEmpty
         ? const [
             PromoItem(tag: 'акция', title: 'Персональные предложения', subtitle: 'Здесь появятся ваши лучшие акции и спецпредложения.', icon: Icons.local_fire_department_rounded, color: FlowColors.amber),
-            PromoItem(tag: 'купон', title: 'Купоны и подарки', subtitle: 'Подарки, скидки и бонусные купоны будут доступны здесь.', icon: Icons.confirmation_number_rounded, color: FlowColors.blue),
             PromoItem(tag: 'розыгрыш', title: 'Розыгрыши', subtitle: 'Когда запустится розыгрыш, он отобразится в этой ленте.', icon: Icons.celebration_rounded, color: FlowColors.violet),
           ]
-        : items.take(6).toList();
+        : showcase.take(6).toList();
 
     return SizedBox(
-      height: 194,
+      height: 222,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
-        itemCount: showcase.length,
+        itemCount: visibleItems.length,
         separatorBuilder: (_, __) => const SizedBox(width: 12),
         itemBuilder: (_, i) => SizedBox(
           width: 272,
           child: PromoShowcaseCard(
-            item: showcase[i],
-            onTap: () => _openPromo(context, showcase[i]),
+            item: visibleItems[i],
+            onTap: () => _openPromo(context, visibleItems[i]),
           ),
         ),
       ),
@@ -3716,7 +4034,7 @@ class BenefitOrbitPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final offerCount = offerItems.length;
-    final couponCount = coupons.isNotEmpty ? coupons.length : couponItems.length;
+    final couponCount = 0;
     final raffleCount = draw.isNotEmpty ? 1 : items.where((e) => e.isRaffle).length;
     final raffleTitle = nonEmpty(draw['title']) ?? 'Розыгрыши';
     final raffleSubtitle = draw.isNotEmpty
@@ -3728,12 +4046,12 @@ class BenefitOrbitPanel extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         BenefitHeroSummaryCard(
-          totalItems: offerCount + couponCount + raffleCount,
+          totalItems: offerCount + raffleCount,
           offerCount: offerCount,
           couponCount: couponCount,
           raffleCount: raffleCount,
           featuredTitle: draw.isNotEmpty ? raffleTitle : (offerItems.isNotEmpty ? offerItems.first.title : 'Новые выгоды'),
-          featuredSubtitle: draw.isNotEmpty ? raffleSubtitle : (offerItems.isNotEmpty ? offerItems.first.subtitle : 'Все акции, купоны и розыгрыши собраны в одном красивом экране.'),
+          featuredSubtitle: draw.isNotEmpty ? raffleSubtitle : (offerItems.isNotEmpty ? offerItems.first.subtitle : 'Все акции и розыгрыши собраны в одном красивом экране.'),
         ),
         const SizedBox(height: 14),
         if (compactMode)
@@ -3753,19 +4071,6 @@ class BenefitOrbitPanel extends StatelessWidget {
                     imageUrl: offerItems.isNotEmpty ? offerItems.first.imageUrl : null,
                     previewTitle: offerItems.isNotEmpty ? offerItems.first.title : 'Лента акций',
                     onTap: () => openOffers(context),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: BenefitActionCard(
-                    title: 'Купоны',
-                    titleBadge: couponCount == 0 ? '0' : '$couponCount',
-                    subtitle: couponCount == 0 ? 'Подарки и специальные купоны будут ждать вас здесь.' : '$couponCount доступных купонов и подарков',
-                    accent: FlowColors.blue,
-                    icon: Icons.confirmation_number_rounded,
-                    imageUrl: couponItems.isNotEmpty ? couponItems.first.imageUrl : null,
-                    previewTitle: couponItems.isNotEmpty ? couponItems.first.title : 'Подарки и скидки',
-                    onTap: () => openCoupons(context),
                   ),
                 ),
               ];
@@ -3840,129 +4145,133 @@ class _PromoShowcaseCardState extends State<PromoShowcaseCard> with SingleTicker
         final glowShift = math.sin(t * math.pi * 2) * 8;
         return Transform.translate(
           offset: Offset(0, -2 + math.sin(t * math.pi) * 2),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: widget.onTap,
-              borderRadius: BorderRadius.circular(32),
-              child: Ink(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(32),
-                  gradient: LinearGradient(
-                    colors: [
-                      item.color.withOpacity(0.96),
-                      item.color.withOpacity(0.72),
-                      const Color(0xFF0A2B47),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(32),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: widget.onTap,
+                borderRadius: BorderRadius.circular(32),
+                child: Ink(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(32),
+                    gradient: LinearGradient(
+                      colors: [
+                        item.color.withOpacity(0.96),
+                        item.color.withOpacity(0.72),
+                        const Color(0xFF0A2B47),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    border: Border.all(color: Colors.white.withOpacity(0.20), width: 1.1),
+                    boxShadow: [
+                      BoxShadow(color: item.color.withOpacity(0.28), blurRadius: 26, offset: const Offset(0, 14)),
+                      BoxShadow(color: Colors.black.withOpacity(0.10), blurRadius: 18, offset: const Offset(0, 10)),
                     ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
                   ),
-                  border: Border.all(color: Colors.white.withOpacity(0.20), width: 1.1),
-                  boxShadow: [
-                    BoxShadow(color: item.color.withOpacity(0.28), blurRadius: 26, offset: const Offset(0, 14)),
-                    BoxShadow(color: Colors.black.withOpacity(0.10), blurRadius: 18, offset: const Offset(0, 10)),
-                  ],
-                ),
-                child: Stack(
-                  children: [
-                    Positioned(
-                      right: -20 + glowShift,
-                      top: -26,
-                      child: Container(
-                        width: 104,
-                        height: 104,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.white.withOpacity(0.10),
+                  child: Stack(
+                    clipBehavior: Clip.antiAlias,
+                    children: [
+                      Positioned(
+                        right: -20 + glowShift,
+                        top: -26,
+                        child: Container(
+                          width: 104,
+                          height: 104,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.white.withOpacity(0.10),
+                          ),
                         ),
                       ),
-                    ),
-                    Positioned(
-                      left: -16,
-                      bottom: -22 - glowShift,
-                      child: Container(
-                        width: 92,
-                        height: 92,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: item.color.withOpacity(0.18),
+                      Positioned(
+                        left: -16,
+                        bottom: -22 - glowShift,
+                        child: Container(
+                          width: 92,
+                          height: 92,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: item.color.withOpacity(0.18),
+                          ),
                         ),
                       ),
-                    ),
-                    if ((item.imageUrl ?? '').trim().isNotEmpty)
-                      Positioned.fill(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(32),
-                          child: Opacity(
-                            opacity: 0.18,
-                            child: Image.network(
-                              item.imageUrl!,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                      if ((item.imageUrl ?? '').trim().isNotEmpty)
+                        Positioned.fill(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(32),
+                            child: Opacity(
+                              opacity: 0.18,
+                              child: Image.network(
+                                item.imageUrl!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                              ),
                             ),
                           ),
                         ),
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.16),
+                                    borderRadius: BorderRadius.circular(999),
+                                    border: Border.all(color: Colors.white.withOpacity(0.18)),
+                                  ),
+                                  child: Text(item.tag.toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 0.6)),
+                                ),
+                                const Spacer(),
+                                Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.16),
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(color: Colors.white.withOpacity(0.16)),
+                                  ),
+                                  child: Icon(item.icon, color: Colors.white, size: 22),
+                                ),
+                              ],
+                            ),
+                            const Spacer(),
+                            Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 21, height: 1.02, fontWeight: FontWeight.w900, letterSpacing: -0.7)),
+                            const SizedBox(height: 7),
+                            Text(item.subtitle, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white.withOpacity(0.84), height: 1.22, fontWeight: FontWeight.w700)),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Container(
+                                  width: 42,
+                                  height: 4,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(999),
+                                    gradient: LinearGradient(colors: [Colors.white, Colors.white.withOpacity(0.18)]),
+                                  ),
+                                ),
+                                const Spacer(),
+                                Container(
+                                  width: 36,
+                                  height: 36,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Colors.white.withOpacity(0.16),
+                                  ),
+                                  child: const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 20),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.16),
-                                  borderRadius: BorderRadius.circular(999),
-                                  border: Border.all(color: Colors.white.withOpacity(0.18)),
-                                ),
-                                child: Text(item.tag.toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 0.6)),
-                              ),
-                              const Spacer(),
-                              Container(
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.16),
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: Colors.white.withOpacity(0.16)),
-                                ),
-                                child: Icon(item.icon, color: Colors.white, size: 22),
-                              ),
-                            ],
-                          ),
-                          const Spacer(),
-                          Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 22, height: 1.02, fontWeight: FontWeight.w900, letterSpacing: -0.7)),
-                          const SizedBox(height: 8),
-                          Text(item.subtitle, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white.withOpacity(0.84), height: 1.28, fontWeight: FontWeight.w700)),
-                          const SizedBox(height: 14),
-                          Row(
-                            children: [
-                              Container(
-                                width: 42,
-                                height: 4,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(999),
-                                  gradient: LinearGradient(colors: [Colors.white, Colors.white.withOpacity(0.18)]),
-                                ),
-                              ),
-                              const Spacer(),
-                              Container(
-                                width: 36,
-                                height: 36,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Colors.white.withOpacity(0.16),
-                                ),
-                                child: const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 20),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -4071,7 +4380,7 @@ class _BenefitHeroSummaryCardState extends State<BenefitHeroSummaryCard> with Si
                           children: [
                             const Text('Центр выгоды', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: -0.7)),
                             const SizedBox(height: 4),
-                            Text('Современный экран ваших предложений, подарков и розыгрышей', style: TextStyle(color: Colors.white.withOpacity(0.82), height: 1.25, fontWeight: FontWeight.w700)),
+                            Text('Современный экран ваших предложений и розыгрышей', style: TextStyle(color: Colors.white.withOpacity(0.82), height: 1.25, fontWeight: FontWeight.w700)),
                           ],
                         ),
                       ),
@@ -4083,7 +4392,6 @@ class _BenefitHeroSummaryCardState extends State<BenefitHeroSummaryCard> with Si
                     runSpacing: 10,
                     children: [
                       BenefitMiniMetric(label: 'Акции', value: '${widget.offerCount}'),
-                      BenefitMiniMetric(label: 'Купоны', value: '${widget.couponCount}'),
                       BenefitMiniMetric(label: 'Розыгрыши', value: '${widget.raffleCount}'),
                       BenefitMiniMetric(label: 'Всего', value: '${widget.totalItems}'),
                     ],
@@ -4222,8 +4530,9 @@ class _BenefitActionCardState extends State<BenefitActionCard> with SingleTicker
                     BoxShadow(color: Colors.black.withOpacity(isDark ? 0.12 : 0.04), blurRadius: 18, offset: const Offset(0, 10)),
                   ],
                 ),
-                child: Stack(
-                  children: [
+                  child: Stack(
+                    clipBehavior: Clip.antiAlias,
+                    children: [
                     Positioned(
                       right: -22,
                       top: -26,
@@ -4372,42 +4681,23 @@ class PerksHub extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final coupons = mapList(home['coupons']);
     final banner = map(home['draw_banner']);
     final draws = mapList(home['draws']);
     final draw = banner.isNotEmpty ? banner : (draws.isNotEmpty ? draws.first : <String, dynamic>{});
-    final offersOnly = promoItems.where((e) => !e.isRaffle && !e.tag.toLowerCase().contains('купон')).toList();
-    final visibleOffers = offersOnly.isEmpty
-        ? const [PromoItem(tag: 'предложение', title: 'Персональные предложения', subtitle: 'Когда заведение добавит рекламную плашку, ссылку или акцию, она появится здесь.', icon: Icons.local_fire_department_rounded, color: FlowColors.amber)]
-        : offersOnly;
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const SectionTitle(title: 'Персональная выгода', subtitle: 'Только предложения, рекламные плашки и розыгрыши'),
+      const SectionTitle(title: 'Центр предложений', subtitle: 'Новый экран выгоды: современнее, живее и удобнее'),
       const SizedBox(height: 10),
-      ...visibleOffers.map((item) => Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: PerkLargeCard(item: item),
-          )),
-      const SizedBox(height: 4),
-      if (draw.isNotEmpty)
-        RaffleCommandCard(draw: draw, joining: joining, onJoin: () => onJoin(draw))
-      else
-        SurfaceCard(
-          radius: 30,
-          padding: const EdgeInsets.all(18),
-          child: Row(children: [
-            Container(width: 54, height: 54, decoration: BoxDecoration(color: FlowColors.violet.withOpacity(0.12), borderRadius: BorderRadius.circular(20)), child: const Icon(Icons.celebration_rounded, color: FlowColors.violet)),
-            const SizedBox(width: 13),
-            const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Розыгрыши', style: TextStyle(color: FlowColors.ink, fontSize: 19, fontWeight: FontWeight.w900)),
-              SizedBox(height: 4),
-              Text('Активных розыгрышей пока нет. Когда заведение запустит конкурс, карточка появится здесь.', style: TextStyle(color: FlowColors.muted, height: 1.3, fontWeight: FontWeight.w700)),
-            ])),
-          ]),
-        ),
+      BenefitOrbitPanel(items: promoItems, coupons: coupons, draw: draw, onJoin: onJoin),
+      const SizedBox(height: 12),
+      Text(
+        'Нажмите на карточку, чтобы открыть подробности или принять участие.',
+        style: TextStyle(color: kLoginInkSoft, fontWeight: FontWeight.w800),
+      ),
     ]);
   }
 }
-
 
 class PerkCommandGrid extends StatelessWidget {
   final List<PromoItem> promoItems;
@@ -4478,14 +4768,7 @@ class PerkLargeCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () {
-        final url = externalUrlFromMap(item.rawData);
-        if (url != null) {
-          openExternalUrl(context, url);
-          return;
-        }
-        showBenefitSheet(context, title: item.title, subtitle: item.subtitle, icon: item.icon, color: item.color);
-      },
+      onTap: () => showBenefitSheet(context, title: item.title, subtitle: item.subtitle, icon: item.icon, color: item.color),
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [item.color.withOpacity(0.16), Colors.white]), borderRadius: BorderRadius.circular(30), border: Border.all(color: Colors.white), boxShadow: [BoxShadow(color: item.color.withOpacity(0.10), blurRadius: 18, offset: const Offset(0, 10))]),
@@ -5077,27 +5360,13 @@ class ProfileCommandCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SurfaceCard(
-      padding: EdgeInsets.zero,
-      radius: 34,
-      child: Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(34),
-          gradient: const LinearGradient(colors: [Color(0xFFFFFFFF), Color(0xFFEAFBFF)], begin: Alignment.topLeft, end: Alignment.bottomRight),
-        ),
-        child: Row(children: [
-          Container(width: 74, height: 74, decoration: BoxDecoration(gradient: const LinearGradient(colors: [FlowColors.ink, FlowColors.ink2]), borderRadius: BorderRadius.circular(28), boxShadow: [BoxShadow(color: FlowColors.ink.withOpacity(0.14), blurRadius: 18, offset: const Offset(0, 10))]), child: Center(child: Text(initials(name), style: const TextStyle(color: FlowColors.acid, fontWeight: FontWeight.w900, fontSize: 23)))),
-          const SizedBox(width: 14),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('Клиентский аккаунт', style: TextStyle(color: FlowColors.soft, fontSize: 12, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 4),
-            Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: FlowColors.ink, fontSize: 23, fontWeight: FontWeight.w900, letterSpacing: -0.6)),
-            const SizedBox(height: 5),
-            Text(phone, style: const TextStyle(color: kLoginInkSoft, fontWeight: FontWeight.w800)),
-          ])),
-          const Icon(Icons.edit_rounded, color: FlowColors.soft),
-        ]),
-      ),
+      padding: const EdgeInsets.all(16),
+      radius: 30,
+      child: Row(children: [
+        Container(width: 68, height: 68, decoration: BoxDecoration(color: FlowColors.ink, borderRadius: BorderRadius.circular(26)), child: Center(child: Text(initials(name), style: const TextStyle(color: FlowColors.acid, fontWeight: FontWeight.w900, fontSize: 22)))),
+        const SizedBox(width: 14),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: FlowColors.ink, fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: -0.6)), const SizedBox(height: 5), Text(phone, style: const TextStyle(color: kLoginInkSoft, fontWeight: FontWeight.w800)), const SizedBox(height: 7), const Text('Основной клиентский аккаунт', style: TextStyle(color: FlowColors.soft, fontSize: 12, fontWeight: FontWeight.w700))])),
+      ]),
     );
   }
 }
@@ -5111,76 +5380,198 @@ class LinkedEstablishmentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final name = item['establishment_name']?.toString() ?? 'Заведение';
+    final points = formatMoney(item['points']);
+    final name = item['establishment_name']?.toString() ?? item['name']?.toString() ?? 'Заведение';
     return Padding(
-      padding: const EdgeInsets.only(bottom: 9),
+      padding: const EdgeInsets.only(bottom: 10),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: active ? FlowColors.ink : FlowColors.paper,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: active ? FlowColors.acid.withOpacity(0.55) : Colors.white),
-          boxShadow: [BoxShadow(color: (active ? FlowColors.ink : FlowColors.aqua).withOpacity(0.10), blurRadius: 18, offset: const Offset(0, 9))],
+          borderRadius: BorderRadius.circular(26),
+          border: Border.all(color: active ? FlowColors.ink : Colors.white, width: 1.2),
+          boxShadow: [
+            BoxShadow(color: (active ? FlowColors.ink : FlowColors.aqua).withOpacity(active ? 0.16 : 0.08), blurRadius: 16, offset: const Offset(0, 8)),
+          ],
         ),
-        child: Row(children: [
-          GestureDetector(onTap: onTap, child: Icon(active ? Icons.radio_button_checked : Icons.credit_card_rounded, color: active ? FlowColors.acid : FlowColors.ink)),
-          const SizedBox(width: 12),
-          Expanded(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: onTap,
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
-                  Expanded(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: active ? Colors.white : FlowColors.ink, fontWeight: FontWeight.w900))),
-                  if (active) Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: FlowColors.acid.withOpacity(0.16), borderRadius: BorderRadius.circular(999)), child: const Text('Выбрано', style: TextStyle(color: FlowColors.acid, fontSize: 10, fontWeight: FontWeight.w900))),
-                ]),
-                const SizedBox(height: 4),
-                Text('${formatMoney(item['points'])} б.', style: TextStyle(color: active ? FlowColors.acid : FlowColors.soft, fontWeight: FontWeight.w900)),
-              ]),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    color: active ? Colors.white.withOpacity(0.14) : FlowColors.ink.withOpacity(0.06),
+                  ),
+                  child: Icon(active ? Icons.check_circle_rounded : Icons.credit_card_rounded, color: active ? FlowColors.acid : FlowColors.ink),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(children: [
+                      Expanded(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: active ? Colors.white : FlowColors.ink, fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: -0.3))),
+                      if (active) Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(color: FlowColors.acid, borderRadius: BorderRadius.circular(999)),
+                        child: const Text('Выбрано', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900)),
+                      ),
+                    ]),
+                    const SizedBox(height: 5),
+                    Text('$points б.', style: TextStyle(color: active ? FlowColors.acid : FlowColors.ink, fontWeight: FontWeight.w900)),
+                  ]),
+                ),
+              ],
             ),
-          ),
-          const SizedBox(width: 8),
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: onDetails,
-              borderRadius: BorderRadius.circular(18),
-              child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9), decoration: BoxDecoration(color: active ? Colors.white.withOpacity(0.12) : FlowColors.bgDeep, borderRadius: BorderRadius.circular(18)), child: Text('Подробнее', style: TextStyle(color: active ? Colors.white : FlowColors.ink, fontSize: 12, fontWeight: FontWeight.w900))),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 42,
+                    child: ElevatedButton(
+                      onPressed: onTap,
+                      style: ElevatedButton.styleFrom(
+                        elevation: 0,
+                        backgroundColor: active ? Colors.white.withOpacity(0.16) : FlowColors.ink,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: Text(active ? 'Основная карта' : 'Выбрать', style: const TextStyle(fontWeight: FontWeight.w900)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                SizedBox(
+                  height: 42,
+                  child: OutlinedButton(
+                    onPressed: onDetails,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: active ? Colors.white : FlowColors.ink,
+                      side: BorderSide(color: active ? Colors.white.withOpacity(0.24) : FlowColors.ink.withOpacity(0.10)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                    child: const Text('Подробнее', style: TextStyle(fontWeight: FontWeight.w900)),
+                  ),
+                ),
+              ],
             ),
-          ),
-        ]),
+          ],
+        ),
       ),
     );
   }
 }
 
-class BirthdayGiftCard extends StatelessWidget {
-  final Map<String, dynamic> birthday;
-  const BirthdayGiftCard({super.key, required this.birthday});
+class EstablishmentDetailsSheet extends StatelessWidget {
+  final String title;
+  final String address;
+  final String phone;
+  final String workingHours;
+  final int points;
+  final bool active;
+  final String? appleWalletUrl;
+  final String? googleWalletUrl;
+  final VoidCallback? onSelect;
+  final VoidCallback? onShowRules;
+
+  const EstablishmentDetailsSheet({
+    super.key,
+    required this.title,
+    required this.address,
+    required this.phone,
+    required this.workingHours,
+    required this.points,
+    required this.active,
+    this.appleWalletUrl,
+    this.googleWalletUrl,
+    this.onSelect,
+    this.onShowRules,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final giftPoints = birthday['gift_points'] ?? 0;
-    final enabled = birthday['enabled'] == true || birthday['show_birthdate_block'] == true;
     return SurfaceCard(
       radius: 30,
-      padding: const EdgeInsets.all(16),
-      child: Row(children: [
-        Container(width: 54, height: 54, decoration: BoxDecoration(color: FlowColors.coral.withOpacity(0.12), borderRadius: BorderRadius.circular(20)), child: const Icon(Icons.cake_rounded, color: FlowColors.coral)),
-        const SizedBox(width: 13),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('День рождения', style: TextStyle(color: FlowColors.ink, fontSize: 18, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 4),
-          Text(enabled ? 'Укажите дату рождения — подарок ${formatMoney(giftPoints)} б. появится по правилам заведения.' : 'Дата рождения скоро будет доступна для подарков и персональных акций.', style: const TextStyle(color: FlowColors.muted, height: 1.3, fontWeight: FontWeight.w700)),
-        ])),
-        TextButton(onPressed: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Сохранение даты рождения подключим через API профиля.'))), child: const Text('Указать')),
-      ]),
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 46,
+              height: 5,
+              margin: const EdgeInsets.only(bottom: 14),
+              decoration: BoxDecoration(color: FlowColors.line, borderRadius: BorderRadius.circular(999)),
+            ),
+          ),
+          Row(children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                gradient: const LinearGradient(colors: [Color(0xFFFFD57A), Color(0xFF22D3C5)]),
+              ),
+              child: const Icon(Icons.storefront_rounded, color: Colors.white),
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title, style: const TextStyle(color: FlowColors.ink, fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: -0.6)),
+              const SizedBox(height: 4),
+              Text('$points б. на карте', style: const TextStyle(color: FlowColors.soft, fontWeight: FontWeight.w800)),
+            ])),
+            if (active) Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(color: FlowColors.acid, borderRadius: BorderRadius.circular(999)),
+              child: const Text('Выбрано', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 12)),
+            ),
+          ]),
+          const SizedBox(height: 16),
+          if (address.trim().isNotEmpty) _SheetInfoRow(icon: Icons.place_rounded, text: address),
+          if (workingHours.trim().isNotEmpty) ...[const SizedBox(height: 10), _SheetInfoRow(icon: Icons.schedule_rounded, text: workingHours)],
+          if (phone.trim().isNotEmpty) ...[const SizedBox(height: 10), _SheetInfoRow(icon: Icons.phone_rounded, text: phone)],
+          const SizedBox(height: 16),
+          if (active && ((appleWalletUrl ?? '').trim().isNotEmpty || (googleWalletUrl ?? '').trim().isNotEmpty)) ...[
+            WalletInlineButtons(appleWalletUrl: appleWalletUrl, googleWalletUrl: googleWalletUrl),
+            const SizedBox(height: 12),
+          ],
+          if (active && onShowRules != null) ...[
+            SizedBox(width: double.infinity, child: PrimaryButton(text: 'Правила лояльности', icon: Icons.auto_awesome_rounded, onTap: onShowRules!)),
+            const SizedBox(height: 10),
+          ],
+          if (!active && onSelect != null) SizedBox(width: double.infinity, child: PrimaryButton(text: 'Выбрать это заведение', icon: Icons.check_rounded, onTap: onSelect!)),
+        ],
+      ),
     );
   }
 }
 
+class _SheetInfoRow extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  const _SheetInfoRow({required this.icon, required this.text});
 
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(color: FlowColors.aqua.withOpacity(0.12), borderRadius: BorderRadius.circular(14)),
+          child: Icon(icon, color: FlowColors.ink, size: 18),
+        ),
+        const SizedBox(width: 10),
+        Expanded(child: Text(text, style: const TextStyle(color: FlowColors.ink, height: 1.35, fontWeight: FontWeight.w800))),
+      ],
+    );
+  }
+}
 
 class OrbitDock extends StatelessWidget {
   final int current;
@@ -5275,22 +5666,18 @@ class SurfaceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(radius),
-        color: Colors.white.withOpacity(0.72),
-        border: Border.all(color: Colors.white.withOpacity(0.92), width: 1.25),
-        boxShadow: [
-          BoxShadow(color: const Color(0xFF0A5270).withOpacity(0.10), blurRadius: 18, offset: const Offset(0, 8)),
-          BoxShadow(color: Colors.white.withOpacity(0.55), blurRadius: 4, offset: const Offset(0, -1)),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(radius),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-          child: Container(width: double.infinity, padding: padding, child: child),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(radius),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(radius),
+          color: Colors.white,
+          border: Border.all(color: Colors.white, width: 1.25),
+          boxShadow: [
+            BoxShadow(color: const Color(0xFF0A5270).withOpacity(0.10), blurRadius: 18, offset: const Offset(0, 8)),
+          ],
         ),
+        child: Container(width: double.infinity, padding: padding, child: child),
       ),
     );
   }
@@ -5497,8 +5884,7 @@ class BenefitEntry {
   final String subtitle;
   final IconData icon;
   final Color color;
-  final String? url;
-  const BenefitEntry(this.title, this.subtitle, this.icon, this.color, [this.url]);
+  const BenefitEntry(this.title, this.subtitle, this.icon, this.color);
 }
 
 void showBenefitSheet(BuildContext context, {required String title, required String subtitle, required IconData icon, required Color color}) {
@@ -5529,14 +5915,7 @@ void showBenefitsList(BuildContext context, String title, List<BenefitEntry> ite
               separatorBuilder: (_, __) => const SizedBox(height: 10),
               itemBuilder: (_, i) {
                 final item = items[i];
-                return Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: item.url == null ? null : () => openExternalUrl(context, item.url),
-                    borderRadius: BorderRadius.circular(22),
-                    child: Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: FlowColors.paper2, borderRadius: BorderRadius.circular(22), border: Border.all(color: FlowColors.line)), child: Row(children: [Container(width: 44, height: 44, decoration: BoxDecoration(color: item.color.withOpacity(0.12), borderRadius: BorderRadius.circular(16)), child: Icon(item.icon, color: item.color)), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(item.title, style: const TextStyle(color: FlowColors.ink, fontWeight: FontWeight.w900)), if (item.subtitle.isNotEmpty) ...[const SizedBox(height: 4), Text(item.subtitle, style: const TextStyle(color: FlowColors.muted, height: 1.3, fontWeight: FontWeight.w600))]])), if (item.url != null) const Icon(Icons.open_in_new_rounded, color: FlowColors.soft, size: 18)])),
-                  ),
-                );
+                return Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: FlowColors.paper2, borderRadius: BorderRadius.circular(22), border: Border.all(color: FlowColors.line)), child: Row(children: [Container(width: 44, height: 44, decoration: BoxDecoration(color: item.color.withOpacity(0.12), borderRadius: BorderRadius.circular(16)), child: Icon(item.icon, color: item.color)), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(item.title, style: const TextStyle(color: FlowColors.ink, fontWeight: FontWeight.w900)), if (item.subtitle.isNotEmpty) ...[const SizedBox(height: 4), Text(item.subtitle, style: const TextStyle(color: FlowColors.muted, height: 1.3, fontWeight: FontWeight.w600))]]))]));
               },
             ),
           ),
