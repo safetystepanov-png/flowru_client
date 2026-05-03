@@ -1887,7 +1887,7 @@ class _ClientShellState extends State<ClientShell> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(18, 10, 18, 124),
         children: [
-          const ScreenHeader(title: 'Выгода', subtitle: 'Только актуальные предложения без лишнего шума', accent: kLoginPink, icon: Icons.auto_awesome_rounded, variant: OrbitLogoVariant.comet),
+          const ScreenHeader(title: 'Выгода', subtitle: 'Акции, розыгрыши и полезные предложения', accent: kLoginPink, icon: Icons.auto_awesome_rounded, variant: OrbitLogoVariant.comet),
           const SizedBox(height: 16),
           PerksHub(home: offerData, promoItems: promoItems, joining: joiningDraw, onJoin: joinDraw),
         ],
@@ -1951,7 +1951,7 @@ class _ClientShellState extends State<ClientShell> {
                 )),
           const SizedBox(height: 18),
           if (hasSelection && quickActionsCount > 0) ...[
-            const SectionTitle(title: 'Быстрые действия', subtitle: 'Только то, что включено для выбранного заведения'),
+            const SectionTitle(title: 'Быстрые действия', subtitle: 'Карта, приглашения и личные данные'),
             const SizedBox(height: 10),
             ProfileQuickActionsGrid(children: [
               if (showWallet)
@@ -1979,17 +1979,11 @@ class _ClientShellState extends State<ClientShell> {
                   onTap: () => showReferralActionsSheet(context),
                 ),
             ]),
-          ] else if (hasSelection) ...[
-            const EmptyState(
-              icon: Icons.tune_rounded,
-              title: 'Дополнительные модули выключены',
-              subtitle: 'Wallet, день рождения и реферальная программа появятся, когда владелец включит их в настройках.',
-            ),
-          ] else ...[
+          ] else if (!hasSelection) ...[
             const EmptyState(
               icon: Icons.touch_app_rounded,
               title: 'Выберите карту',
-              subtitle: 'После выбора появятся доступные действия выбранного заведения.',
+              subtitle: 'После выбора появятся доступные действия.',
             ),
           ],
           const SizedBox(height: 18),
@@ -3247,24 +3241,20 @@ class EstablishmentInfoPanel extends StatelessWidget {
                 gradient: const LinearGradient(colors: [Color(0xFF06304A), Color(0xFF087F99), Color(0xFF20D9C5)], begin: Alignment.topLeft, end: Alignment.bottomRight),
                 boxShadow: [BoxShadow(color: kLoginBlue.withOpacity(0.14), blurRadius: 22, offset: const Offset(0, 12))],
               ),
-              child: Stack(clipBehavior: Clip.antiAlias, alignment: Alignment.center, children: [
-                Positioned(left: -54, top: -58, child: _SoftGlowDot(color: Colors.white.withOpacity(0.12), size: 150)),
-                Positioned(right: -38, bottom: -48, child: _SoftGlowDot(color: FlowColors.acid.withOpacity(0.18), size: 150)),
-                Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
-                  const SizedBox(width: 90, height: 90, child: Center(child: _AnimatedEstablishmentBadge(size: 68))),
-                  const SizedBox(height: 12),
-                  const Text('Информация о заведении', textAlign: TextAlign.center, style: TextStyle(color: Color(0xEFFFFFFF), fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 0.2)),
-                  const SizedBox(height: 4),
-                  Text(establishmentName, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 24, height: 1.05, fontWeight: FontWeight.w900, letterSpacing: -0.8)),
-                  const SizedBox(height: 16),
-                  Wrap(spacing: 8, runSpacing: 8, alignment: WrapAlignment.center, children: [
-                    if (address.trim().isNotEmpty) _QuickGlassPill(icon: Icons.place_rounded, text: address),
-                    if (workingHours.trim().isNotEmpty) _QuickGlassPill(icon: Icons.schedule_rounded, text: workingHours),
-                    if (phone.trim().isNotEmpty) _QuickGlassPill(icon: Icons.phone_rounded, text: phone),
-                  ]),
-                  const SizedBox(height: 16),
-                  _ActionGradientButton(icon: Icons.auto_awesome_rounded, text: 'Правила лояльности', onTap: onShowRules),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                const SizedBox(width: 90, height: 90, child: Center(child: _AnimatedEstablishmentBadge(size: 66))),
+                const SizedBox(height: 12),
+                const Text('Информация о заведении', textAlign: TextAlign.center, style: TextStyle(color: Color(0xEFFFFFFF), fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 0.2)),
+                const SizedBox(height: 4),
+                Text(establishmentName, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 24, height: 1.05, fontWeight: FontWeight.w900, letterSpacing: -0.8)),
+                const SizedBox(height: 16),
+                Wrap(spacing: 8, runSpacing: 8, alignment: WrapAlignment.center, children: [
+                  if (address.trim().isNotEmpty) _QuickGlassPill(icon: Icons.place_rounded, text: address),
+                  if (workingHours.trim().isNotEmpty) _QuickGlassPill(icon: Icons.schedule_rounded, text: workingHours),
+                  if (phone.trim().isNotEmpty) _QuickGlassPill(icon: Icons.phone_rounded, text: phone),
                 ]),
+                const SizedBox(height: 16),
+                _ActionGradientButton(icon: Icons.auto_awesome_rounded, text: 'Правила лояльности', onTap: onShowRules),
               ]),
             ),
           ),
@@ -3409,10 +3399,7 @@ class _SoftGlowDot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return IgnorePointer(
-      child: ImageFiltered(
-        imageFilter: ImageFilter.blur(sigmaX: 34, sigmaY: 34),
-        child: Container(width: size, height: size, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-      ),
+      child: Container(width: size, height: size, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
     );
   }
 }
@@ -4765,6 +4752,7 @@ class _BenefitActionCardState extends State<BenefitActionCard> with SingleTicker
   }
 }
 
+
 class PerksHub extends StatelessWidget {
   final Map<String, dynamic> home;
   final List<PromoItem> promoItems;
@@ -4774,27 +4762,59 @@ class PerksHub extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final activeItems = promoItems.where((e) => !e.tag.toLowerCase().contains('купон')).toList();
-    final raffles = activeItems.where((e) => e.isRaffle).toList();
-    final offers = activeItems.where((e) => !e.isRaffle).toList();
-    final hasAny = activeItems.isNotEmpty;
+    final items = promoItems.where((e) => !e.tag.toLowerCase().contains('купон')).toList();
+    final raffles = items.where((e) => e.isRaffle).toList();
+    final offers = items.where((e) => !e.isRaffle).toList();
+    final mainOffer = offers.isNotEmpty ? offers.first : null;
+    final mainRaffle = raffles.isNotEmpty ? raffles.first : null;
+    final rest = items.where((e) => e != mainOffer && e != mainRaffle).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         BenefitCleanHero(offersCount: offers.length, rafflesCount: raffles.length),
         const SizedBox(height: 18),
-        const SectionTitle(title: 'Доступно сейчас', subtitle: 'Акции и розыгрыши выбранного заведения'),
-        const SizedBox(height: 10),
-        if (!hasAny)
+        if (mainOffer != null || mainRaffle != null) ...[
+          const SectionTitle(title: 'Главное сейчас', subtitle: 'Самые заметные предложения выбранного заведения'),
+          const SizedBox(height: 10),
+          if (mainOffer != null)
+            BenefitFeaturedCard(
+              item: mainOffer,
+              onTap: () => showBenefitSheet(context, title: mainOffer.title, subtitle: mainOffer.subtitle, icon: mainOffer.icon, color: mainOffer.color),
+            ),
+          if (mainOffer != null && mainRaffle != null) const SizedBox(height: 12),
+          if (mainRaffle != null)
+            BenefitFeaturedCard(
+              item: mainRaffle,
+              joining: joining,
+              onTap: () {
+                if ((mainRaffle.rawData ?? {}).isNotEmpty) {
+                  showModalBottomSheet(
+                    context: context,
+                    showDragHandle: true,
+                    isScrollControlled: true,
+                    backgroundColor: Colors.white,
+                    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(30))),
+                    builder: (_) => RaffleDetailsSheet(draw: mainRaffle.rawData!, joining: joining, onJoin: () => onJoin(mainRaffle.rawData!)),
+                  );
+                } else {
+                  showBenefitSheet(context, title: mainRaffle.title, subtitle: mainRaffle.subtitle, icon: mainRaffle.icon, color: mainRaffle.color);
+                }
+              },
+            ),
+        ] else ...[
           const EmptyState(
             icon: Icons.auto_awesome_rounded,
-            title: 'Пока нет активной выгоды',
-            subtitle: 'Когда заведение добавит персональные предложения или розыгрыши, они появятся здесь.',
-          )
-        else
-          ...activeItems.map((item) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
+            title: 'Пока нет активных предложений',
+            subtitle: 'Когда заведение добавит акцию или розыгрыш, они появятся здесь.',
+          ),
+        ],
+        if (rest.isNotEmpty) ...[
+          const SizedBox(height: 18),
+          const SectionTitle(title: 'Ещё доступно', subtitle: 'Дополнительные акции и активности'),
+          const SizedBox(height: 10),
+          ...rest.map((item) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
                 child: BenefitSimpleCard(
                   item: item,
                   joining: joining && item.isRaffle,
@@ -4814,6 +4834,7 @@ class PerksHub extends StatelessWidget {
                   },
                 ),
               )),
+        ],
       ],
     );
   }
@@ -4826,41 +4847,45 @@ class BenefitCleanHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(32),
-        gradient: const LinearGradient(
-          colors: [Color(0xFF071F34), Color(0xFF0B7184), Color(0xFF22D3C5)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(34),
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFF061B31), Color(0xFF0A7E91), Color(0xFF20D9C5)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
         ),
-        boxShadow: [BoxShadow(color: FlowColors.aqua.withOpacity(0.22), blurRadius: 26, offset: const Offset(0, 14))],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(28),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Container(
-              width: 54,
-              height: 54,
-              decoration: BoxDecoration(color: Colors.white.withOpacity(0.16), borderRadius: BorderRadius.circular(20)),
-              child: const Icon(Icons.bolt_rounded, color: Colors.white, size: 28),
-            ),
-            const SizedBox(width: 12),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('Выгода без лишнего', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: -0.8)),
-              const SizedBox(height: 4),
-              Text('Здесь только то, что можно открыть сейчас.', style: TextStyle(color: Colors.white.withOpacity(0.78), fontWeight: FontWeight.w700, height: 1.25)),
-            ])),
-          ]),
-          const SizedBox(height: 16),
-          Row(children: [
-            Expanded(child: _BenefitHeroMetric(title: 'Предложения', value: '$offersCount')),
-            const SizedBox(width: 10),
-            Expanded(child: _BenefitHeroMetric(title: 'Розыгрыши', value: '$rafflesCount')),
-          ]),
-        ]),
+        child: Stack(
+          children: [
+            Positioned(right: -26, top: -34, child: Container(width: 132, height: 132, decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withOpacity(0.10)))),
+            Positioned(left: -34, bottom: -48, child: Container(width: 160, height: 160, decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black.withOpacity(0.09)))),
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Container(
+                  width: 54,
+                  height: 54,
+                  decoration: BoxDecoration(color: Colors.white.withOpacity(0.16), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.white.withOpacity(0.18))),
+                  child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 27),
+                ),
+                const SizedBox(width: 12),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Text('Выгода рядом', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: -0.8)),
+                  const SizedBox(height: 4),
+                  Text('Без лишних блоков: только акции и розыгрыши.', style: TextStyle(color: Colors.white.withOpacity(0.78), fontWeight: FontWeight.w700, height: 1.25)),
+                ])),
+              ]),
+              const SizedBox(height: 16),
+              Row(children: [
+                Expanded(child: _BenefitHeroMetric(title: 'Акции', value: '$offersCount')),
+                const SizedBox(width: 10),
+                Expanded(child: _BenefitHeroMetric(title: 'Розыгрыши', value: '$rafflesCount')),
+              ]),
+            ]),
+          ],
+        ),
       ),
     );
   }
@@ -4885,6 +4910,61 @@ class _BenefitHeroMetric extends StatelessWidget {
   }
 }
 
+class BenefitFeaturedCard extends StatelessWidget {
+  final PromoItem item;
+  final bool joining;
+  final VoidCallback onTap;
+  const BenefitFeaturedCard({super.key, required this.item, required this.onTap, this.joining = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final label = item.isRaffle ? 'Розыгрыш' : 'Акция';
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(32),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          child: Ink(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(colors: [item.color.withOpacity(0.94), item.color.withOpacity(0.58), const Color(0xFF071F34)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+            ),
+            child: Stack(children: [
+              Positioned(right: -24, top: -32, child: Container(width: 126, height: 126, decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withOpacity(0.12)))),
+              Positioned(right: 16, bottom: 14, child: Icon(item.icon, color: Colors.white.withOpacity(0.12), size: 88)),
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+                    decoration: BoxDecoration(color: Colors.white.withOpacity(0.18), borderRadius: BorderRadius.circular(999), border: Border.all(color: Colors.white.withOpacity(0.18))),
+                    child: Text(label.toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 0.8)),
+                  ),
+                  const Spacer(),
+                  Container(width: 44, height: 44, decoration: BoxDecoration(color: Colors.white.withOpacity(0.16), borderRadius: BorderRadius.circular(18)), child: Icon(item.icon, color: Colors.white, size: 23)),
+                ]),
+                const SizedBox(height: 22),
+                Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 27, height: 0.98, fontWeight: FontWeight.w900, letterSpacing: -1.0)),
+                const SizedBox(height: 10),
+                Text(item.subtitle, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white.withOpacity(0.86), fontSize: 15, height: 1.22, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 18),
+                Row(children: [
+                  Container(width: 72, height: 6, decoration: BoxDecoration(color: Colors.white.withOpacity(0.82), borderRadius: BorderRadius.circular(99))),
+                  const Spacer(),
+                  if (joining)
+                    const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  else
+                    Container(width: 46, height: 46, decoration: BoxDecoration(color: Colors.white.withOpacity(0.20), shape: BoxShape.circle), child: const Icon(Icons.arrow_forward_rounded, color: Colors.white)),
+                ]),
+              ]),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class BenefitSimpleCard extends StatelessWidget {
   final PromoItem item;
   final bool joining;
@@ -4893,51 +4973,37 @@ class BenefitSimpleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final label = item.isRaffle ? 'Розыгрыш' : 'Предложение';
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(28),
-        child: Ink(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.96),
-            borderRadius: BorderRadius.circular(28),
-            border: Border.all(color: Colors.white.withOpacity(0.98)),
-            boxShadow: [BoxShadow(color: item.color.withOpacity(0.10), blurRadius: 18, offset: const Offset(0, 10))],
-          ),
-          child: Row(children: [
-            Container(
-              width: 58,
-              height: 58,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                gradient: LinearGradient(colors: [item.color, item.color.withOpacity(0.68)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+    final label = item.isRaffle ? 'Розыгрыш' : 'Акция';
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(26),
+      child: Material(
+        color: Colors.white,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(children: [
+              Container(
+                width: 54,
+                height: 54,
+                decoration: BoxDecoration(borderRadius: BorderRadius.circular(19), color: item.color.withOpacity(0.13)),
+                child: Icon(item.icon, color: item.color, size: 26),
               ),
-              child: Icon(item.icon, color: Colors.white, size: 27),
-            ),
-            const SizedBox(width: 13),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-                  decoration: BoxDecoration(color: item.color.withOpacity(0.10), borderRadius: BorderRadius.circular(999)),
-                  child: Text(label, style: TextStyle(color: item.color, fontSize: 11, fontWeight: FontWeight.w900)),
-                ),
-                if (joining) ...[
-                  const SizedBox(width: 8),
-                  const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
-                ],
-              ]),
-              const SizedBox(height: 8),
-              Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: FlowColors.ink, fontSize: 17, fontWeight: FontWeight.w900, letterSpacing: -0.35, height: 1.08)),
-              const SizedBox(height: 5),
-              Text(item.subtitle, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: kLoginInkSoft, fontWeight: FontWeight.w700, height: 1.25)),
-            ])),
-            const SizedBox(width: 8),
-            Container(width: 34, height: 34, decoration: BoxDecoration(shape: BoxShape.circle, color: FlowColors.ink.withOpacity(0.06)), child: const Icon(Icons.arrow_forward_rounded, color: FlowColors.ink, size: 19)),
-          ]),
+              const SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(label, style: TextStyle(color: item.color, fontSize: 11, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 5),
+                Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: FlowColors.ink, fontSize: 16.5, fontWeight: FontWeight.w900, letterSpacing: -0.25, height: 1.08)),
+                const SizedBox(height: 4),
+                Text(item.subtitle, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: kLoginInkSoft, fontWeight: FontWeight.w700, height: 1.22)),
+              ])),
+              const SizedBox(width: 8),
+              if (joining)
+                const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+              else
+                const Icon(Icons.chevron_right_rounded, color: FlowColors.ink),
+            ]),
+          ),
         ),
       ),
     );
