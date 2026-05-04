@@ -4127,16 +4127,26 @@ class OfferTicker extends StatelessWidget {
 
     return SizedBox(
       height: 222,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        itemCount: visibleItems.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 12),
-        itemBuilder: (_, i) => SizedBox(
-          width: 272,
-          child: PromoShowcaseCard(
-            item: visibleItems[i],
-            onTap: () => _openPromo(context, visibleItems[i]),
+      child: ShaderMask(
+        shaderCallback: (bounds) => const LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: [Colors.transparent, Colors.white, Colors.white, Colors.transparent],
+          stops: [0.0, 0.055, 0.945, 1.0],
+        ).createShader(bounds),
+        blendMode: BlendMode.dstIn,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          itemCount: visibleItems.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 12),
+          itemBuilder: (_, i) => SizedBox(
+            width: 272,
+            child: PromoShowcaseCard(
+              item: visibleItems[i],
+              onTap: () => _openPromo(context, visibleItems[i]),
+            ),
           ),
         ),
       ),
@@ -4307,6 +4317,8 @@ class _PromoShowcaseCardState extends State<PromoShowcaseCard> with SingleTicker
   @override
   Widget build(BuildContext context) {
     final item = widget.item;
+    final imageUrl = (item.imageUrl ?? '').trim();
+    final hasImage = imageUrl.isNotEmpty;
     return AnimatedBuilder(
       animation: controller,
       builder: (context, child) {
@@ -4325,11 +4337,13 @@ class _PromoShowcaseCardState extends State<PromoShowcaseCard> with SingleTicker
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(32),
                     gradient: LinearGradient(
-                      colors: [
-                        item.color.withOpacity(0.96),
-                        item.color.withOpacity(0.72),
-                        const Color(0xFF0A2B47),
-                      ],
+                      colors: hasImage
+                          ? const [Color(0xFF081522), Color(0xFF0A2034), Color(0xFF0A2B47)]
+                          : [
+                              item.color.withOpacity(0.96),
+                              item.color.withOpacity(0.72),
+                              const Color(0xFF0A2B47),
+                            ],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
@@ -4342,9 +4356,10 @@ class _PromoShowcaseCardState extends State<PromoShowcaseCard> with SingleTicker
                   child: Stack(
                     clipBehavior: Clip.antiAlias,
                     children: [
-                      Positioned(
-                        right: -20 + glowShift,
-                        top: -26,
+                      if (!hasImage)
+                        Positioned(
+                          right: -20 + glowShift,
+                          top: -26,
                         child: Container(
                           width: 104,
                           height: 104,
@@ -4354,9 +4369,10 @@ class _PromoShowcaseCardState extends State<PromoShowcaseCard> with SingleTicker
                           ),
                         ),
                       ),
-                      Positioned(
-                        left: -16,
-                        bottom: -22 - glowShift,
+                      if (!hasImage)
+                        Positioned(
+                          left: -16,
+                          bottom: -22 - glowShift,
                         child: Container(
                           width: 92,
                           height: 92,
@@ -4366,7 +4382,7 @@ class _PromoShowcaseCardState extends State<PromoShowcaseCard> with SingleTicker
                           ),
                         ),
                       ),
-                      if ((item.imageUrl ?? '').trim().isNotEmpty)
+                      if (hasImage)
                         Positioned.fill(
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(32),
@@ -4374,7 +4390,7 @@ class _PromoShowcaseCardState extends State<PromoShowcaseCard> with SingleTicker
                               fit: StackFit.expand,
                               children: [
                                 Image.network(
-                                  item.imageUrl!,
+                                  imageUrl,
                                   fit: BoxFit.cover,
                                   errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                                 ),
@@ -4862,7 +4878,16 @@ class PerksHub extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final items = promoItems.where((e) => !e.tag.toLowerCase().contains('купон')).toList();
+    bool isDevBanner(PromoItem e) {
+      final source = (e.rawData?['source'] ?? e.rawData?['banner_type'] ?? '').toString().toLowerCase();
+      final tag = e.tag.toLowerCase();
+      return source.contains('dev_app_banner') || source == 'dev' || tag.contains('flowru') || tag.contains('важ');
+    }
+
+    final items = promoItems
+        .where((e) => !e.tag.toLowerCase().contains('купон'))
+        .where((e) => !isDevBanner(e))
+        .toList();
     final raffles = items.where((e) => e.isRaffle).toList();
     final offers = items.where((e) => !e.isRaffle).toList();
     final mainOffer = offers.isNotEmpty ? offers.first : null;
@@ -5053,6 +5078,9 @@ class BenefitFeaturedCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final tagLower = item.tag.toLowerCase();
     final label = item.isRaffle ? 'Розыгрыш' : (tagLower.contains('важ') || tagLower.contains('flowru') ? 'Важное' : 'Акция');
+    final imageUrl = (item.imageUrl ?? '').trim();
+    final hasImage = imageUrl.isNotEmpty;
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(32),
       child: Material(
@@ -5060,27 +5088,32 @@ class BenefitFeaturedCard extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           child: Ink(
-            padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [item.color.withOpacity(0.94), item.color.withOpacity(0.58), const Color(0xFF071F34)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+              gradient: LinearGradient(
+                colors: hasImage
+                    ? const [Color(0xFF081522), Color(0xFF0A2034), Color(0xFF071F34)]
+                    : [item.color.withOpacity(0.94), item.color.withOpacity(0.58), const Color(0xFF071F34)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
             ),
             child: Stack(
               clipBehavior: Clip.hardEdge,
               children: [
-                if ((item.imageUrl ?? '').trim().isNotEmpty)
+                if (hasImage)
                   Positioned.fill(
                     child: Image.network(
-                      item.imageUrl!,
+                      imageUrl,
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                     ),
                   ),
-                if ((item.imageUrl ?? '').trim().isNotEmpty)
+                if (hasImage)
                   Positioned.fill(
                     child: Container(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
-                          colors: [Colors.black.withOpacity(0.18), Colors.black.withOpacity(0.56)],
+                          colors: [Colors.black.withOpacity(0.16), Colors.black.withOpacity(0.54)],
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
                         ),
@@ -5108,30 +5141,33 @@ class BenefitFeaturedCard extends StatelessWidget {
                     child: Icon(item.icon, color: Colors.white.withOpacity(0.10), size: 68),
                   ),
                 ),
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-                      decoration: BoxDecoration(color: Colors.white.withOpacity(0.18), borderRadius: BorderRadius.circular(999), border: Border.all(color: Colors.white.withOpacity(0.18))),
-                      child: Text(label.toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 0.8)),
-                    ),
-                    const Spacer(),
-                    Container(width: 44, height: 44, decoration: BoxDecoration(color: Colors.white.withOpacity(0.16), borderRadius: BorderRadius.circular(18)), child: Icon(item.icon, color: Colors.white, size: 23)),
+                Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+                        decoration: BoxDecoration(color: Colors.white.withOpacity(0.18), borderRadius: BorderRadius.circular(999), border: Border.all(color: Colors.white.withOpacity(0.18))),
+                        child: Text(label.toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 0.8)),
+                      ),
+                      const Spacer(),
+                      Container(width: 44, height: 44, decoration: BoxDecoration(color: Colors.white.withOpacity(0.16), borderRadius: BorderRadius.circular(18)), child: Icon(item.icon, color: Colors.white, size: 23)),
+                    ]),
+                    const SizedBox(height: 22),
+                    Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 27, height: 0.98, fontWeight: FontWeight.w900, letterSpacing: -1.0)),
+                    const SizedBox(height: 10),
+                    Text(item.subtitle, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white.withOpacity(0.86), fontSize: 15, height: 1.22, fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 18),
+                    Row(children: [
+                      Container(width: 72, height: 6, decoration: BoxDecoration(color: Colors.white.withOpacity(0.82), borderRadius: BorderRadius.circular(99))),
+                      const Spacer(),
+                      if (joining)
+                        const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      else
+                        Container(width: 46, height: 46, decoration: BoxDecoration(color: Colors.white.withOpacity(0.20), shape: BoxShape.circle), child: const Icon(Icons.arrow_forward_rounded, color: Colors.white)),
+                    ]),
                   ]),
-                  const SizedBox(height: 22),
-                  Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 27, height: 0.98, fontWeight: FontWeight.w900, letterSpacing: -1.0)),
-                  const SizedBox(height: 10),
-                  Text(item.subtitle, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white.withOpacity(0.86), fontSize: 15, height: 1.22, fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 18),
-                  Row(children: [
-                    Container(width: 72, height: 6, decoration: BoxDecoration(color: Colors.white.withOpacity(0.82), borderRadius: BorderRadius.circular(99))),
-                    const Spacer(),
-                    if (joining)
-                      const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    else
-                      Container(width: 46, height: 46, decoration: BoxDecoration(color: Colors.white.withOpacity(0.20), shape: BoxShape.circle), child: const Icon(Icons.arrow_forward_rounded, color: Colors.white)),
-                  ]),
-                ]),
+                ),
               ],
             ),
           ),
@@ -6697,11 +6733,24 @@ String cleanComment(String raw) {
 }
 
 
+
+String? normalizePublicImageUrl(String raw) {
+  final value = raw.trim();
+  if (value.isEmpty) return null;
+  if (value.startsWith('http://') || value.startsWith('https://')) return value;
+  if (value.startsWith('/')) return '${AppConfig.publicBase}$value';
+  return value;
+}
+
 String? extractImageUrl(Map<String, dynamic> data) {
   const directKeys = [
     'image_url',
     'image',
     'photo_url',
+    'photo_path',
+    'image_path',
+    'cover_path',
+    'media_path',
     'photo',
     'picture',
     'cover_url',
@@ -6721,22 +6770,22 @@ String? extractImageUrl(Map<String, dynamic> data) {
 
   for (final key in directKeys) {
     final value = data[key];
-    if (value is String && value.trim().isNotEmpty) return value.trim();
+    if (value is String && value.trim().isNotEmpty) return normalizePublicImageUrl(value.trim());
 
     if (value is Map) {
       for (final nestedKey in const ['url', 'image_url', 'photo_url', 'path', 'src', 'file_url']) {
         final nestedValue = value[nestedKey];
-        if (nestedValue is String && nestedValue.trim().isNotEmpty) return nestedValue.trim();
+        if (nestedValue is String && nestedValue.trim().isNotEmpty) return normalizePublicImageUrl(nestedValue.trim());
       }
     }
 
     if (value is List) {
       for (final item in value) {
-        if (item is String && item.trim().isNotEmpty) return item.trim();
+        if (item is String && item.trim().isNotEmpty) return normalizePublicImageUrl(item.trim());
         if (item is Map) {
           for (final nestedKey in const ['url', 'image_url', 'photo_url', 'path', 'src', 'file_url']) {
             final nestedValue = item[nestedKey];
-            if (nestedValue is String && nestedValue.trim().isNotEmpty) return nestedValue.trim();
+            if (nestedValue is String && nestedValue.trim().isNotEmpty) return normalizePublicImageUrl(nestedValue.trim());
           }
         }
       }
