@@ -1759,6 +1759,34 @@ class _ClientShellState extends State<ClientShell> {
   List<PromoItem> get promoItems {
     final result = <PromoItem>[];
 
+    final devRaw = <Map<String, dynamic>>[
+      ...mapList(offerData['dev_banners']),
+      ...mapList(offerData['global_banners']),
+      ...mapList(home['dev_banners']),
+      ...mapList(home['global_banners']),
+    ];
+
+    final seenDevIds = <String>{};
+    final devBanners = <Map<String, dynamic>>[];
+    for (final e in devRaw) {
+      final key = (e['id'] ?? e['legacy_id'] ?? e['title'] ?? e.hashCode).toString();
+      if (seenDevIds.add(key)) devBanners.add(e);
+    }
+
+    for (final e in devBanners.take(20)) {
+      result.add(
+        PromoItem(
+          tag: e['tag']?.toString() ?? 'важное',
+          title: e['title']?.toString() ?? 'Важное',
+          subtitle: e['short_text']?.toString() ?? e['subtitle']?.toString() ?? e['description']?.toString() ?? 'Информация от Flowru',
+          icon: Icons.campaign_rounded,
+          color: FlowColors.blue,
+          imageUrl: extractImageUrl(e),
+          rawData: e,
+        ),
+      );
+    }
+
     final banner = map(offerData['draw_banner']).isNotEmpty ? map(offerData['draw_banner']) : map(home['draw_banner']);
     final draws = mapList(offerData['draws']).isNotEmpty ? mapList(offerData['draws']) : mapList(home['draws']);
     final activeDraw = banner.isNotEmpty ? banner : (draws.isNotEmpty ? draws.first : <String, dynamic>{});
@@ -1778,10 +1806,11 @@ class _ClientShellState extends State<ClientShell> {
       );
     }
 
-    // Купоны и подарки не показываем в блоке «Выгода рядом».
+    // Купоны и подарки не показываем в блоке «Важное».
+    // Обычные акции заведения берём только из banners. DEV-плашки лежат отдельно в dev_banners.
 
     final remote = mapList(offerData['banners']);
-    for (final e in remote.take(3)) {
+    for (final e in remote.take(20)) {
       result.add(
         PromoItem(
           tag: e['tag']?.toString() ?? 'акция',
@@ -1857,7 +1886,7 @@ class _ClientShellState extends State<ClientShell> {
           else
             NoCard(phone: phone),
           const SizedBox(height: 18),
-          const SectionTitle(title: 'Выгода рядом', subtitle: 'Персональные предложения и розыгрыши — быстрый доступ'),
+          const SectionTitle(title: 'Важное', subtitle: 'Главные новости, предложения и розыгрыши — быстрый доступ'),
           const SizedBox(height: 10),
           OfferTicker(items: promoItems),
           const SizedBox(height: 16),
@@ -4094,7 +4123,7 @@ class OfferTicker extends StatelessWidget {
             PromoItem(tag: 'акция', title: 'Персональные предложения', subtitle: 'Здесь появятся ваши лучшие акции и спецпредложения.', icon: Icons.local_fire_department_rounded, color: FlowColors.amber),
             PromoItem(tag: 'розыгрыш', title: 'Розыгрыши', subtitle: 'Когда запустится розыгрыш, он отобразится в этой ленте.', icon: Icons.celebration_rounded, color: FlowColors.violet),
           ]
-        : showcase.take(6).toList();
+        : showcase.take(20).toList();
 
     return SizedBox(
       height: 222,
@@ -4341,13 +4370,24 @@ class _PromoShowcaseCardState extends State<PromoShowcaseCard> with SingleTicker
                         Positioned.fill(
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(32),
-                            child: Opacity(
-                              opacity: 0.18,
-                              child: Image.network(
-                                item.imageUrl!,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                              ),
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                Image.network(
+                                  item.imageUrl!,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                                ),
+                                Container(
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [Colors.black.withOpacity(0.20), Colors.black.withOpacity(0.50)],
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -5011,7 +5051,8 @@ class BenefitFeaturedCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final label = item.isRaffle ? 'Розыгрыш' : 'Акция';
+    final tagLower = item.tag.toLowerCase();
+    final label = item.isRaffle ? 'Розыгрыш' : (tagLower.contains('важ') || tagLower.contains('flowru') ? 'Важное' : 'Акция');
     return ClipRRect(
       borderRadius: BorderRadius.circular(32),
       child: Material(
@@ -5026,6 +5067,26 @@ class BenefitFeaturedCard extends StatelessWidget {
             child: Stack(
               clipBehavior: Clip.hardEdge,
               children: [
+                if ((item.imageUrl ?? '').trim().isNotEmpty)
+                  Positioned.fill(
+                    child: Image.network(
+                      item.imageUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                    ),
+                  ),
+                if ((item.imageUrl ?? '').trim().isNotEmpty)
+                  Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Colors.black.withOpacity(0.18), Colors.black.withOpacity(0.56)],
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                        ),
+                      ),
+                    ),
+                  ),
                 Positioned(
                   right: 12,
                   top: 10,
@@ -5088,7 +5149,8 @@ class BenefitSimpleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final label = item.isRaffle ? 'Розыгрыш' : 'Акция';
+    final tagLower = item.tag.toLowerCase();
+    final label = item.isRaffle ? 'Розыгрыш' : (tagLower.contains('важ') || tagLower.contains('flowru') ? 'Важное' : 'Акция');
     return ClipRRect(
       borderRadius: BorderRadius.circular(26),
       child: Material(
