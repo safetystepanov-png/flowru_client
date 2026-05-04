@@ -528,6 +528,7 @@ class _BiometricUnlockScreenState extends State<BiometricUnlockScreen> {
     Navigator.of(context).pushReplacement(appRoute(const AuthScreen()));
   }
 
+
   @override
   Widget build(BuildContext context) {
     return AppFrame(
@@ -1833,6 +1834,15 @@ class _ClientShellState extends State<ClientShell> {
     return result;
   }
 
+  List<PromoItem> get perksPromoItems {
+    return promoItems.where((item) {
+      final tag = item.tag.toLowerCase();
+      final source = (item.rawData?['source'] ?? item.rawData?['banner_type'] ?? '').toString().toLowerCase();
+      final isDevBanner = source.contains('dev_app_banner') || source.contains('global') || tag.contains('важ') || tag.contains('flowru');
+      return !isDevBanner;
+    }).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     return AppFrame(
@@ -1888,7 +1898,7 @@ class _ClientShellState extends State<ClientShell> {
           const SizedBox(height: 18),
           const SectionTitle(title: 'Важное', subtitle: 'Главные новости, предложения и розыгрыши — быстрый доступ'),
           const SizedBox(height: 10),
-          OfferTicker(items: promoItems),
+          OfferTicker(items: promoItems, joining: joiningDraw, onJoin: joinDraw),
           const SizedBox(height: 16),
           EstablishmentInfoPanel(
             establishmentName: establishmentName,
@@ -1917,7 +1927,7 @@ class _ClientShellState extends State<ClientShell> {
         children: [
           const ScreenHeader(title: 'Выгода', subtitle: 'Акции, розыгрыши и полезные предложения', accent: kLoginPink, icon: Icons.auto_awesome_rounded, variant: OrbitLogoVariant.comet),
           const SizedBox(height: 16),
-          PerksHub(home: offerData, promoItems: promoItems, joining: joiningDraw, onJoin: joinDraw),
+          PerksHub(home: offerData, promoItems: perksPromoItems, joining: joiningDraw, onJoin: joinDraw),
         ],
       ),
     );
@@ -4098,7 +4108,9 @@ class CommandTile extends StatelessWidget {
 
 class OfferTicker extends StatelessWidget {
   final List<PromoItem> items;
-  const OfferTicker({super.key, required this.items});
+  final bool joining;
+  final Future<void> Function(Map<String, dynamic> draw)? onJoin;
+  const OfferTicker({super.key, required this.items, this.joining = false, this.onJoin});
 
   void _openPromo(BuildContext context, PromoItem item) {
     if (item.isRaffle && (item.rawData ?? {}).isNotEmpty) {
@@ -4108,7 +4120,11 @@ class OfferTicker extends StatelessWidget {
         isScrollControlled: true,
         backgroundColor: Colors.white,
         shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(30))),
-        builder: (_) => RaffleDetailsSheet(draw: item.rawData!, joining: false, onJoin: null),
+        builder: (_) => RaffleDetailsSheet(
+          draw: item.rawData!,
+          joining: joining,
+          onJoin: onJoin == null ? null : () => onJoin!(item.rawData!),
+        ),
       );
       return;
     }
@@ -4336,21 +4352,22 @@ class _PromoShowcaseCardState extends State<PromoShowcaseCard> with SingleTicker
                 child: Ink(
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(32),
-                    gradient: LinearGradient(
-                      colors: hasImage
-                          ? const [Color(0xFF081522), Color(0xFF0A2034), Color(0xFF0A2B47)]
-                          : [
+                    color: hasImage ? Colors.transparent : null,
+                    gradient: hasImage
+                        ? null
+                        : LinearGradient(
+                            colors: [
                               item.color.withOpacity(0.96),
                               item.color.withOpacity(0.72),
                               const Color(0xFF0A2B47),
                             ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    border: Border.all(color: Colors.white.withOpacity(0.20), width: 1.1),
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                    border: Border.all(color: hasImage ? Colors.transparent : Colors.white.withOpacity(0.20), width: 1.1),
                     boxShadow: [
-                      BoxShadow(color: item.color.withOpacity(0.28), blurRadius: 26, offset: const Offset(0, 14)),
-                      BoxShadow(color: Colors.black.withOpacity(0.10), blurRadius: 18, offset: const Offset(0, 10)),
+                      BoxShadow(color: Colors.black.withOpacity(hasImage ? 0.08 : 0.10), blurRadius: 18, offset: const Offset(0, 10)),
+                      if (!hasImage) BoxShadow(color: item.color.withOpacity(0.28), blurRadius: 26, offset: const Offset(0, 14)),
                     ],
                   ),
                   child: Stack(
@@ -4452,15 +4469,28 @@ class _PromoShowcaseCardState extends State<PromoShowcaseCard> with SingleTicker
                                   ),
                                 ),
                                 const Spacer(),
-                                Container(
-                                  width: 36,
-                                  height: 36,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: Colors.white.withOpacity(0.16),
+                                if (item.isRaffle)
+                                  Container(
+                                    height: 36,
+                                    padding: const EdgeInsets.symmetric(horizontal: 13),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(999),
+                                      color: Colors.white.withOpacity(0.18),
+                                      border: Border.all(color: Colors.white.withOpacity(0.16)),
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: const Text('Участвовать', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w900)),
+                                  )
+                                else
+                                  Container(
+                                    width: 36,
+                                    height: 36,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: Colors.white.withOpacity(0.16),
+                                    ),
+                                    child: const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 20),
                                   ),
-                                  child: const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 20),
-                                ),
                               ],
                             ),
                           ],
@@ -6735,10 +6765,32 @@ String cleanComment(String raw) {
 
 
 String? normalizePublicImageUrl(String raw) {
-  final value = raw.trim();
+  var value = raw.trim();
   if (value.isEmpty) return null;
+
+  value = value.replaceAll('\\', '/');
+
   if (value.startsWith('http://') || value.startsWith('https://')) return value;
+
+  const projectPrefix = '/opt/detalika-bot/';
+  if (value.startsWith(projectPrefix)) {
+    value = value.substring(projectPrefix.length);
+  }
+
+  while (value.startsWith('./')) {
+    value = value.substring(2);
+  }
+
   if (value.startsWith('/')) return '${AppConfig.publicBase}$value';
+
+  if (value.startsWith('static/')) return '${AppConfig.publicBase}/$value';
+  if (value.startsWith('uploads/')) return '${AppConfig.publicBase}/static/$value';
+  if (value.startsWith('raffle_media/')) return '${AppConfig.publicBase}/$value';
+  if (value.startsWith('promotions/')) return '${AppConfig.publicBase}/static/uploads/$value';
+  if (value.startsWith('dev_content/')) return '${AppConfig.publicBase}/static/uploads/$value';
+  if (value.startsWith('wallet/')) return '${AppConfig.publicBase}/static/uploads/$value';
+  if (value.startsWith('menu/')) return '${AppConfig.publicBase}/static/uploads/$value';
+
   return value;
 }
 
@@ -6765,6 +6817,12 @@ String? extractImageUrl(Map<String, dynamic> data) {
     'thumbnail_url',
     'media_url',
     'file_url',
+    'attachments',
+    'attachment',
+    'media',
+    'photos',
+    'images',
+    'files',
     'url',
   ];
 
