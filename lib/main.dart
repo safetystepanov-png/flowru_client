@@ -933,15 +933,15 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
             enableSuggestions: enableSuggestions,
             autocorrect: autocorrect,
             onSubmitted: onSubmitted,
-            style: TextStyle(color: kLoginInk, fontSize: isSmallScreen ? 14 : 16, fontWeight: FontWeight.w700),
+            style: TextStyle(color: kLoginInk, fontSize: isSmallScreen ? 13 : 16, fontWeight: FontWeight.w700),
             decoration: InputDecoration(
-              prefixIcon: icon != null ? Icon(icon, color: kLoginInkSoft, size: isSmallScreen ? 19 : 22) : null,
+              prefixIcon: icon != null ? Icon(icon, color: kLoginInkSoft, size: isSmallScreen ? 18 : 22) : null,
               suffixIcon: suffixIcon,
               labelText: label,
-              labelStyle: TextStyle(color: kLoginInkSoft.withOpacity(0.88), fontWeight: FontWeight.w700, fontSize: isSmallScreen ? 13 : 15),
+              labelStyle: TextStyle(color: kLoginInkSoft.withOpacity(0.88), fontWeight: FontWeight.w700, fontSize: isSmallScreen ? 12 : 15),
               floatingLabelStyle: const TextStyle(color: kLoginViolet, fontWeight: FontWeight.w800),
               border: InputBorder.none,
-              contentPadding: EdgeInsets.symmetric(horizontal: isSmallScreen ? 16 : 22, vertical: isSmallScreen ? 13 : 19),
+              contentPadding: EdgeInsets.symmetric(horizontal: isSmallScreen ? 14 : 22, vertical: isSmallScreen ? 10 : 19),
             ),
           ),
         ),
@@ -965,7 +965,7 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
           onTap: onPressed,
           borderRadius: BorderRadius.circular(isSmallScreen ? 25 : 31),
           child: Container(
-            height: isSmallScreen ? 50.0 : 60.0,
+            height: isSmallScreen ? 44.0 : 60.0,
             alignment: Alignment.center,
             child: isLoading ? SizedBox(width: isSmallScreen ? 18 : 24, height: isSmallScreen ? 18 : 24, child: const CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white)) : Text(text, style: TextStyle(color: Colors.white, fontSize: isSmallScreen ? 14 : 16, fontWeight: FontWeight.w900, letterSpacing: 0.2)),
           ),
@@ -985,7 +985,7 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
           backgroundColor: Colors.white.withOpacity(0.34),
           side: const BorderSide(color: kLoginViolet, width: 1.5),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(isSmallScreen ? 26 : 30)),
-          padding: EdgeInsets.symmetric(vertical: isSmallScreen ? 15 : 17, horizontal: isSmallScreen ? 16 : 24),
+          padding: EdgeInsets.symmetric(vertical: isSmallScreen ? 11 : 17, horizontal: isSmallScreen ? 14 : 24),
           shadowColor: kLoginViolet.withOpacity(0.18),
         ),
         child: Text(text, style: TextStyle(color: kLoginViolet, fontSize: isSmallScreen ? 14 : 15, fontWeight: FontWeight.w900)),
@@ -1018,9 +1018,9 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
         borderRadius: BorderRadius.circular(999),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 220),
-          height: isSmallScreen ? 40 : 46,
+          height: isSmallScreen ? 34 : 46,
           decoration: BoxDecoration(borderRadius: BorderRadius.circular(999), gradient: active ? const LinearGradient(colors: [Color(0xFF10C3C5), Color(0xFF0A7EA0), Color(0xFF6B57FF)]) : null, boxShadow: active ? [BoxShadow(color: kLoginBlue.withOpacity(0.22), blurRadius: 16, offset: const Offset(0, 8))] : null),
-          child: Center(child: Text(text, style: TextStyle(color: active ? Colors.white : kLoginInkSoft, fontWeight: FontWeight.w900, fontSize: isSmallScreen ? 13 : 14))),
+          child: Center(child: Text(text, style: TextStyle(color: active ? Colors.white : kLoginInkSoft, fontWeight: FontWeight.w900, fontSize: isSmallScreen ? 12 : 14))),
         ),
       ),
     );
@@ -1117,15 +1117,15 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
     final isMediumScreen = screenWidth >= 400 && screenWidth < 600;
 
     final cardWidth = isVerySmall ? screenWidth * 0.94 : isSmallScreen ? screenWidth * 0.92 : isMediumScreen ? screenWidth * 0.86 : 500.0;
-    final horizontalPadding = isVerySmall ? 12.0 : isSmallScreen ? 14.0 : 24.0;
-    final cardPadding = isVerySmall ? 10.0 : isSmallScreen ? 14.0 : 22.0;
-    final innerPadding = isVerySmall ? 10.0 : isSmallScreen ? 14.0 : 22.0;
-    final titleSize = isVerySmall ? 20.0 : isSmallScreen ? 22.0 : 30.0;
-    final subtitleSize = isVerySmall ? 10.5 : isSmallScreen ? 11.5 : 14.0;
-    final logoSize = isVerySmall ? 58.0 : isSmallScreen ? 66.0 : 88.0;
-    final gapSmall = isVerySmall ? 3.0 : isSmallScreen ? 4.0 : 8.0;
-    final gapMedium = isVerySmall ? 6.0 : isSmallScreen ? 8.0 : 14.0;
-    final gapLarge = isVerySmall ? 10.0 : isSmallScreen ? 14.0 : 24.0;
+    final horizontalPadding = isVerySmall ? 10.0 : isSmallScreen ? 12.0 : 24.0;
+    final cardPadding = isVerySmall ? 8.0 : isSmallScreen ? 10.0 : 22.0;
+    final innerPadding = isVerySmall ? 8.0 : isSmallScreen ? 10.0 : 22.0;
+    final titleSize = isVerySmall ? 18.0 : isSmallScreen ? 20.0 : 30.0;
+    final subtitleSize = isVerySmall ? 10.0 : isSmallScreen ? 10.8 : 14.0;
+    final logoSize = isVerySmall ? 44.0 : isSmallScreen ? 52.0 : 88.0;
+    final gapSmall = isVerySmall ? 2.0 : isSmallScreen ? 3.0 : 8.0;
+    final gapMedium = isVerySmall ? 4.0 : isSmallScreen ? 6.0 : 14.0;
+    final gapLarge = isVerySmall ? 8.0 : isSmallScreen ? 10.0 : 24.0;
 
     return Scaffold(
       backgroundColor: kLoginMintTop,
@@ -1168,29 +1168,29 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 _orbitalLogo(logoSize, isVerySmall: isVerySmall, isSmallScreen: isSmallScreen),
-                                SizedBox(height: isVerySmall ? 4 : gapMedium),
+                                SizedBox(height: isVerySmall ? 2 : gapMedium),
                                 Text(isRegister ? 'Регистрация гостя' : 'Вход гостя', style: TextStyle(fontSize: titleSize, fontWeight: FontWeight.w900, color: kLoginInk, letterSpacing: -0.8, height: 1.1), textAlign: TextAlign.center),
                                 SizedBox(height: isVerySmall ? 2 : gapSmall),
                                 Text(isRegister ? 'Создайте аккаунт, чтобы подключить\nкарты, бонусы и предложения.' : 'Введите номер телефона и пароль,\nчтобы открыть карту гостя.', textAlign: TextAlign.center, style: TextStyle(fontSize: subtitleSize, fontWeight: FontWeight.w700, color: kLoginInkSoft, height: 1.3)),
-                                SizedBox(height: isVerySmall ? 10 : gapMedium),
+                                SizedBox(height: isVerySmall ? 7 : gapMedium),
                                 _authModeSwitch(isSmallScreen: isSmallScreen),
-                                SizedBox(height: isVerySmall ? 12 : gapLarge),
+                                SizedBox(height: isVerySmall ? 8 : gapLarge),
                                 AnimatedSwitcher(duration: const Duration(milliseconds: 240), child: isRegister ? _registerFields(gapMedium, isVerySmall, isSmallScreen) : _loginFields(gapMedium, isVerySmall, isSmallScreen)),
                                 if (!isRegister) ...[
-                                  SizedBox(height: isVerySmall ? 8 : gapMedium),
+                                  SizedBox(height: isVerySmall ? 5 : gapMedium),
                                   _rememberRow(isSmallScreen),
                                 ],
                                 if (error != null) ...[
-                                  SizedBox(height: isVerySmall ? 8 : gapMedium),
+                                  SizedBox(height: isVerySmall ? 5 : gapMedium),
                                   _errorBox(error!),
                                 ],
-                                SizedBox(height: isVerySmall ? 10 : gapLarge),
+                                SizedBox(height: isVerySmall ? 7 : gapLarge),
                                 _glassButton(onPressed: loading ? null : (isRegister ? submitRegister : submitLogin), text: isRegister ? 'Создать аккаунт' : 'Войти', isLoading: loading),
                                 if (!isRegister) ...[
-                                  SizedBox(height: isVerySmall ? 8 : 10),
+                                  SizedBox(height: isVerySmall ? 5 : 8),
                                   _biometricButton(isSmallScreen),
                                 ],
-                                SizedBox(height: isVerySmall ? 6 : 10),
+                                SizedBox(height: isVerySmall ? 4 : 8),
                                 _outlineGlassButton(text: isRegister ? 'Уже есть аккаунт' : 'Зарегистрироваться', onTap: () => setState(() { isRegister = !isRegister; error = null; })),
                               ],
                             ),
@@ -4300,6 +4300,62 @@ class BenefitOrbitPanel extends StatelessWidget {
   }
 }
 
+
+class PromoActionPill extends StatelessWidget {
+  final String text;
+  final VoidCallback? onTap;
+  final bool loading;
+  final double height;
+  final double fontSize;
+  final EdgeInsets padding;
+
+  const PromoActionPill({
+    super.key,
+    required this.text,
+    this.onTap,
+    this.loading = false,
+    this.height = 38,
+    this.fontSize = 12,
+    this.padding = const EdgeInsets.symmetric(horizontal: 16),
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final child = Container(
+      height: height,
+      padding: padding,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(999),
+        gradient: const LinearGradient(
+          colors: [Color(0xFFFFF0A8), Color(0xFFFFD447), Color(0xFFFFA000)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: Border.all(color: Colors.black.withOpacity(0.08)),
+        boxShadow: [BoxShadow(color: const Color(0xFFFFB020).withOpacity(0.34), blurRadius: 16, offset: const Offset(0, 8))],
+      ),
+      alignment: Alignment.center,
+      child: loading
+          ? SizedBox(width: height * 0.46, height: height * 0.46, child: const CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF1F2937)))
+          : Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: const Color(0xFF1F2937), fontSize: fontSize, fontWeight: FontWeight.w900),
+            ),
+    );
+
+    if (onTap == null || loading) return child;
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: child,
+    );
+  }
+}
+
+
 class PromoShowcaseCard extends StatefulWidget {
   final PromoItem item;
   final VoidCallback onTap;
@@ -4331,12 +4387,15 @@ class _PromoShowcaseCardState extends State<PromoShowcaseCard> with SingleTicker
     final hasImage = imageUrl.isNotEmpty;
     final title = item.title.trim();
     final subtitle = item.subtitle.trim();
-    final isImportant = !item.isRaffle && (item.tag.toLowerCase().contains('важ') || item.tag.toLowerCase().contains('flowru'));
+    final tagLower = item.tag.toLowerCase();
+    final isImportant = tagLower.contains('важ') || tagLower.contains('flowru');
     final titleLower = title.toLowerCase();
-    final showTitle = title.isNotEmpty && !item.isRaffle && !(isImportant && (titleLower == 'важное' || titleLower == 'важно'));
+    final showTitle = title.isNotEmpty && !item.isRaffle && !(isImportant && titleLower == 'важное');
     final showSubtitle = subtitle.isNotEmpty && !item.isRaffle;
-    final tagLabel = item.isRaffle ? 'Розыгрыш' : 'Важное';
-    final topIcon = item.isRaffle ? Icons.celebration_rounded : Icons.notifications_none_rounded;
+    final tagLabel = item.isRaffle ? 'Розыгрыш' : (isImportant ? 'Важное' : item.tag);
+    final actionText = item.actionText;
+    final actionUrl = item.actionUrl;
+    final hasActionButton = actionText != null && actionUrl != null;
 
     return AnimatedBuilder(
       animation: controller,
@@ -4454,17 +4513,17 @@ class _PromoShowcaseCardState extends State<PromoShowcaseCard> with SingleTicker
                                   ),
                                 ),
                                 const Spacer(),
-                                if (item.isRaffle || isImportant)
-                                  Container(
-                                    width: 44,
-                                    height: 44,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: item.isRaffle ? Colors.black.withOpacity(0.30) : const Color(0xFF064B64).withOpacity(0.42),
-                                      border: Border.all(color: item.isRaffle ? const Color(0xFF2D2D2D).withOpacity(0.92) : const Color(0xFF064B64).withOpacity(0.20), width: 1.3),
-                                    ),
-                                    child: Icon(topIcon, color: item.isRaffle ? const Color(0xFFCFC4B4) : const Color(0xFF08364A), size: 23),
+                                Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withOpacity(hasImage ? 0.68 : 0.24),
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(color: Colors.white.withOpacity(0.22)),
+                                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.24), blurRadius: 14, offset: const Offset(0, 7))],
                                   ),
+                                  child: Icon(item.isRaffle ? Icons.celebration_rounded : Icons.notifications_active_rounded, color: Colors.white.withOpacity(0.94), size: 22),
+                                ),
                               ],
                             ),
                             const Spacer(),
@@ -4485,19 +4544,17 @@ class _PromoShowcaseCardState extends State<PromoShowcaseCard> with SingleTicker
                                 style: TextStyle(color: Colors.white.withOpacity(0.88), height: 1.22, fontWeight: FontWeight.w700),
                               ),
                             ],
-                            if (item.isRaffle) ...[
+                            if (item.isRaffle || hasActionButton) ...[
+                              if (showTitle || showSubtitle) const SizedBox(height: 12),
                               Align(
                                 alignment: Alignment.centerRight,
-                                child: Container(
-                                  height: 38,
-                                  width: 146,
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(999),
-                                    gradient: const LinearGradient(colors: [Color(0xFFFFD447), Color(0xFFFFA000)], begin: Alignment.topLeft, end: Alignment.bottomRight),
-                                    boxShadow: [BoxShadow(color: const Color(0xFFFFB020).withOpacity(0.34), blurRadius: 16, offset: const Offset(0, 8))],
-                                  ),
-                                  alignment: Alignment.center,
-                                  child: const Text('Участвовать', style: TextStyle(color: Color(0xFF1F2937), fontSize: 12, fontWeight: FontWeight.w900)),
+                                child: PromoActionPill(
+                                  text: hasActionButton ? actionText! : 'Участвовать',
+                                  loading: item.isRaffle && !hasActionButton ? false : false,
+                                  height: 30,
+                                  fontSize: 10.8,
+                                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                                  onTap: hasActionButton ? () => openExternalUrl(context, actionUrl, emptyMessage: 'Ссылка кнопки не указана') : widget.onTap,
                                 ),
                               ),
                             ],
@@ -5115,16 +5172,18 @@ class BenefitFeaturedCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tagLower = item.tag.toLowerCase();
-    final isImportant = !item.isRaffle && (tagLower.contains('важ') || tagLower.contains('flowru'));
-    final label = item.isRaffle ? 'Розыгрыш' : (isImportant ? 'Важное' : 'Акция');
+    final label = item.isRaffle ? 'Розыгрыш' : (tagLower.contains('важ') || tagLower.contains('flowru') ? 'Важное' : 'Акция');
     final imageUrl = (item.imageUrl ?? '').trim();
     final hasImage = imageUrl.isNotEmpty;
     final title = item.title.trim();
     final subtitle = item.subtitle.trim();
+    final isImportant = tagLower.contains('важ') || tagLower.contains('flowru');
     final titleLower = title.toLowerCase();
-    final showTitle = title.isNotEmpty && !item.isRaffle && !(isImportant && (titleLower == 'важное' || titleLower == 'важно'));
+    final showTitle = title.isNotEmpty && !item.isRaffle && !(isImportant && titleLower == 'важное');
     final showSubtitle = subtitle.isNotEmpty && !item.isRaffle;
-    final topIcon = item.isRaffle ? Icons.celebration_rounded : Icons.notifications_none_rounded;
+    final actionText = item.actionText;
+    final actionUrl = item.actionUrl;
+    final hasActionButton = actionText != null && actionUrl != null;
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(32),
@@ -5207,17 +5266,7 @@ class BenefitFeaturedCard extends StatelessWidget {
                         child: Text(label.toUpperCase(), style: const TextStyle(color: Color(0xFF1F2937), fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 0.8)),
                       ),
                       const Spacer(),
-                      if (item.isRaffle || isImportant)
-                        Container(
-                          width: 46,
-                          height: 46,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: item.isRaffle ? Colors.black.withOpacity(0.30) : const Color(0xFF064B64).withOpacity(0.42),
-                            border: Border.all(color: item.isRaffle ? const Color(0xFF2D2D2D).withOpacity(0.92) : const Color(0xFF064B64).withOpacity(0.20), width: 1.3),
-                          ),
-                          child: Icon(topIcon, color: item.isRaffle ? const Color(0xFFCFC4B4) : const Color(0xFF08364A), size: 24),
-                        ),
+                      Container(width: 42, height: 42, decoration: BoxDecoration(color: Colors.black.withOpacity(hasImage ? 0.68 : 0.24), borderRadius: BorderRadius.circular(17), border: Border.all(color: Colors.white.withOpacity(0.22)), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.24), blurRadius: 14, offset: const Offset(0, 7))]), child: Icon(item.isRaffle ? Icons.celebration_rounded : Icons.notifications_active_rounded, color: Colors.white.withOpacity(0.94), size: 22)),
                     ]),
                     const Spacer(),
                     if (showTitle) ...[
@@ -5227,22 +5276,18 @@ class BenefitFeaturedCard extends StatelessWidget {
                       const SizedBox(height: 10),
                       Text(subtitle, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white.withOpacity(0.88), fontSize: 15, height: 1.22, fontWeight: FontWeight.w800)),
                     ],
-                    if (item.isRaffle) ...[
+                    if (item.isRaffle || hasActionButton) ...[
+                      if (showTitle || showSubtitle) const SizedBox(height: 16),
                       Align(
                         alignment: Alignment.centerRight,
-                        child: joining
-                            ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                            : Container(
-                                height: 42,
-                                width: 156,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(999),
-                                  gradient: const LinearGradient(colors: [Color(0xFFFFD447), Color(0xFFFFA000)], begin: Alignment.topLeft, end: Alignment.bottomRight),
-                                  boxShadow: [BoxShadow(color: const Color(0xFFFFB020).withOpacity(0.34), blurRadius: 16, offset: const Offset(0, 8))],
-                                ),
-                                alignment: Alignment.center,
-                                child: const Text('Участвовать', style: TextStyle(color: Color(0xFF1F2937), fontSize: 13, fontWeight: FontWeight.w900)),
-                              ),
+                        child: PromoActionPill(
+                          text: hasActionButton ? actionText! : 'Участвовать',
+                          loading: item.isRaffle && !hasActionButton && joining,
+                          height: 32,
+                          fontSize: 11.2,
+                          padding: const EdgeInsets.symmetric(horizontal: 13),
+                          onTap: hasActionButton ? () => openExternalUrl(context, actionUrl, emptyMessage: 'Ссылка кнопки не указана') : onTap,
+                        ),
                       ),
                     ],
                   ]),
@@ -6767,6 +6812,36 @@ class PromoItem {
     this.rawData,
     this.isRaffle = false,
   });
+
+  String? get actionText => promoFirstText([
+        rawData?['button_text'],
+        rawData?['buttonText'],
+        rawData?['button_title'],
+        rawData?['buttonTitle'],
+        rawData?['button_label'],
+        rawData?['buttonLabel'],
+        rawData?['cta_text'],
+        rawData?['ctaText'],
+        rawData?['action_text'],
+        rawData?['actionText'],
+        rawData?['link_text'],
+        rawData?['linkText'],
+      ]);
+
+  String? get actionUrl => promoFirstText([
+        rawData?['button_url'],
+        rawData?['buttonUrl'],
+        rawData?['button_link'],
+        rawData?['buttonLink'],
+        rawData?['cta_url'],
+        rawData?['ctaUrl'],
+        rawData?['action_url'],
+        rawData?['actionUrl'],
+        rawData?['link_url'],
+        rawData?['linkUrl'],
+        rawData?['url'],
+        rawData?['link'],
+      ]);
 }
 
 class OperationViewData {
@@ -6809,6 +6884,17 @@ String cleanComment(String raw) {
   if (text.startsWith('tg_webapp_accrue:')) return 'Покупка через карту гостя';
   if (text.startsWith('campaign_id=')) return 'Сообщение от заведения';
   return text;
+}
+
+
+String? promoFirstText(List<dynamic> values) {
+  for (final value in values) {
+    final text = value?.toString().trim() ?? '';
+    if (text.isEmpty) continue;
+    if (text.toLowerCase() == 'null') continue;
+    return text;
+  }
+  return null;
 }
 
 
