@@ -1061,13 +1061,9 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
   }
 
   Widget _biometricButton(bool isSmallScreen) {
-    if (kIsWeb || !biometricAvailable) return const SizedBox.shrink();
-    return OutlinedButton.icon(
-      onPressed: biometricLoading ? null : _loginWithBiometric,
-      icon: biometricLoading ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.2, color: kLoginBlue)) : const Icon(Icons.fingerprint_rounded, color: kLoginBlue),
-      label: Text('Face ID / Touch ID', style: TextStyle(color: kLoginBlue, fontSize: isSmallScreen ? 13 : 14, fontWeight: FontWeight.w900)),
-      style: OutlinedButton.styleFrom(side: const BorderSide(color: kLoginBlue), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)), padding: const EdgeInsets.symmetric(vertical: 14)),
-    );
+    // Кнопку Face ID / Touch ID на экране логина скрываем.
+    // Логику биометрии не трогаем: автологин после сохранения по-прежнему работает.
+    return const SizedBox.shrink();
   }
 
   Widget _loginFields(double gapMedium, bool isVerySmall, bool isSmallScreen) {
@@ -3315,8 +3311,6 @@ class EstablishmentInfoPanel extends StatelessWidget {
                 boxShadow: [BoxShadow(color: kLoginBlue.withOpacity(0.14), blurRadius: 22, offset: const Offset(0, 12))],
               ),
               child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
-                const SizedBox(width: 90, height: 90, child: Center(child: _AnimatedEstablishmentBadge(size: 66))),
-                const SizedBox(height: 12),
                 const Text('Информация о заведении', textAlign: TextAlign.center, style: TextStyle(color: Color(0xEFFFFFFF), fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 0.2)),
                 const SizedBox(height: 4),
                 Text(establishmentName, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 24, height: 1.05, fontWeight: FontWeight.w900, letterSpacing: -0.8)),
@@ -4335,6 +4329,15 @@ class _PromoShowcaseCardState extends State<PromoShowcaseCard> with SingleTicker
     final item = widget.item;
     final imageUrl = (item.imageUrl ?? '').trim();
     final hasImage = imageUrl.isNotEmpty;
+    final title = item.title.trim();
+    final subtitle = item.subtitle.trim();
+    final isImportant = !item.isRaffle && (item.tag.toLowerCase().contains('важ') || item.tag.toLowerCase().contains('flowru'));
+    final titleLower = title.toLowerCase();
+    final showTitle = title.isNotEmpty && !item.isRaffle && !(isImportant && (titleLower == 'важное' || titleLower == 'важно'));
+    final showSubtitle = subtitle.isNotEmpty && !item.isRaffle;
+    final tagLabel = item.isRaffle ? 'Розыгрыш' : 'Важное';
+    final topIcon = item.isRaffle ? Icons.celebration_rounded : Icons.notifications_none_rounded;
+
     return AnimatedBuilder(
       animation: controller,
       builder: (context, child) {
@@ -4365,10 +4368,12 @@ class _PromoShowcaseCardState extends State<PromoShowcaseCard> with SingleTicker
                             end: Alignment.bottomRight,
                           ),
                     border: Border.all(color: hasImage ? Colors.transparent : Colors.white.withOpacity(0.20), width: 1.1),
-                    boxShadow: [
-                      BoxShadow(color: Colors.black.withOpacity(hasImage ? 0.08 : 0.10), blurRadius: 18, offset: const Offset(0, 10)),
-                      if (!hasImage) BoxShadow(color: item.color.withOpacity(0.28), blurRadius: 26, offset: const Offset(0, 14)),
-                    ],
+                    boxShadow: hasImage
+                        ? const []
+                        : [
+                            BoxShadow(color: Colors.black.withOpacity(0.10), blurRadius: 18, offset: const Offset(0, 10)),
+                            BoxShadow(color: item.color.withOpacity(0.28), blurRadius: 26, offset: const Offset(0, 14)),
+                          ],
                   ),
                   child: Stack(
                     clipBehavior: Clip.antiAlias,
@@ -4377,28 +4382,28 @@ class _PromoShowcaseCardState extends State<PromoShowcaseCard> with SingleTicker
                         Positioned(
                           right: -20 + glowShift,
                           top: -26,
-                        child: Container(
-                          width: 104,
-                          height: 104,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Colors.white.withOpacity(0.10),
+                          child: Container(
+                            width: 104,
+                            height: 104,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white.withOpacity(0.10),
+                            ),
                           ),
                         ),
-                      ),
                       if (!hasImage)
                         Positioned(
                           left: -16,
                           bottom: -22 - glowShift,
-                        child: Container(
-                          width: 92,
-                          height: 92,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: item.color.withOpacity(0.18),
+                          child: Container(
+                            width: 92,
+                            height: 92,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: item.color.withOpacity(0.18),
+                            ),
                           ),
                         ),
-                      ),
                       if (hasImage)
                         Positioned.fill(
                           child: ClipRRect(
@@ -4414,7 +4419,7 @@ class _PromoShowcaseCardState extends State<PromoShowcaseCard> with SingleTicker
                                 Container(
                                   decoration: BoxDecoration(
                                     gradient: LinearGradient(
-                                      colors: [Colors.black.withOpacity(0.20), Colors.black.withOpacity(0.50)],
+                                      colors: [Colors.black.withOpacity(0.10), Colors.black.withOpacity(0.44)],
                                       begin: Alignment.topCenter,
                                       end: Alignment.bottomCenter,
                                     ),
@@ -4432,67 +4437,70 @@ class _PromoShowcaseCardState extends State<PromoShowcaseCard> with SingleTicker
                             Row(
                               children: [
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.16),
+                                    gradient: const LinearGradient(
+                                      colors: [Color(0xFFFFF0A8), Color(0xFFFFD447), Color(0xFFFFA000)],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    ),
                                     borderRadius: BorderRadius.circular(999),
-                                    border: Border.all(color: Colors.white.withOpacity(0.18)),
+                                    border: Border.all(color: Colors.black.withOpacity(0.08)),
+                                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.28), blurRadius: 18, offset: const Offset(0, 8))],
                                   ),
-                                  child: Text(item.tag.toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 0.6)),
+                                  child: Text(
+                                    tagLabel.toUpperCase(),
+                                    style: const TextStyle(color: Color(0xFF1F2937), fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 0.7),
+                                  ),
                                 ),
                                 const Spacer(),
-                                Container(
-                                  width: 40,
-                                  height: 40,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.16),
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(color: Colors.white.withOpacity(0.16)),
+                                if (item.isRaffle || isImportant)
+                                  Container(
+                                    width: 44,
+                                    height: 44,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: item.isRaffle ? Colors.black.withOpacity(0.30) : const Color(0xFF064B64).withOpacity(0.42),
+                                      border: Border.all(color: item.isRaffle ? const Color(0xFF2D2D2D).withOpacity(0.92) : const Color(0xFF064B64).withOpacity(0.20), width: 1.3),
+                                    ),
+                                    child: Icon(topIcon, color: item.isRaffle ? const Color(0xFFCFC4B4) : const Color(0xFF08364A), size: 23),
                                   ),
-                                  child: Icon(item.icon, color: Colors.white, size: 22),
-                                ),
                               ],
                             ),
                             const Spacer(),
-                            Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 21, height: 1.02, fontWeight: FontWeight.w900, letterSpacing: -0.7)),
-                            const SizedBox(height: 7),
-                            Text(item.subtitle, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white.withOpacity(0.84), height: 1.22, fontWeight: FontWeight.w700)),
-                            const SizedBox(height: 10),
-                            Row(
-                              children: [
-                                Container(
-                                  width: 42,
-                                  height: 4,
+                            if (showTitle) ...[
+                              Text(
+                                title,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(color: Colors.white, fontSize: 21, height: 1.02, fontWeight: FontWeight.w900, letterSpacing: -0.7),
+                              ),
+                            ],
+                            if (showSubtitle) ...[
+                              const SizedBox(height: 7),
+                              Text(
+                                subtitle,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(color: Colors.white.withOpacity(0.88), height: 1.22, fontWeight: FontWeight.w700),
+                              ),
+                            ],
+                            if (item.isRaffle) ...[
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: Container(
+                                  height: 38,
+                                  width: 146,
                                   decoration: BoxDecoration(
                                     borderRadius: BorderRadius.circular(999),
-                                    gradient: LinearGradient(colors: [Colors.white, Colors.white.withOpacity(0.18)]),
+                                    gradient: const LinearGradient(colors: [Color(0xFFFFD447), Color(0xFFFFA000)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                                    boxShadow: [BoxShadow(color: const Color(0xFFFFB020).withOpacity(0.34), blurRadius: 16, offset: const Offset(0, 8))],
                                   ),
+                                  alignment: Alignment.center,
+                                  child: const Text('Участвовать', style: TextStyle(color: Color(0xFF1F2937), fontSize: 12, fontWeight: FontWeight.w900)),
                                 ),
-                                const Spacer(),
-                                if (item.isRaffle)
-                                  Container(
-                                    height: 36,
-                                    padding: const EdgeInsets.symmetric(horizontal: 13),
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(999),
-                                      color: Colors.white.withOpacity(0.18),
-                                      border: Border.all(color: Colors.white.withOpacity(0.16)),
-                                    ),
-                                    alignment: Alignment.center,
-                                    child: const Text('Участвовать', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w900)),
-                                  )
-                                else
-                                  Container(
-                                    width: 36,
-                                    height: 36,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: Colors.white.withOpacity(0.16),
-                                    ),
-                                    child: const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 20),
-                                  ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -5107,9 +5115,16 @@ class BenefitFeaturedCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tagLower = item.tag.toLowerCase();
-    final label = item.isRaffle ? 'Розыгрыш' : (tagLower.contains('важ') || tagLower.contains('flowru') ? 'Важное' : 'Акция');
+    final isImportant = !item.isRaffle && (tagLower.contains('важ') || tagLower.contains('flowru'));
+    final label = item.isRaffle ? 'Розыгрыш' : (isImportant ? 'Важное' : 'Акция');
     final imageUrl = (item.imageUrl ?? '').trim();
     final hasImage = imageUrl.isNotEmpty;
+    final title = item.title.trim();
+    final subtitle = item.subtitle.trim();
+    final titleLower = title.toLowerCase();
+    final showTitle = title.isNotEmpty && !item.isRaffle && !(isImportant && (titleLower == 'важное' || titleLower == 'важно'));
+    final showSubtitle = subtitle.isNotEmpty && !item.isRaffle;
+    final topIcon = item.isRaffle ? Icons.celebration_rounded : Icons.notifications_none_rounded;
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(32),
@@ -5143,59 +5158,93 @@ class BenefitFeaturedCard extends StatelessWidget {
                     child: Container(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
-                          colors: [Colors.black.withOpacity(0.16), Colors.black.withOpacity(0.54)],
+                          colors: [Colors.black.withOpacity(0.10), Colors.black.withOpacity(0.46)],
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
                         ),
                       ),
                     ),
                   ),
-                Positioned(
-                  right: 12,
-                  top: 10,
-                  child: IgnorePointer(
-                    child: Container(
-                      width: 94,
-                      height: 94,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white.withOpacity(0.11),
+                if (!hasImage)
+                  Positioned(
+                    right: 12,
+                    top: 10,
+                    child: IgnorePointer(
+                      child: Container(
+                        width: 94,
+                        height: 94,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white.withOpacity(0.11),
+                        ),
                       ),
                     ),
                   ),
-                ),
-                Positioned(
-                  right: 20,
-                  bottom: 18,
-                  child: IgnorePointer(
-                    child: Icon(item.icon, color: Colors.white.withOpacity(0.10), size: 68),
+                if (!hasImage)
+                  Positioned(
+                    right: 20,
+                    bottom: 18,
+                    child: IgnorePointer(
+                      child: Icon(item.icon, color: Colors.white.withOpacity(0.10), size: 68),
+                    ),
                   ),
-                ),
                 Padding(
                   padding: const EdgeInsets.all(18),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Row(children: [
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-                        decoration: BoxDecoration(color: Colors.white.withOpacity(0.18), borderRadius: BorderRadius.circular(999), border: Border.all(color: Colors.white.withOpacity(0.18))),
-                        child: Text(label.toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 0.8)),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFFFF0A8), Color(0xFFFFD447), Color(0xFFFFA000)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(color: Colors.black.withOpacity(0.08)),
+                          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.30), blurRadius: 18, offset: const Offset(0, 8))],
+                        ),
+                        child: Text(label.toUpperCase(), style: const TextStyle(color: Color(0xFF1F2937), fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 0.8)),
                       ),
                       const Spacer(),
-                      Container(width: 44, height: 44, decoration: BoxDecoration(color: Colors.white.withOpacity(0.16), borderRadius: BorderRadius.circular(18)), child: Icon(item.icon, color: Colors.white, size: 23)),
+                      if (item.isRaffle || isImportant)
+                        Container(
+                          width: 46,
+                          height: 46,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: item.isRaffle ? Colors.black.withOpacity(0.30) : const Color(0xFF064B64).withOpacity(0.42),
+                            border: Border.all(color: item.isRaffle ? const Color(0xFF2D2D2D).withOpacity(0.92) : const Color(0xFF064B64).withOpacity(0.20), width: 1.3),
+                          ),
+                          child: Icon(topIcon, color: item.isRaffle ? const Color(0xFFCFC4B4) : const Color(0xFF08364A), size: 24),
+                        ),
                     ]),
-                    const SizedBox(height: 22),
-                    Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 27, height: 0.98, fontWeight: FontWeight.w900, letterSpacing: -1.0)),
-                    const SizedBox(height: 10),
-                    Text(item.subtitle, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white.withOpacity(0.86), fontSize: 15, height: 1.22, fontWeight: FontWeight.w800)),
-                    const SizedBox(height: 18),
-                    Row(children: [
-                      Container(width: 72, height: 6, decoration: BoxDecoration(color: Colors.white.withOpacity(0.82), borderRadius: BorderRadius.circular(99))),
-                      const Spacer(),
-                      if (joining)
-                        const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      else
-                        Container(width: 46, height: 46, decoration: BoxDecoration(color: Colors.white.withOpacity(0.20), shape: BoxShape.circle), child: const Icon(Icons.arrow_forward_rounded, color: Colors.white)),
-                    ]),
+                    const Spacer(),
+                    if (showTitle) ...[
+                      Text(title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 27, height: 0.98, fontWeight: FontWeight.w900, letterSpacing: -1.0)),
+                    ],
+                    if (showSubtitle) ...[
+                      const SizedBox(height: 10),
+                      Text(subtitle, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white.withOpacity(0.88), fontSize: 15, height: 1.22, fontWeight: FontWeight.w800)),
+                    ],
+                    if (item.isRaffle) ...[
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: joining
+                            ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            : Container(
+                                height: 42,
+                                width: 156,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(999),
+                                  gradient: const LinearGradient(colors: [Color(0xFFFFD447), Color(0xFFFFA000)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                                  boxShadow: [BoxShadow(color: const Color(0xFFFFB020).withOpacity(0.34), blurRadius: 16, offset: const Offset(0, 8))],
+                                ),
+                                alignment: Alignment.center,
+                                child: const Text('Участвовать', style: TextStyle(color: Color(0xFF1F2937), fontSize: 13, fontWeight: FontWeight.w900)),
+                              ),
+                      ),
+                    ],
                   ]),
                 ),
               ],
@@ -6803,6 +6852,12 @@ String? extractImageUrl(Map<String, dynamic> data) {
     'image_path',
     'cover_path',
     'media_path',
+    'photoPath',
+    'imagePath',
+    'coverPath',
+    'mediaPath',
+    'filePath',
+    'file_path',
     'photo',
     'picture',
     'cover_url',
@@ -6831,7 +6886,7 @@ String? extractImageUrl(Map<String, dynamic> data) {
     if (value is String && value.trim().isNotEmpty) return normalizePublicImageUrl(value.trim());
 
     if (value is Map) {
-      for (final nestedKey in const ['url', 'image_url', 'photo_url', 'path', 'src', 'file_url']) {
+      for (final nestedKey in const ['url', 'image_url', 'photo_url', 'imageUrl', 'photoUrl', 'path', 'src', 'file_url', 'fileUrl', 'photo_path', 'image_path', 'photoPath', 'imagePath']) {
         final nestedValue = value[nestedKey];
         if (nestedValue is String && nestedValue.trim().isNotEmpty) return normalizePublicImageUrl(nestedValue.trim());
       }
@@ -6841,7 +6896,7 @@ String? extractImageUrl(Map<String, dynamic> data) {
       for (final item in value) {
         if (item is String && item.trim().isNotEmpty) return normalizePublicImageUrl(item.trim());
         if (item is Map) {
-          for (final nestedKey in const ['url', 'image_url', 'photo_url', 'path', 'src', 'file_url']) {
+          for (final nestedKey in const ['url', 'image_url', 'photo_url', 'imageUrl', 'photoUrl', 'path', 'src', 'file_url', 'fileUrl', 'photo_path', 'image_path', 'photoPath', 'imagePath']) {
             final nestedValue = item[nestedKey];
             if (nestedValue is String && nestedValue.trim().isNotEmpty) return normalizePublicImageUrl(nestedValue.trim());
           }
