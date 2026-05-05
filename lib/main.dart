@@ -941,7 +941,7 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
               labelStyle: TextStyle(color: kLoginInkSoft.withOpacity(0.88), fontWeight: FontWeight.w700, fontSize: isSmallScreen ? 12 : 15),
               floatingLabelStyle: const TextStyle(color: kLoginViolet, fontWeight: FontWeight.w800),
               border: InputBorder.none,
-              contentPadding: EdgeInsets.symmetric(horizontal: isSmallScreen ? 14 : 22, vertical: isSmallScreen ? 10 : 19),
+              contentPadding: EdgeInsets.symmetric(horizontal: isSmallScreen ? 12 : 22, vertical: isSmallScreen ? 8 : 19),
             ),
           ),
         ),
@@ -965,7 +965,7 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
           onTap: onPressed,
           borderRadius: BorderRadius.circular(isSmallScreen ? 25 : 31),
           child: Container(
-            height: isSmallScreen ? 44.0 : 60.0,
+            height: isSmallScreen ? 40.0 : 60.0,
             alignment: Alignment.center,
             child: isLoading ? SizedBox(width: isSmallScreen ? 18 : 24, height: isSmallScreen ? 18 : 24, child: const CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white)) : Text(text, style: TextStyle(color: Colors.white, fontSize: isSmallScreen ? 14 : 16, fontWeight: FontWeight.w900, letterSpacing: 0.2)),
           ),
@@ -985,7 +985,7 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
           backgroundColor: Colors.white.withOpacity(0.34),
           side: const BorderSide(color: kLoginViolet, width: 1.5),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(isSmallScreen ? 26 : 30)),
-          padding: EdgeInsets.symmetric(vertical: isSmallScreen ? 11 : 17, horizontal: isSmallScreen ? 14 : 24),
+          padding: EdgeInsets.symmetric(vertical: isSmallScreen ? 8 : 17, horizontal: isSmallScreen ? 12 : 24),
           shadowColor: kLoginViolet.withOpacity(0.18),
         ),
         child: Text(text, style: TextStyle(color: kLoginViolet, fontSize: isSmallScreen ? 14 : 15, fontWeight: FontWeight.w900)),
@@ -1018,7 +1018,7 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
         borderRadius: BorderRadius.circular(999),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 220),
-          height: isSmallScreen ? 34 : 46,
+          height: isSmallScreen ? 30 : 46,
           decoration: BoxDecoration(borderRadius: BorderRadius.circular(999), gradient: active ? const LinearGradient(colors: [Color(0xFF10C3C5), Color(0xFF0A7EA0), Color(0xFF6B57FF)]) : null, boxShadow: active ? [BoxShadow(color: kLoginBlue.withOpacity(0.22), blurRadius: 16, offset: const Offset(0, 8))] : null),
           child: Center(child: Text(text, style: TextStyle(color: active ? Colors.white : kLoginInkSoft, fontWeight: FontWeight.w900, fontSize: isSmallScreen ? 12 : 14))),
         ),
@@ -1118,14 +1118,14 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
 
     final cardWidth = isVerySmall ? screenWidth * 0.94 : isSmallScreen ? screenWidth * 0.92 : isMediumScreen ? screenWidth * 0.86 : 500.0;
     final horizontalPadding = isVerySmall ? 10.0 : isSmallScreen ? 12.0 : 24.0;
-    final cardPadding = isVerySmall ? 8.0 : isSmallScreen ? 10.0 : 22.0;
-    final innerPadding = isVerySmall ? 8.0 : isSmallScreen ? 10.0 : 22.0;
-    final titleSize = isVerySmall ? 18.0 : isSmallScreen ? 20.0 : 30.0;
-    final subtitleSize = isVerySmall ? 10.0 : isSmallScreen ? 10.8 : 14.0;
-    final logoSize = isVerySmall ? 44.0 : isSmallScreen ? 52.0 : 88.0;
+    final cardPadding = isVerySmall ? 7.0 : isSmallScreen ? 8.0 : 20.0;
+    final innerPadding = isVerySmall ? 7.0 : isSmallScreen ? 8.0 : 20.0;
+    final titleSize = isVerySmall ? 17.0 : isSmallScreen ? 18.0 : 30.0;
+    final subtitleSize = isVerySmall ? 9.2 : isSmallScreen ? 10.0 : 14.0;
+    final logoSize = isVerySmall ? 38.0 : isSmallScreen ? 44.0 : 88.0;
     final gapSmall = isVerySmall ? 2.0 : isSmallScreen ? 3.0 : 8.0;
-    final gapMedium = isVerySmall ? 4.0 : isSmallScreen ? 6.0 : 14.0;
-    final gapLarge = isVerySmall ? 8.0 : isSmallScreen ? 10.0 : 24.0;
+    final gapMedium = isVerySmall ? 3.0 : isSmallScreen ? 5.0 : 14.0;
+    final gapLarge = isVerySmall ? 6.0 : isSmallScreen ? 8.0 : 24.0;
 
     return Scaffold(
       backgroundColor: kLoginMintTop,
@@ -1508,7 +1508,7 @@ class _ClientShellState extends State<ClientShell> {
   int get points => toInt(loyalty['points'] ?? stats['points']);
   int get visits => toInt(loyalty['visits'] ?? stats['visits']);
   double get sales => toDouble(loyalty['sales_total'] ?? stats['sales_total']);
-  String get code => (card['code'] ?? card['qr_code'] ?? client['id'] ?? '').toString();
+  String get code => (card['qr_code'] ?? card['code'] ?? user['phone'] ?? client['phone'] ?? client['id'] ?? '').toString();
   String get phone => (user['phone'] ?? client['phone'] ?? '').toString();
   String get lastVisit => (loyalty['last_visit_at'] ?? stats['last_visit_at'] ?? '').toString();
 
@@ -4136,7 +4136,7 @@ class OfferTicker extends StatelessWidget {
         : showcase.take(20).toList();
 
     return SizedBox(
-      height: 222,
+      height: 246,
       child: ShaderMask(
         shaderCallback: (bounds) => const LinearGradient(
           begin: Alignment.centerLeft,
@@ -4152,7 +4152,7 @@ class OfferTicker extends StatelessWidget {
           itemCount: visibleItems.length,
           separatorBuilder: (_, __) => const SizedBox(width: 12),
           itemBuilder: (_, i) => SizedBox(
-            width: 272,
+            width: 246,
             child: PromoShowcaseCard(
               item: visibleItems[i],
               onTap: () => _openPromo(context, visibleItems[i]),
@@ -4251,7 +4251,9 @@ class BenefitOrbitPanel extends StatelessWidget {
               final wide = constraints.maxWidth >= 680;
               final firstRow = [
                 Expanded(
-                  child: BenefitActionCard(
+                  child: AspectRatio(
+                    aspectRatio: 1,
+                    child: BenefitActionCard(
                     title: 'Акции',
                     titleBadge: offerCount == 0 ? 'Скоро' : '$offerCount',
                     subtitle: offerCount == 0 ? 'Персональные предложения и выгодные акции появятся здесь.' : '$offerCount активных предложений для вас',
@@ -4261,10 +4263,13 @@ class BenefitOrbitPanel extends StatelessWidget {
                     previewTitle: offerItems.isNotEmpty ? offerItems.first.title : 'Лента акций',
                     onTap: () => openOffers(context),
                   ),
+                  ),
                 ),
               ];
 
-              final raffleCard = BenefitActionCard(
+              final raffleCard = AspectRatio(
+                aspectRatio: 1,
+                child: BenefitActionCard(
                 title: draw.isNotEmpty ? raffleTitle : 'Розыгрыши',
                 titleBadge: raffleCount == 0 ? 'Нет' : '$raffleCount',
                 subtitle: raffleSubtitle,
@@ -4274,6 +4279,7 @@ class BenefitOrbitPanel extends StatelessWidget {
                 previewTitle: draw.isNotEmpty ? raffleTitle : 'Конкурсы и розыгрыши',
                 onTap: () => openRaffle(context),
                 darkMode: true,
+              ),
               );
 
               if (wide) {
@@ -4308,20 +4314,24 @@ class PromoActionPill extends StatelessWidget {
   final double height;
   final double fontSize;
   final EdgeInsets padding;
+  final double maxWidth;
 
   const PromoActionPill({
     super.key,
     required this.text,
     this.onTap,
     this.loading = false,
-    this.height = 38,
-    this.fontSize = 12,
-    this.padding = const EdgeInsets.symmetric(horizontal: 16),
+    this.height = 28,
+    this.fontSize = 10.2,
+    this.padding = const EdgeInsets.symmetric(horizontal: 10),
+    this.maxWidth = 118,
   });
 
   @override
   Widget build(BuildContext context) {
-    final child = Container(
+    final child = ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maxWidth),
+      child: Container(
       height: height,
       padding: padding,
       decoration: BoxDecoration(
@@ -4343,6 +4353,7 @@ class PromoActionPill extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: TextStyle(color: const Color(0xFF1F2937), fontSize: fontSize, fontWeight: FontWeight.w900),
             ),
+      ),
     );
 
     if (onTap == null || loading) return child;
@@ -4514,15 +4525,15 @@ class _PromoShowcaseCardState extends State<PromoShowcaseCard> with SingleTicker
                                 ),
                                 const Spacer(),
                                 Container(
-                                  width: 40,
-                                  height: 40,
+                                  width: 38,
+                                  height: 38,
                                   decoration: BoxDecoration(
-                                    color: Colors.black.withOpacity(hasImage ? 0.68 : 0.24),
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(color: Colors.white.withOpacity(0.22)),
-                                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.24), blurRadius: 14, offset: const Offset(0, 7))],
+                                    color: Colors.black.withOpacity(hasImage ? 0.84 : 0.54),
+                                    borderRadius: BorderRadius.circular(15),
+                                    border: Border.all(color: Colors.white.withOpacity(0.46)),
+                                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.34), blurRadius: 16, offset: const Offset(0, 7))],
                                   ),
-                                  child: Icon(item.isRaffle ? Icons.celebration_rounded : Icons.notifications_active_rounded, color: Colors.white.withOpacity(0.94), size: 22),
+                                  child: Icon(item.isRaffle ? Icons.celebration_rounded : Icons.notifications_active_rounded, color: Colors.white, size: 21),
                                 ),
                               ],
                             ),
@@ -4551,9 +4562,10 @@ class _PromoShowcaseCardState extends State<PromoShowcaseCard> with SingleTicker
                                 child: PromoActionPill(
                                   text: hasActionButton ? actionText! : 'Участвовать',
                                   loading: item.isRaffle && !hasActionButton ? false : false,
-                                  height: 30,
-                                  fontSize: 10.8,
-                                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                                  height: 26,
+                                  fontSize: 9.6,
+                                  padding: const EdgeInsets.symmetric(horizontal: 9),
+                                  maxWidth: 104,
                                   onTap: hasActionButton ? () => openExternalUrl(context, actionUrl, emptyMessage: 'Ссылка кнопки не указана') : widget.onTap,
                                 ),
                               ),
@@ -4837,24 +4849,21 @@ class _BenefitActionCardState extends State<BenefitActionCard> with SingleTicker
                       ),
                     ),
                     if ((widget.imageUrl ?? '').trim().isNotEmpty)
-                      Positioned(
-                        right: 12,
-                        bottom: 12,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(20),
-                          child: SizedBox(
-                            width: 86,
-                            height: 86,
-                            child: Opacity(
-                              opacity: isDark ? 0.24 : 0.18,
-                              child: Image.network(
-                                widget.imageUrl!,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => Container(
-                                  color: widget.accent.withOpacity(0.10),
-                                  child: Icon(widget.icon, color: widget.accent, size: 30),
-                                ),
-                              ),
+                      Positioned.fill(
+                        child: Image.network(
+                          widget.imageUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                        ),
+                      ),
+                    if ((widget.imageUrl ?? '').trim().isNotEmpty)
+                      Positioned.fill(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [Colors.black.withOpacity(isDark ? 0.12 : 0.08), Colors.black.withOpacity(isDark ? 0.54 : 0.32)],
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
                             ),
                           ),
                         ),
@@ -5185,7 +5194,9 @@ class BenefitFeaturedCard extends StatelessWidget {
     final actionUrl = item.actionUrl;
     final hasActionButton = actionText != null && actionUrl != null;
 
-    return ClipRRect(
+    return AspectRatio(
+      aspectRatio: 1,
+      child: ClipRRect(
       borderRadius: BorderRadius.circular(32),
       child: Material(
         color: Colors.transparent,
@@ -5266,7 +5277,7 @@ class BenefitFeaturedCard extends StatelessWidget {
                         child: Text(label.toUpperCase(), style: const TextStyle(color: Color(0xFF1F2937), fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 0.8)),
                       ),
                       const Spacer(),
-                      Container(width: 42, height: 42, decoration: BoxDecoration(color: Colors.black.withOpacity(hasImage ? 0.68 : 0.24), borderRadius: BorderRadius.circular(17), border: Border.all(color: Colors.white.withOpacity(0.22)), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.24), blurRadius: 14, offset: const Offset(0, 7))]), child: Icon(item.isRaffle ? Icons.celebration_rounded : Icons.notifications_active_rounded, color: Colors.white.withOpacity(0.94), size: 22)),
+                      Container(width: 38, height: 38, decoration: BoxDecoration(color: Colors.black.withOpacity(hasImage ? 0.84 : 0.54), borderRadius: BorderRadius.circular(15), border: Border.all(color: Colors.white.withOpacity(0.46)), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.34), blurRadius: 16, offset: const Offset(0, 7))]), child: Icon(item.isRaffle ? Icons.celebration_rounded : Icons.notifications_active_rounded, color: Colors.white, size: 21)),
                     ]),
                     const Spacer(),
                     if (showTitle) ...[
@@ -5283,9 +5294,10 @@ class BenefitFeaturedCard extends StatelessWidget {
                         child: PromoActionPill(
                           text: hasActionButton ? actionText! : 'Участвовать',
                           loading: item.isRaffle && !hasActionButton && joining,
-                          height: 32,
-                          fontSize: 11.2,
-                          padding: const EdgeInsets.symmetric(horizontal: 13),
+                          height: 26,
+                          fontSize: 9.6,
+                          padding: const EdgeInsets.symmetric(horizontal: 9),
+                          maxWidth: 106,
                           onTap: hasActionButton ? () => openExternalUrl(context, actionUrl, emptyMessage: 'Ссылка кнопки не указана') : onTap,
                         ),
                       ),
@@ -5296,6 +5308,7 @@ class BenefitFeaturedCard extends StatelessWidget {
             ),
           ),
         ),
+      ),
       ),
     );
   }
