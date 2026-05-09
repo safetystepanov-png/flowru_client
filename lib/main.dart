@@ -1,4 +1,4 @@
-// Flowru Client V3 Concept
+﻿// Flowru Client V3 Concept
 // Полностью новый визуальный подход: мобильный командный центр клиента.
 // Логика API/авторизации/токенов сохранена, UI-слой пересобран в другом сценарии.
 
@@ -753,7 +753,7 @@ class _BiometricUnlockScreenState extends State<BiometricUnlockScreen> {
                               fontSize: 30,
                               fontWeight: FontWeight.w900,
                               letterSpacing: -1)),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 6),
                       const Text(
                           'Подтвердите вход, чтобы открыть вашу карту Flowru.',
                           textAlign: TextAlign.center,
@@ -3005,11 +3005,22 @@ class _ClientShellState extends State<ClientShell> {
                       title: 'Мои заведения',
                       subtitle:
                           'Откройте заведение, чтобы посмотреть акции, историю, правила и контакты')),
-              Text('${establishments.length}',
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.88),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: FlowColors.line.withOpacity(0.9)),
+                ),
+                child: Text(
+                  '${establishments.length} шт.',
                   style: const TextStyle(
                       color: FlowColors.ink,
                       fontWeight: FontWeight.w900,
-                      fontSize: 18)),
+                      fontSize: 13),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 10),
@@ -3028,7 +3039,7 @@ class _ClientShellState extends State<ClientShell> {
                 crossAxisCount: 2,
                 crossAxisSpacing: 12,
                 mainAxisSpacing: 12,
-                childAspectRatio: 1.18,
+                childAspectRatio: 0.96,
               ),
               itemCount: establishments.length,
               itemBuilder: (context, index) {
@@ -4674,7 +4685,7 @@ class FlowruMainHeader extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 27,
+                  fontSize: 23,
                   height: 1,
                   fontWeight: FontWeight.w900,
                   letterSpacing: -1)),
@@ -4720,179 +4731,146 @@ class FlowruClientQrPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final qr = payload.trim().isNotEmpty ? payload.trim() : 'flowru-client';
 
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.94, end: 1.0),
-      duration: const Duration(milliseconds: 2400),
-      curve: Curves.easeInOut,
-      builder: (context, pulse, _) {
-        return Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(44),
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Color(0xFFF8FBFF),
-                Color(0xFFEAF7FF),
-                Color(0xFFF5F0FF),
-                Color(0xFFFFF4D8)
+    return LayoutBuilder(builder: (context, constraints) {
+      final qrSize = (constraints.maxWidth * 0.58).clamp(190.0, 248.0).toDouble();
+
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onOpen,
+          borderRadius: BorderRadius.circular(34),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 280),
+            curve: Curves.easeOutCubic,
+            padding: const EdgeInsets.fromLTRB(18, 14, 18, 20),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(34),
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFFFFFFFF),
+                  Color(0xFFF8FBFF),
+                  Color(0xFFFFFCF6),
+                ],
+              ),
+              border: Border.all(color: const Color(0xFFE4ECF8), width: 1.2),
+              boxShadow: [
+                BoxShadow(
+                    color: const Color(0xFF1F2A44).withOpacity(0.05),
+                    blurRadius: 24,
+                    offset: const Offset(0, 12)),
+                BoxShadow(
+                    color: const Color(0xFF63A8FF).withOpacity(0.08),
+                    blurRadius: 34,
+                    offset: const Offset(0, 18)),
               ],
             ),
-            border:
-                Border.all(color: Colors.white.withOpacity(0.96), width: 1.5),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Align(
+                  alignment: Alignment.topRight,
+                  child: _QrPanelActionButton(
+                    loading: loading,
+                    onPressed: onRefresh,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Center(
+                  child: GestureDetector(
+                    onTap: onOpen,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 280),
+                      curve: Curves.easeOutCubic,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(28),
+                        color: Colors.white,
+                        boxShadow: [
+                          BoxShadow(
+                              color: const Color(0xFF36D8FF).withOpacity(0.24),
+                              blurRadius: 28,
+                              spreadRadius: 2,
+                              offset: const Offset(0, 0)),
+                          BoxShadow(
+                              color: const Color(0xFF7D6BFF).withOpacity(0.16),
+                              blurRadius: 34,
+                              spreadRadius: 4,
+                              offset: const Offset(0, 0)),
+                          BoxShadow(
+                              color: const Color(0xFFFF59B6).withOpacity(0.10),
+                              blurRadius: 40,
+                              spreadRadius: 1,
+                              offset: const Offset(0, 0)),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+                        child: QrImageView(
+                          data: qr,
+                          size: qrSize,
+                          backgroundColor: Colors.white,
+                          eyeStyle: const QrEyeStyle(
+                              eyeShape: QrEyeShape.square,
+                              color: FlowColors.ink),
+                          dataModuleStyle: const QrDataModuleStyle(
+                              dataModuleShape: QrDataModuleShape.square,
+                              color: FlowColors.ink),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    });
+  }
+}
+
+class _QrPanelActionButton extends StatelessWidget {
+  final bool loading;
+  final VoidCallback onPressed;
+  const _QrPanelActionButton(
+      {required this.loading, required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: loading ? null : onPressed,
+        borderRadius: BorderRadius.circular(18),
+        child: Ink(
+          width: 46,
+          height: 46,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFE2EAF7)),
             boxShadow: [
               BoxShadow(
-                  color: const Color(0xFF5F7CFF).withOpacity(0.13),
-                  blurRadius: 34,
-                  offset: const Offset(0, 18)),
-              BoxShadow(
-                  color: const Color(0xFFFFB020).withOpacity(0.10 * pulse),
-                  blurRadius: 52,
-                  offset: const Offset(0, 26)),
+                  color: const Color(0xFF1F2A44).withOpacity(0.04),
+                  blurRadius: 10,
+                  offset: const Offset(0, 6)),
             ],
           ),
-          child: Stack(
-            children: [
-              Positioned(
-                  right: -34,
-                  top: -28,
-                  child: _QrDecorOrb(
-                      size: 148,
-                      colors: const [Color(0x335C6CFF), Color(0x00FFFFFF)])),
-              Positioned(
-                  left: -48,
-                  bottom: -54,
-                  child: _QrDecorOrb(
-                      size: 184,
-                      colors: const [Color(0x33FF59B7), Color(0x00FFFFFF)])),
-              Padding(
-                padding: const EdgeInsets.all(18),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.84),
-                            borderRadius: BorderRadius.circular(999),
-                            border: Border.all(color: const Color(0xFFE5ECFF)),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: const [
-                              Icon(Icons.verified_rounded,
-                                  color: Color(0xFF2F5BFF), size: 16),
-                              SizedBox(width: 6),
-                              Text('Действует во всех заведениях',
-                                  style: TextStyle(
-                                      color: FlowColors.ink,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w900,
-                                      letterSpacing: 0.15)),
-                            ],
-                          ),
-                        ),
-                        const Spacer(),
-                        IconButton(
-                          onPressed: loading ? null : onRefresh,
-                          tooltip: 'Обновить QR',
-                          icon: loading
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                      strokeWidth: 2, color: FlowColors.ink))
-                              : Container(
-                                  width: 42,
-                                  height: 42,
-                                  decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.86),
-                                      borderRadius: BorderRadius.circular(16),
-                                      border: Border.all(
-                                          color: const Color(0xFFE5ECFF))),
-                                  child: const Icon(Icons.refresh_rounded,
-                                      color: FlowColors.ink),
-                                ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Center(
-                      child: GestureDetector(
-                        onTap: onOpen,
-                        child: Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: const SweepGradient(colors: [
-                              Color(0xFF5F7CFF),
-                              Color(0xFFFF4FB8),
-                              Color(0xFFFFC766),
-                              Color(0xFF44D6D6),
-                              Color(0xFF5F7CFF)
-                            ]),
-                            boxShadow: [
-                              BoxShadow(
-                                  color:
-                                      const Color(0xFF5F7CFF).withOpacity(0.14),
-                                  blurRadius: 30,
-                                  offset: const Offset(0, 12)),
-                              BoxShadow(
-                                  color:
-                                      const Color(0xFFFF4FB8).withOpacity(0.10),
-                                  blurRadius: 36,
-                                  offset: const Offset(0, 18)),
-                            ],
-                          ),
-                          child: Container(
-                            padding: const EdgeInsets.all(14),
-                            decoration: const BoxDecoration(
-                                shape: BoxShape.circle, color: Colors.white),
-                            child: Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                Container(
-                                  width: 248,
-                                  height: 248,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    gradient: RadialGradient(colors: [
-                                      const Color(0xFF44D6D6)
-                                          .withOpacity(0.12 * pulse),
-                                      const Color(0xFF9B8CFF)
-                                          .withOpacity(0.10 * pulse),
-                                      Colors.transparent
-                                    ]),
-                                  ),
-                                ),
-                                AnimatedQrFrame(qrData: qr, size: 216),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    Center(
-                      child: Text(
-                        'Покажите этот код сотруднику',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                            color: FlowColors.ink.withOpacity(0.78),
-                            fontSize: 13,
-                            fontWeight: FontWeight.w900),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          child: Center(
+            child: loading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2.2, color: FlowColors.ink),
+                  )
+                : const Icon(Icons.refresh_rounded,
+                    color: FlowColors.ink, size: 22),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }
@@ -5035,104 +5013,166 @@ class FlowruEstablishmentEntry extends StatelessWidget {
             : 0);
     final activityCount = promoCount + drawsCount;
 
-    return GestureDetector(
-      onTap: onOpen,
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(30),
-          gradient: const LinearGradient(
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onOpen,
+        borderRadius: BorderRadius.circular(30),
+        child: Ink(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(30),
+            gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
                 Color(0xFFFFFFFF),
-                Color(0xFFF4FBFF),
-                Color(0xFFFFF8E6)
-              ]),
-          border: Border.all(color: Colors.white.withOpacity(0.92), width: 1.2),
-          boxShadow: [
-            BoxShadow(
-                color: FlowColors.ink.withOpacity(0.08),
-                blurRadius: 20,
-                offset: const Offset(0, 10))
-          ],
-        ),
-        child: Stack(
-          children: [
-            Positioned(
-                right: -18,
-                top: -22,
+                Color(0xFFF7FBFF),
+                Color(0xFFFFFCF5),
+              ],
+            ),
+            border: Border.all(color: const Color(0xFFE4ECF8), width: 1.2),
+            boxShadow: [
+              BoxShadow(
+                  color: const Color(0xFF1F2A44).withOpacity(0.06),
+                  blurRadius: 18,
+                  offset: const Offset(0, 10)),
+            ],
+          ),
+          child: Stack(
+            children: [
+              Positioned(
+                right: -24,
+                top: -18,
                 child: Container(
-                    width: 78,
-                    height: 78,
-                    decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: FlowColors.aqua.withOpacity(0.10)))),
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const PremiumAssetIcon(
-                          asset: kIconEstablishmentPremium,
-                          size: 42,
-                          fallbackIcon: Icons.storefront_rounded,
-                          withGlow: false),
-                      const Spacer(),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 5),
-                        decoration: BoxDecoration(
-                            color: FlowColors.ink.withOpacity(0.06),
-                            borderRadius: BorderRadius.circular(999)),
-                        child: Text('${formatMoney(points)} б.',
-                            style: const TextStyle(
-                                color: FlowColors.ink,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w900)),
-                      ),
-                    ],
+                  width: 118,
+                  height: 118,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(colors: [
+                      const Color(0xFF77D6FF).withOpacity(0.18),
+                      const Color(0xFFFFC86B).withOpacity(0.10),
+                      Colors.transparent,
+                    ]),
                   ),
-                  const SizedBox(height: 10),
-                  Text(name,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            height: 8,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(999),
+                              gradient: const LinearGradient(
+                                colors: [
+                                  Color(0xFF67D6FF),
+                                  Color(0xFF7B7DFF),
+                                  Color(0xFFFFCC73),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 7),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.92),
+                            borderRadius: BorderRadius.circular(999),
+                            border:
+                                Border.all(color: const Color(0xFFE2EAF7)),
+                          ),
+                          child: Text(
+                            activityCount > 0
+                                ? '$activityCount активн.'
+                                : 'спокойно',
+                            style: const TextStyle(
+                              color: FlowColors.ink,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      name,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                          color: FlowColors.ink,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: -0.35,
-                          height: 1.08)),
-                  const Spacer(),
-                  Row(
-                    children: [
-                      Expanded(
+                        color: FlowColors.ink,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.35,
+                        height: 1.08,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Баланс',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: FlowColors.muted,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '${formatMoney(points)} баллов',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: FlowColors.ink,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.8,
+                        height: 1,
+                      ),
+                    ),
+                    const Spacer(),
+                    Row(
+                      children: [
+                        Expanded(
                           child: _MiniEstMetric(
-                              label: 'визиты', value: formatMoney(visits))),
-                      const SizedBox(width: 7),
-                      Expanded(
+                              label: 'Визиты', value: formatMoney(visits)),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
                           child: _MiniEstMetric(
-                              label: 'события', value: '$activityCount')),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: const [
-                      Text('Открыть',
+                              label: 'Активность', value: '$activityCount'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        const Text(
+                          'Открыть заведение',
                           style: TextStyle(
-                              color: FlowColors.ink,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w900)),
-                      SizedBox(width: 4),
-                      Icon(Icons.arrow_forward_rounded,
-                          color: FlowColors.ink, size: 15),
-                    ],
-                  ),
-                ],
+                            color: FlowColors.ink,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const Spacer(),
+                        const Icon(Icons.arrow_forward_rounded,
+                            color: FlowColors.ink, size: 18),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -5147,28 +5187,39 @@ class _MiniEstMetric extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.72),
-          borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: FlowColors.line.withOpacity(0.75))),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(label,
+        color: Colors.white.withOpacity(0.70),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE4ECF8)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
-                color: FlowColors.soft,
-                fontSize: 9,
-                fontWeight: FontWeight.w800)),
-        const SizedBox(height: 2),
-        Text(value,
+              color: FlowColors.soft,
+              fontSize: 9,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
-                color: FlowColors.ink,
-                fontSize: 12,
-                fontWeight: FontWeight.w900)),
-      ]),
+              color: FlowColors.ink,
+              fontSize: 13,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -0.2,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -5552,9 +5603,28 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
                   onChanged: (v) => setState(() => innerTab = v)),
               const SizedBox(height: 14),
               AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 220),
-                  child: KeyedSubtree(
-                      key: ValueKey(innerTab), child: pages[innerTab])),
+                duration: const Duration(milliseconds: 380),
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                transitionBuilder: (child, animation) {
+                  final fade = CurvedAnimation(
+                      parent: animation, curve: Curves.easeOutCubic);
+                  final slide = Tween<Offset>(
+                          begin: const Offset(0.08, 0), end: Offset.zero)
+                      .animate(fade);
+                  final scale = Tween<double>(begin: 0.985, end: 1.0)
+                      .animate(fade);
+                  return FadeTransition(
+                    opacity: fade,
+                    child: SlideTransition(
+                      position: slide,
+                      child: ScaleTransition(scale: scale, child: child),
+                    ),
+                  );
+                },
+                child: KeyedSubtree(
+                    key: ValueKey(innerTab), child: pages[innerTab]),
+              ),
             ],
           ),
         ),
@@ -5565,60 +5635,30 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
   Widget _establishmentBenefits(
       String name, int points, List<PromoItem> promoItems) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const SectionTitle(
-          title: 'Выгода заведения',
-          subtitle:
-              'Акции, розыгрыши, баннеры и награды именно этого заведения'),
-      const SizedBox(height: 10),
-      OfferTicker(items: promoItems, onJoin: widget.onJoinDraw),
-      const SizedBox(height: 14),
-      SurfaceCard(
-        radius: 28,
-        padding: const EdgeInsets.all(16),
-        child: Row(children: [
-          Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                  color: FlowColors.acid.withOpacity(0.18),
-                  borderRadius: BorderRadius.circular(18)),
-              child: const Icon(Icons.workspace_premium_rounded,
-                  color: FlowColors.ink)),
-          const SizedBox(width: 12),
-          Expanded(
-              child: Text(
-                  'Ваш баланс в «$name»: ${formatMoney(points)} баллов. Ниже собраны все активные предложения только этого заведения.',
-                  style: const TextStyle(
-                      color: FlowColors.ink,
-                      height: 1.35,
-                      fontWeight: FontWeight.w800))),
-        ]),
+      _EstablishmentSectionHero(
+        icon: Icons.auto_awesome_rounded,
+        title: 'Выгода',
+        subtitle: 'Акции, розыгрыши и награды выбранного заведения',
+        value: '${formatMoney(points)} б.',
+        label: 'баланс',
+        accent: FlowColors.acid,
       ),
+      const SizedBox(height: 12),
+      OfferTicker(items: promoItems, onJoin: widget.onJoinDraw),
     ]);
   }
 
   Widget _establishmentQuests(List<Map<String, dynamic>> quests) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const SectionTitle(
-          title: 'Активные квесты',
-          subtitle: 'Задания, условия и награды выбранного заведения'),
-      const SizedBox(height: 8),
-      if (quests.isNotEmpty)
-        Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-            decoration: BoxDecoration(
-                color: FlowColors.aqua.withOpacity(0.10),
-                borderRadius: BorderRadius.circular(999)),
-            child: Text('Квестов получено: ${quests.length}',
-                style: const TextStyle(
-                    color: FlowColors.ink,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w900)),
-          ),
-        ),
-      const SizedBox(height: 2),
+      _EstablishmentSectionHero(
+        icon: Icons.flag_rounded,
+        title: 'Квесты',
+        subtitle: 'Задания, условия и награды выбранного заведения',
+        value: '${quests.length}',
+        label: 'квестов',
+        accent: FlowColors.violet,
+      ),
+      const SizedBox(height: 12),
       if (quests.isEmpty)
         const EmptyState(
             icon: Icons.flag_rounded,
@@ -5728,10 +5768,15 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
 
   Widget _establishmentHistory(List<Map<String, dynamic>> items) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const SectionTitle(
-          title: 'История',
-          subtitle: 'Начисления, списания и покупки только в этом заведении'),
-      const SizedBox(height: 10),
+      _EstablishmentSectionHero(
+        icon: Icons.receipt_long_rounded,
+        title: 'История',
+        subtitle: 'Начисления, списания и покупки только в этом заведении',
+        value: '${items.length}',
+        label: 'операций',
+        accent: FlowColors.aqua,
+      ),
+      const SizedBox(height: 12),
       TimelineList(history: items, loading: false),
     ]);
   }
@@ -5750,6 +5795,15 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
       double sales,
       Map<String, dynamic> est) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _EstablishmentSectionHero(
+        icon: Icons.info_outline_rounded,
+        title: 'Инфо',
+        subtitle: 'Контакты, правила и полезная информация о заведении',
+        value: phone.trim().isNotEmpty ? 'есть' : '—',
+        label: 'контакты',
+        accent: kLoginBlue,
+      ),
+      const SizedBox(height: 12),
       EstablishmentInfoPanel(
         establishmentName: name,
         address: address,
@@ -5787,12 +5841,23 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
       String lastVisit,
       Map<String, dynamic> client,
       Map<String, dynamic> loyalty) {
+    final hasWallet = ((widget.appleWalletUrl ?? '').trim().isNotEmpty ||
+        (widget.googleWalletUrl ?? '').trim().isNotEmpty);
+    final profileValue = hasWallet
+        ? 'wallet'
+        : (widget.referralProgramEnabled ? 'invite' : '—');
+
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const SectionTitle(
-          title: 'Профиль', subtitle: 'Wallet и приглашения этого заведения'),
-      if (((widget.appleWalletUrl ?? '').trim().isNotEmpty ||
-          (widget.googleWalletUrl ?? '').trim().isNotEmpty)) ...[
-        const SizedBox(height: 10),
+      _EstablishmentSectionHero(
+        icon: Icons.person_outline_rounded,
+        title: 'Профиль',
+        subtitle: 'Wallet и приглашения этого заведения',
+        value: profileValue,
+        label: 'сервисы',
+        accent: kLoginPink,
+      ),
+      if (hasWallet) ...[
+        const SizedBox(height: 12),
         WalletHubCard(
             establishmentName: name,
             appleWalletUrl: widget.appleWalletUrl,
@@ -5804,10 +5869,8 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
             referralLink: widget.referralLink,
             onRefresh: widget.onOpenReferral ?? () {}),
       ],
-      if (((widget.appleWalletUrl ?? '').trim().isEmpty &&
-              (widget.googleWalletUrl ?? '').trim().isEmpty) &&
-          !widget.referralProgramEnabled) ...[
-        const SizedBox(height: 10),
+      if (!hasWallet && !widget.referralProgramEnabled) ...[
+        const SizedBox(height: 12),
         const EmptyState(
             icon: Icons.person_outline_rounded,
             title: 'Пока пусто',
@@ -5815,6 +5878,99 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
                 'Wallet и приглашения появятся здесь, когда заведение их включит.'),
       ],
     ]);
+  }
+
+}
+
+class _EstablishmentSectionHero extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String value;
+  final String label;
+  final Color accent;
+
+  const _EstablishmentSectionHero({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.label,
+    required this.accent,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SurfaceCard(
+      radius: 28,
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+      child: SizedBox(
+        width: double.infinity,
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: FlowColors.ink,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.55,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    subtitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: FlowColors.muted,
+                      fontWeight: FontWeight.w800,
+                      height: 1.25,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 14),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: FlowColors.ink,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.4,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: FlowColors.soft,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -5860,47 +6016,104 @@ class EstablishmentTabSwitch extends StatelessWidget {
       (kIconInfoPremium, Icons.info_outline_rounded, 'Инфо'),
       (kIconProfilePremium, Icons.person_outline_rounded, 'Профиль'),
     ];
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+
+    return LayoutBuilder(builder: (context, constraints) {
+      final itemWidth = constraints.maxWidth / tabs.length;
+      final baseIconSize = (itemWidth * 0.78).clamp(58.0, 76.0).toDouble();
+      final activeIconSize = (baseIconSize + 8).clamp(64.0, 84.0).toDouble();
+      final labelFontSize = (itemWidth * 0.16).clamp(10.0, 12.0).toDouble();
+
+      return Row(
         children: List.generate(tabs.length, (i) {
           final active = i == current;
           return Expanded(
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: () => onChanged(i),
-              child: AnimatedScale(
-                scale: active ? 1.08 : 0.94,
-                duration: const Duration(milliseconds: 170),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    PremiumAssetIcon(
-                        asset: tabs[i].$1,
-                        size: active ? 56 : 48,
-                        fallbackIcon: tabs[i].$2,
-                        fallbackColor: FlowColors.ink,
-                        withGlow: active),
-                    const SizedBox(height: 3),
-                    Text(tabs[i].$3,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            color: active ? FlowColors.ink : FlowColors.soft,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w900)),
+                    AnimatedSlide(
+                      duration: const Duration(milliseconds: 260),
+                      curve: Curves.easeOutCubic,
+                      offset: active ? const Offset(0, -0.04) : Offset.zero,
+                      child: AnimatedScale(
+                        duration: const Duration(milliseconds: 260),
+                        curve: Curves.easeOutBack,
+                        scale: active ? 1.06 : 0.94,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            AnimatedOpacity(
+                              duration: const Duration(milliseconds: 260),
+                              opacity: active ? 1 : 0,
+                              child: Container(
+                                width: activeIconSize * 0.95,
+                                height: activeIconSize * 0.95,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  gradient: RadialGradient(colors: [
+                                    const Color(0xFF6AD8FF).withOpacity(0.26),
+                                    const Color(0xFF8A7EFF).withOpacity(0.16),
+                                    Colors.transparent,
+                                  ]),
+                                  boxShadow: [
+                                    BoxShadow(
+                                        color: const Color(0xFF6AD8FF)
+                                            .withOpacity(0.22),
+                                        blurRadius: 22,
+                                        spreadRadius: 1),
+                                    BoxShadow(
+                                        color: const Color(0xFFFF59B6)
+                                            .withOpacity(0.10),
+                                        blurRadius: 28,
+                                        spreadRadius: 1),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            PremiumAssetIcon(
+                              asset: tabs[i].$1,
+                              size: active ? activeIconSize : baseIconSize,
+                              fallbackIcon: tabs[i].$2,
+                              fallbackColor: FlowColors.ink,
+                              withGlow: false,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                     const SizedBox(height: 4),
+                    SizedBox(
+                      height: labelFontSize * 1.45,
+                      child: Center(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            tabs[i].$3,
+                            maxLines: 1,
+                            style: TextStyle(
+                              color: active ? FlowColors.ink : FlowColors.soft,
+                              fontSize: labelFontSize,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 5),
                     AnimatedContainer(
-                      duration: const Duration(milliseconds: 170),
-                      width: active ? 20 : 0,
+                      duration: const Duration(milliseconds: 260),
+                      curve: Curves.easeOutCubic,
+                      width: active ? itemWidth * 0.30 : 0,
                       height: 3,
                       decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(999),
-                          gradient: active
-                              ? const LinearGradient(
-                                  colors: [kLoginBlue, kLoginPink])
-                              : null),
+                        borderRadius: BorderRadius.circular(999),
+                        gradient: const LinearGradient(
+                            colors: [Color(0xFF6AD8FF), Color(0xFFFF59B6)]),
+                      ),
                     ),
                   ],
                 ),
@@ -5908,8 +6121,8 @@ class EstablishmentTabSwitch extends StatelessWidget {
             ),
           );
         }),
-      ),
-    );
+      );
+    });
   }
 }
 
@@ -7215,123 +7428,152 @@ class WalletHubCard extends StatelessWidget {
       required this.appleWalletUrl,
       required this.googleWalletUrl});
 
-  void _copy(BuildContext context, String value, String message) {
-    Clipboard.setData(ClipboardData(text: value));
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
-  }
-
   @override
   Widget build(BuildContext context) {
     final hasApple = (appleWalletUrl ?? '').trim().isNotEmpty;
     final hasGoogle = (googleWalletUrl ?? '').trim().isNotEmpty;
 
-    return SurfaceCard(
-      radius: 32,
-      padding: const EdgeInsets.all(14),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(28),
-          gradient: const LinearGradient(
-              colors: [Color(0xFF101828), Color(0xFF163A5F), Color(0xFF0FCAC5)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight),
-          boxShadow: [
-            BoxShadow(
-                color: FlowColors.ink.withOpacity(0.16),
-                blurRadius: 24,
-                offset: const Offset(0, 13))
-          ],
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(30),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF101828), Color(0xFF163A5F), Color(0xFF0FCAC5)],
         ),
-        child: Stack(children: [
-          Positioned(
-              right: -18,
-              bottom: -28,
-              child: Opacity(
-                  opacity: 0.18,
-                  child: PremiumAssetIcon(
-                      asset: kIconWalletPremium,
-                      size: 132,
-                      fallbackIcon: Icons.wallet_rounded,
-                      fallbackColor: Colors.white,
-                      withGlow: false))),
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.14),
-                    borderRadius: BorderRadius.circular(19),
-                    border: Border.all(color: Colors.white.withOpacity(0.18))),
-                child: const PremiumAssetIcon(
-                    asset: kIconWalletPremium,
-                    size: 46,
-                    fallbackIcon: Icons.wallet_rounded,
-                    fallbackColor: FlowColors.acid),
+        boxShadow: [
+          BoxShadow(
+              color: FlowColors.ink.withOpacity(0.16),
+              blurRadius: 24,
+              offset: const Offset(0, 13))
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Wallet карта',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 21,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      'Карты для «$establishmentName»',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xEFFFFFFF),
+                        fontWeight: FontWeight.w800,
+                        height: 1.25,
+                      ),
+                    ),
+                  ],
+                ),
               ),
+              const Icon(Icons.wallet_rounded, color: Colors.white, size: 28),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _WalletActionRow(
+            title: 'Apple Wallet',
+            subtitle: hasApple ? 'Открыть карту' : 'Скоро доступно',
+            onTap: hasApple
+                ? () => openExternalUrl(context, appleWalletUrl,
+                    emptyMessage: 'Apple Wallet пока не подключён')
+                : null,
+          ),
+          const Divider(color: Color(0x30FFFFFF), height: 18),
+          _WalletActionRow(
+            title: 'Google Wallet',
+            subtitle: hasGoogle ? 'Открыть карту' : 'Сейчас дорабатывается',
+            onTap: hasGoogle
+                ? () => openExternalUrl(context, googleWalletUrl,
+                    emptyMessage: 'Google Wallet сейчас дорабатывается')
+                : null,
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            'Нажмите на нужную карту, чтобы открыть её.',
+            style: TextStyle(
+              color: Color(0xEFFFFFFF),
+              fontWeight: FontWeight.w800,
+              height: 1.3,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WalletActionRow extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final VoidCallback? onTap;
+  const _WalletActionRow(
+      {required this.title, required this.subtitle, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onTap != null;
+    final icon = title.toLowerCase().contains('apple')
+        ? Icons.phone_iphone_rounded
+        : Icons.account_balance_wallet_rounded;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Row(
+            children: [
+              Icon(icon,
+                  color: enabled ? Colors.white : const Color(0xCCFFFFFF),
+                  size: 22),
               const SizedBox(width: 12),
               Expanded(
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                    const Text('Wallet карта',
-                        style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 21,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -0.5)),
-                    const SizedBox(height: 4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                        'Для «$establishmentName» доступны Apple Wallet и Google Wallet',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            color: Color(0xF2FFFFFF),
-                            fontWeight: FontWeight.w800,
-                            height: 1.25)),
-                  ])),
-            ]),
-            const SizedBox(height: 14),
-            Row(children: [
-              Expanded(
-                child: hasApple
-                    ? _WalletMiniButton(
-                        title: 'Apple Wallet',
-                        onTap: () => openExternalUrl(context, appleWalletUrl,
-                            emptyMessage: 'Apple Wallet пока не подключён'))
-                    : const _WalletStatusPill(
-                        title: 'Apple Wallet', subtitle: 'включено'),
+                      title,
+                      style: TextStyle(
+                        color: enabled ? Colors.white : const Color(0xCCFFFFFF),
+                        fontWeight: FontWeight.w900,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        color: Color(0xEFFFFFFF),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: hasGoogle
-                    ? _WalletMiniButton(
-                        title: 'Google Wallet',
-                        onTap: () => openExternalUrl(context, googleWalletUrl,
-                            emptyMessage:
-                                'Google Wallet сейчас дорабатывается'))
-                    : _WalletMiniButton(
-                        title: 'Google Wallet',
-                        onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                                content: Text(
-                                    'Google Wallet сейчас дорабатывается. Apple Wallet уже доступен.')))),
-              ),
-            ]),
-            const SizedBox(height: 12),
-            Text(
-              hasApple || hasGoogle
-                  ? 'Нажмите на Wallet-кнопку — ссылка скопируется для открытия карты.'
-                  : 'Wallet-контур подключён для Telegram/MAX и выбранного заведения. В мобильном приложении доступны аккуратные Wallet-кнопки и статус подключения.',
-              style: const TextStyle(
-                  color: Color(0xEFFFFFFF),
-                  fontWeight: FontWeight.w800,
-                  height: 1.3),
-            ),
-          ]),
-        ]),
+              Icon(Icons.arrow_forward_ios_rounded,
+                  color: enabled ? Colors.white : const Color(0x99FFFFFF),
+                  size: 16),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -9217,7 +9459,7 @@ class BenefitFeaturedCard extends StatelessWidget {
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
                                     color: Colors.white,
-                                    fontSize: 27,
+                                    fontSize: 23,
                                     height: 0.98,
                                     fontWeight: FontWeight.w900,
                                     letterSpacing: -1.0)),
