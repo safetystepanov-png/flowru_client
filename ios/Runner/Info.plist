@@ -16,7 +16,20 @@
 	<string>6.0</string>
 	<key>CFBundleName</key>
 	<string>flowru_client</string>
-	<key>CFBundlePackageType</key>
+	
+<key>CFBundleURLTypes</key>
+<array>
+<dict>
+<key>CFBundleURLName</key>
+<string>ru.flowru.client</string>
+<key>CFBundleURLSchemes</key>
+<array>
+<string>flowru</string>
+</array>
+</dict>
+</array>
+
+<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>$(FLUTTER_BUILD_NAME)</string>
