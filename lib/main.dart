@@ -588,81 +588,6 @@ class BootstrapScreen extends StatefulWidget {
 }
 
 class _BootstrapScreenState extends State<BootstrapScreen> {
-  void initInviteDeepLinks() {
-    inviteDeepLinkSub = FlowInviteDeepLinks.stream.listen((uri) {
-      final token = FlowInviteDeepLinks.parseInviteToken(uri);
-      if (token != null && token.isNotEmpty) {
-        handleInviteToken(token);
-      }
-    });
-  }
-
-  Future<void> consumePendingInviteToken() async {
-    final token = FlowInviteDeepLinks.pendingInviteToken;
-    if (token == null || token.trim().isEmpty) return;
-    FlowInviteDeepLinks.pendingInviteToken = null;
-    await handleInviteToken(token.trim());
-  }
-
-  Future<void> handleInviteToken(String inviteToken) async {
-    final cleanToken = inviteToken.trim();
-    if (cleanToken.isEmpty || joiningInvite) return;
-
-    setState(() {
-      joiningInvite = true;
-      error = null;
-    });
-
-    try {
-      final token = await getFreshAccessToken();
-      if (token == null || token.isEmpty) {
-        FlowInviteDeepLinks.pendingInviteToken = cleanToken;
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('??????? ? Flowru, ????? ???????? ?????????')),
-        );
-        return;
-      }
-
-      final res = await api.joinEstablishment(token, cleanToken);
-
-      if (!mounted) return;
-
-      final message =
-          (res['message'] ?? '????????? ????????? ? Flowru').toString();
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(message)));
-
-      await loadAll();
-
-      final establishmentId = intOrNull(res['establishment_id']) ??
-          intOrNull(map(res['establishment'])['id']);
-
-      if (establishmentId != null) {
-        selectedEstablishmentId = establishmentId;
-      }
-    } on ApiError catch (e) {
-      if (!mounted) return;
-      if (e.status == 401) {
-        FlowInviteDeepLinks.pendingInviteToken = cleanToken;
-        return logout();
-      }
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.message)));
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('?? ??????? ???????? ????????? ?? ??????')),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => joiningInvite = false);
-      }
-    }
-  }
-
   @override
   void initState() {
     super.initState();
@@ -2231,6 +2156,85 @@ class _ClientShellState extends State<ClientShell> {
     }
     return result.take(40).toList();
   }
+
+
+  void initInviteDeepLinks() {
+    inviteDeepLinkSub = FlowInviteDeepLinks.stream.listen((uri) {
+      final token = FlowInviteDeepLinks.parseInviteToken(uri);
+      if (token != null && token.isNotEmpty) {
+        handleInviteToken(token);
+      }
+    });
+  }
+
+  Future<void> consumePendingInviteToken() async {
+    final token = FlowInviteDeepLinks.pendingInviteToken;
+    if (token == null || token.trim().isEmpty) return;
+
+    FlowInviteDeepLinks.pendingInviteToken = null;
+    await handleInviteToken(token.trim());
+  }
+
+  Future<void> handleInviteToken(String inviteToken) async {
+    final cleanToken = inviteToken.trim();
+    if (cleanToken.isEmpty || joiningInvite) return;
+
+    setState(() {
+      joiningInvite = true;
+      error = null;
+    });
+
+    try {
+      final token = await getFreshAccessToken();
+      if (token == null || token.isEmpty) {
+        FlowInviteDeepLinks.pendingInviteToken = cleanToken;
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('??????? ? Flowru, ????? ???????? ?????????')),
+        );
+        return;
+      }
+
+      final res = await api.joinEstablishment(token, cleanToken);
+
+      if (!mounted) return;
+
+      final message = (res['message'] ?? '????????? ????????? ? Flowru').toString();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+
+      final establishmentId = intOrNull(res['establishment_id']) ??
+          intOrNull(map(res['establishment'])['id']);
+
+      if (establishmentId != null) {
+        selectedEstablishmentId = establishmentId;
+      }
+
+      await loadAll();
+    } on ApiError catch (e) {
+      if (!mounted) return;
+
+      if (e.status == 401) {
+        FlowInviteDeepLinks.pendingInviteToken = cleanToken;
+        return logout();
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message)),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('?? ??????? ???????? ????????? ?? ??????')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => joiningInvite = false);
+      }
+    }
+  }
+
 
   @override
   void initState() {
