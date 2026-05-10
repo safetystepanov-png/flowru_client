@@ -1098,7 +1098,7 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
                     decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         border: Border.all(
-                            color: Colors.white.withOpacity(0.18), width: 2)))),
+                            color: Colors.white.withOpacity(0.34), width: 2)))),
             ...List.generate(22, (i) {
               final angle = (i * 1.73) + t * math.pi * 0.32;
               final x = (math.sin(i * 19.7) * 0.5 + 0.5) * size.width;
@@ -3006,19 +3006,21 @@ class _ClientShellState extends State<ClientShell> {
                       subtitle:
                           'Откройте заведение, чтобы посмотреть акции, историю, правила и контакты')),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                width: 36,
+                height: 36,
+                alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.88),
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: FlowColors.line.withOpacity(0.9)),
+                  color: const Color(0xFF143A63).withOpacity(0.88),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.white.withOpacity(0.10)),
                 ),
                 child: Text(
-                  '${establishments.length} шт.',
+                  '${establishments.length}',
                   style: const TextStyle(
-                      color: FlowColors.ink,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 13),
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                  ),
                 ),
               ),
             ],
@@ -3032,29 +3034,19 @@ class _ClientShellState extends State<ClientShell> {
                   'Покажите QR на кассе или добавьте заведение по QR/ссылке.',
             )
           else
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: 0.96,
-              ),
-              itemCount: establishments.length,
-              itemBuilder: (context, index) {
+            Column(
+              children: List.generate(establishments.length, (index) {
                 final e = establishments[index];
-                return FlowruEstablishmentEntry(
-                  item: e,
-                  home: homeByEstablishment[
-                          intOrNull(e['establishment_id']) ?? -1] ??
-                      {},
-                  offers: offersByEstablishment[
-                          intOrNull(e['establishment_id']) ?? -1] ??
-                      {},
-                  onOpen: () => openEstablishmentPage(e),
+                return Padding(
+                  padding: EdgeInsets.only(bottom: index == establishments.length - 1 ? 0 : 12),
+                  child: FlowruEstablishmentEntry(
+                    item: e,
+                    home: homeByEstablishment[intOrNull(e['establishment_id']) ?? -1] ?? {},
+                    offers: offersByEstablishment[intOrNull(e['establishment_id']) ?? -1] ?? {},
+                    onOpen: () => openEstablishmentPage(e),
+                  ),
                 );
-              },
+              }),
             ),
         ],
       ),
@@ -3620,7 +3612,7 @@ class CommandBackground extends StatelessWidget {
                 decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                        color: Colors.white.withOpacity(0.18), width: 2)))),
+                        color: Colors.white.withOpacity(0.34), width: 2)))),
       ],
     );
   }
@@ -4675,39 +4667,22 @@ class FlowruMainHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(children: [
-      const AnimatedOrbitLogo(size: 86, variant: OrbitLogoVariant.orbit),
-      const SizedBox(width: 12),
-      Expanded(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Привет, $name',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 23,
-                  height: 1,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -1)),
-          const SizedBox(height: 8),
-          Text('Ваш единый кабинет Flowru',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                  color: Colors.white.withOpacity(0.82),
-                  fontWeight: FontWeight.w700)),
-        ]),
-      ),
-      Container(
-        decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.25),
+    return Row(
+      children: [
+        const Spacer(),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.14),
             borderRadius: BorderRadius.circular(17),
-            border: Border.all(color: Colors.white.withOpacity(0.48))),
-        child: IconButton(
+            border: Border.all(color: Colors.white.withOpacity(0.22)),
+          ),
+          child: IconButton(
             onPressed: onLogout,
-            icon: const Icon(Icons.logout_rounded, color: Colors.white)),
-      ),
-    ]);
+            icon: const Icon(Icons.logout_rounded, color: Colors.white),
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -4732,99 +4707,106 @@ class FlowruClientQrPanel extends StatelessWidget {
     final qr = payload.trim().isNotEmpty ? payload.trim() : 'flowru-client';
 
     return LayoutBuilder(builder: (context, constraints) {
-      final qrSize = (constraints.maxWidth * 0.58).clamp(190.0, 248.0).toDouble();
+      final qrSize =
+          (constraints.maxWidth * 0.60).clamp(196.0, 250.0).toDouble();
 
-      return Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onOpen,
-          borderRadius: BorderRadius.circular(34),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 280),
-            curve: Curves.easeOutCubic,
-            padding: const EdgeInsets.fromLTRB(18, 14, 18, 20),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(34),
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFFFFFFFF),
-                  Color(0xFFF8FBFF),
-                  Color(0xFFFFFCF6),
-                ],
+      return SizedBox(
+        width: double.infinity,
+        child: Column(
+          children: [
+            Text(
+              'Привет, $name',
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
               ),
-              border: Border.all(color: const Color(0xFFE4ECF8), width: 1.2),
-              boxShadow: [
-                BoxShadow(
-                    color: const Color(0xFF1F2A44).withOpacity(0.05),
-                    blurRadius: 24,
-                    offset: const Offset(0, 12)),
-                BoxShadow(
-                    color: const Color(0xFF63A8FF).withOpacity(0.08),
-                    blurRadius: 34,
-                    offset: const Offset(0, 18)),
-              ],
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Align(
-                  alignment: Alignment.topRight,
-                  child: _QrPanelActionButton(
-                    loading: loading,
-                    onPressed: onRefresh,
-                  ),
+            const SizedBox(height: 6),
+            Text(
+              'Ваш единый кабинет',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.85),
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'FLOWRU',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 4.0,
+              ),
+            ),
+            const SizedBox(height: 18),
+            GestureDetector(
+              onTap: onOpen,
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF27D8FF).withOpacity(0.90),
+                      blurRadius: 92,
+                      spreadRadius: 22,
+                    ),
+                    BoxShadow(
+                      color: const Color(0xFF00E6FF).withOpacity(0.58),
+                      blurRadius: 68,
+                      spreadRadius: 12,
+                    ),
+                    BoxShadow(
+                      color: const Color(0xFF7F6FFF).withOpacity(0.42),
+                      blurRadius: 58,
+                      spreadRadius: 6,
+                    ),
+                    BoxShadow(
+                      color: const Color(0xFFFFB347).withOpacity(0.62),
+                      blurRadius: 66,
+                      spreadRadius: 10,
+                      offset: const Offset(16, 18),
+                    ),
+                    BoxShadow(
+                      color: Colors.white.withOpacity(0.34),
+                      blurRadius: 20,
+                      spreadRadius: 2,
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 6),
-                Center(
-                  child: GestureDetector(
-                    onTap: onOpen,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 280),
-                      curve: Curves.easeOutCubic,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(28),
-                        color: Colors.white,
-                        boxShadow: [
-                          BoxShadow(
-                              color: const Color(0xFF36D8FF).withOpacity(0.24),
-                              blurRadius: 28,
-                              spreadRadius: 2,
-                              offset: const Offset(0, 0)),
-                          BoxShadow(
-                              color: const Color(0xFF7D6BFF).withOpacity(0.16),
-                              blurRadius: 34,
-                              spreadRadius: 4,
-                              offset: const Offset(0, 0)),
-                          BoxShadow(
-                              color: const Color(0xFFFF59B6).withOpacity(0.10),
-                              blurRadius: 40,
-                              spreadRadius: 1,
-                              offset: const Offset(0, 0)),
-                        ],
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(20),
-                        child: QrImageView(
-                          data: qr,
-                          size: qrSize,
-                          backgroundColor: Colors.white,
-                          eyeStyle: const QrEyeStyle(
-                              eyeShape: QrEyeShape.square,
-                              color: FlowColors.ink),
-                          dataModuleStyle: const QrDataModuleStyle(
-                              dataModuleShape: QrDataModuleShape.square,
-                              color: FlowColors.ink),
-                        ),
-                      ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(22),
+                  child: QrImageView(
+                    data: qr,
+                    size: qrSize,
+                    backgroundColor: Colors.white,
+                    eyeStyle: const QrEyeStyle(
+                      eyeShape: QrEyeShape.square,
+                      color: FlowColors.ink,
+                    ),
+                    dataModuleStyle: const QrDataModuleStyle(
+                      dataModuleShape: QrDataModuleShape.square,
+                      color: FlowColors.ink,
                     ),
                   ),
                 ),
-              ],
+              ),
             ),
-          ),
+            const SizedBox(height: 16),
+            _QrRefreshCapsule(
+              loading: loading,
+              onPressed: onRefresh,
+            ),
+          ],
         ),
       );
     });
@@ -4834,8 +4816,18 @@ class FlowruClientQrPanel extends StatelessWidget {
 class _QrPanelActionButton extends StatelessWidget {
   final bool loading;
   final VoidCallback onPressed;
-  const _QrPanelActionButton(
-      {required this.loading, required this.onPressed});
+  const _QrPanelActionButton({required this.loading, required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox.shrink();
+  }
+}
+
+class _QrRefreshCapsule extends StatelessWidget {
+  final bool loading;
+  final VoidCallback onPressed;
+  const _QrRefreshCapsule({required this.loading, required this.onPressed});
 
   @override
   Widget build(BuildContext context) {
@@ -4843,31 +4835,37 @@ class _QrPanelActionButton extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: loading ? null : onPressed,
-        borderRadius: BorderRadius.circular(18),
-        child: Ink(
-          width: 46,
-          height: 46,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: const Color(0xFFE2EAF7)),
-            boxShadow: [
-              BoxShadow(
-                  color: const Color(0xFF1F2A44).withOpacity(0.04),
-                  blurRadius: 10,
-                  offset: const Offset(0, 6)),
-            ],
+            color: const Color(0xFF102747).withOpacity(0.58),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: Colors.white.withOpacity(0.12)),
           ),
-          child: Center(
-            child: loading
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2.2, color: FlowColors.ink),
-                  )
-                : const Icon(Icons.refresh_rounded,
-                    color: FlowColors.ink, size: 22),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (loading)
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2.0, color: Colors.white),
+                )
+              else
+                const Icon(Icons.refresh_rounded,
+                    color: Colors.white, size: 18),
+              const SizedBox(width: 8),
+              const Text(
+                'Обновить код',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -4992,186 +4990,135 @@ class FlowruEstablishmentEntry extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final est = map(home['establishment']);
+    final loyalty = map(home['loyalty']);
     final name = nonEmpty(item['establishment_name']) ??
         nonEmpty(item['name']) ??
-        nonEmpty(map(home['establishment'])['name']) ??
+        nonEmpty(est['name']) ??
         'Заведение';
-    final points = toInt(item['points'] ??
-        map(home['loyalty'])['points'] ??
-        map(home['stats'])['points']);
+    final type = nonEmpty(item['category_name']) ??
+        nonEmpty(item['type']) ??
+        nonEmpty(est['type']) ??
+        'Заведение';
+    final points =
+        toInt(item['points'] ?? loyalty['points'] ?? map(home['stats'])['points']);
     final visits = toInt(item['visits'] ??
         item['visit_count'] ??
-        map(home['loyalty'])['visits'] ??
+        loyalty['visits'] ??
         map(home['stats'])['visits']);
-    final promoCount =
-        mapList(offers['banners']).length + mapList(home['banners']).length;
-    final drawsCount = mapList(offers['draws']).length +
-        mapList(home['draws']).length +
-        (map(offers['draw_banner']).isNotEmpty ||
-                map(home['draw_banner']).isNotEmpty
-            ? 1
-            : 0);
-    final activityCount = promoCount + drawsCount;
+    final cashback = _resolveCashbackText(home);
+    final imageUrl = extractImageUrl(item) ?? extractImageUrl(est) ?? extractImageUrl(home);
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onOpen,
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(26),
         child: Ink(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(30),
-            gradient: const LinearGradient(
+            borderRadius: BorderRadius.circular(26),
+            gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Color(0xFFFFFFFF),
-                Color(0xFFF7FBFF),
-                Color(0xFFFFFCF5),
+                Colors.white.withOpacity(0.16),
+                Colors.white.withOpacity(0.08),
+                const Color(0xFF6CE5FF).withOpacity(0.08),
               ],
             ),
-            border: Border.all(color: const Color(0xFFE4ECF8), width: 1.2),
+            border: Border.all(color: Colors.white.withOpacity(0.18)),
             boxShadow: [
               BoxShadow(
-                  color: const Color(0xFF1F2A44).withOpacity(0.06),
-                  blurRadius: 18,
-                  offset: const Offset(0, 10)),
+                color: const Color(0xFF1FD7FF).withOpacity(0.12),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
+              ),
             ],
           ),
-          child: Stack(
-            children: [
-              Positioned(
-                right: -24,
-                top: -18,
-                child: Container(
-                  width: 118,
-                  height: 118,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(colors: [
-                      const Color(0xFF77D6FF).withOpacity(0.18),
-                      const Color(0xFFFFC86B).withOpacity(0.10),
-                      Colors.transparent,
-                    ]),
+          child: SizedBox(
+            height: 148,
+            child: Row(
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(26),
+                    bottomLeft: Radius.circular(26),
+                  ),
+                  child: SizedBox(
+                    width: 132,
+                    height: double.infinity,
+                    child: _EstablishmentPreviewImage(
+                      imageUrl: imageUrl,
+                      title: name,
+                    ),
                   ),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Container(
-                            height: 8,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(999),
-                              gradient: const LinearGradient(
-                                colors: [
-                                  Color(0xFF67D6FF),
-                                  Color(0xFF7B7DFF),
-                                  Color(0xFFFFCC73),
-                                ],
-                              ),
-                            ),
+                        Text(
+                          name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.35,
                           ),
                         ),
-                        const SizedBox(width: 10),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 7),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.92),
-                            borderRadius: BorderRadius.circular(999),
-                            border:
-                                Border.all(color: const Color(0xFFE2EAF7)),
-                          ),
-                          child: Text(
-                            activityCount > 0
-                                ? '$activityCount активн.'
-                                : 'спокойно',
-                            style: const TextStyle(
-                              color: FlowColors.ink,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: FlowColors.ink,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -0.35,
-                        height: 1.08,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'Баланс',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: FlowColors.muted,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      '${formatMoney(points)} баллов',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: FlowColors.ink,
-                        fontSize: 24,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -0.8,
-                        height: 1,
-                      ),
-                    ),
-                    const Spacer(),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _MiniEstMetric(
-                              label: 'Визиты', value: formatMoney(visits)),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _MiniEstMetric(
-                              label: 'Активность', value: '$activityCount'),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        const Text(
-                          'Открыть заведение',
+                        const SizedBox(height: 4),
+                        Text(
+                          type,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            color: FlowColors.ink,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w900,
+                            color: Colors.white.withOpacity(0.70),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
                         const Spacer(),
-                        const Icon(Icons.arrow_forward_rounded,
-                            color: FlowColors.ink, size: 18),
+                        _EstablishmentRowMetric(
+                          label: 'Баланс бонусов',
+                          value: '${formatMoney(points)}',
+                          suffix: '₽',
+                          accent: const Color(0xFFB8F4FF),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _EstablishmentRowMetric(
+                                label: 'Посещений',
+                                value: '${formatMoney(visits)}',
+                                accent: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _EstablishmentRowMetric(
+                                label: 'Кэшбэк',
+                                value: cashback,
+                                accent: const Color(0xFFFFD58A),
+                              ),
+                            ),
+                          ],
+                        ),
                       ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            ],
+                const Padding(
+                  padding: EdgeInsets.only(right: 12),
+                  child: Icon(Icons.chevron_right_rounded,
+                      color: Colors.white70, size: 22),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -5179,49 +5126,201 @@ class FlowruEstablishmentEntry extends StatelessWidget {
   }
 }
 
-class _MiniEstMetric extends StatelessWidget {
-  final String label;
-  final String value;
-  const _MiniEstMetric({required this.label, required this.value});
+class _EstablishmentPreviewImage extends StatelessWidget {
+  final String? imageUrl;
+  final String title;
+  const _EstablishmentPreviewImage({required this.imageUrl, required this.title});
 
   @override
   Widget build(BuildContext context) {
+    if (imageUrl != null && imageUrl!.trim().isNotEmpty) {
+      return Image.network(
+        imageUrl!,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _fallback(),
+      );
+    }
+    return _fallback();
+  }
+
+  Widget _fallback() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.70),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE4ECF8)),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF3BA7C9), Color(0xFF0B5278), Color(0xFF0A2B47)],
+        ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
         children: [
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: FlowColors.soft,
-              fontSize: 9,
-              fontWeight: FontWeight.w900,
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Colors.transparent, Colors.black.withOpacity(0.30)],
+                ),
+              ),
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: FlowColors.ink,
-              fontSize: 13,
-              fontWeight: FontWeight.w900,
-              letterSpacing: -0.2,
-            ),
+          Center(
+            child: Icon(Icons.storefront_rounded,
+                color: Colors.white.withOpacity(0.82), size: 34),
           ),
         ],
       ),
     );
   }
+}
+
+class _EstablishmentRowMetric extends StatelessWidget {
+  final String label;
+  final String value;
+  final String suffix;
+  final Color accent;
+  const _EstablishmentRowMetric({
+    required this.label,
+    required this.value,
+    this.suffix = '',
+    required this.accent,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.62),
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        RichText(
+          textAlign: TextAlign.right,
+          text: TextSpan(
+            children: [
+              TextSpan(
+                text: value,
+                style: TextStyle(
+                  color: accent,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.25,
+                ),
+              ),
+              if (suffix.isNotEmpty)
+                TextSpan(
+                  text: ' $suffix',
+                  style: TextStyle(
+                    color: accent,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+String _resolveCashbackText(Map<String, dynamic> home) {
+  final loyalty = map(home['loyalty']);
+  final stats = map(home['stats']);
+  final est = map(home['establishment']);
+  final card = map(home['card']);
+  final profile = map(home['profile']);
+  final profileInner = map(profile['profile']);
+  final modules = map(profileInner['modules']);
+  final directRules = map(home['loyalty_rules']);
+  final modulesDirect = map(home['modules']);
+  final walletLike = map(home['settings']);
+  final loyaltyRules = map(modules['loyalty']).isNotEmpty
+      ? map(modules['loyalty'])
+      : (map(modulesDirect['loyalty']).isNotEmpty
+          ? map(modulesDirect['loyalty'])
+          : (directRules.isNotEmpty ? directRules : walletLike));
+
+  final direct = nonEmpty(loyalty['cashback_text']) ??
+      nonEmpty(loyalty['percent_text']) ??
+      nonEmpty(loyalty['cashback_label']) ??
+      nonEmpty(card['cashback_text']) ??
+      nonEmpty(card['cashback_label']) ??
+      nonEmpty(est['cashback_text']) ??
+      nonEmpty(est['cashback_percent_text']) ??
+      nonEmpty(est['cashback_label']) ??
+      nonEmpty(home['cashback_text']) ??
+      nonEmpty(home['cashback_label']);
+  if (direct != null) return direct;
+
+  final directPercent = toDouble(loyalty['cashback_percent'] ??
+      loyalty['cashback'] ??
+      loyalty['percent'] ??
+      card['cashback_percent'] ??
+      est['cashback_percent'] ??
+      est['cashback'] ??
+      est['percent'] ??
+      home['cashback_percent'] ??
+      home['cashback']);
+  if (directPercent > 0) return '${formatPercent(directPercent)}%';
+
+  final levels = mapList(loyaltyRules['cashback_levels']).isNotEmpty
+      ? mapList(loyaltyRules['cashback_levels'])
+      : mapList(loyalty['cashback_levels']);
+  if (levels.isNotEmpty) {
+    Map<String, dynamic>? best;
+    final sales = toDouble(loyalty['sales_total'] ?? stats['sales_total']);
+    for (final level in levels) {
+      final required = toDouble(level['spent_required'] ??
+          level['min_spent'] ??
+          level['from_amount'] ??
+          level['threshold']);
+      if (sales >= required) best = level;
+    }
+    best ??= levels.first;
+    final percent = toDouble(best['cashback_percent'] ??
+        best['percent'] ??
+        best['cashback'] ??
+        best['value']);
+    if (percent > 0) return '${formatPercent(percent)}%';
+  }
+
+  final mode = (nonEmpty(loyaltyRules['mode']) ??
+          nonEmpty(loyalty['mode']) ??
+          nonEmpty(est['loyalty_mode']) ??
+          '')
+      .toLowerCase();
+  if (mode == 'cashback' || mode.contains('кэш')) return 'Кэшбэк';
+  return '—';
+}
+
+String? _resolveMenuPhotoUrl(Map<String, dynamic> est, Map<String, dynamic> home) {
+  return nonEmpty(est['menu_photo_url']) ??
+      nonEmpty(est['menu_image_url']) ??
+      nonEmpty(est['menu_photo_path']) ??
+      nonEmpty(est['menu_image_path']) ??
+      nonEmpty(est['menu_url']) ??
+      nonEmpty(map(est['menu'])['photo_url']) ??
+      nonEmpty(map(est['menu'])['image_url']) ??
+      nonEmpty(map(est['menu'])['url']) ??
+      nonEmpty(home['menu_photo_url']) ??
+      nonEmpty(home['menu_image_url']) ??
+      nonEmpty(home['menu_photo_path']) ??
+      nonEmpty(home['menu_image_path']) ??
+      nonEmpty(map(home['menu'])['photo_url']) ??
+      nonEmpty(map(home['menu'])['image_url']) ??
+      nonEmpty(map(home['menu'])['url']);
 }
 
 class EstablishmentFullScreen extends StatefulWidget {
@@ -5388,27 +5487,42 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
   }
 
   String _questConditionReadable(Map<String, dynamic> quest) {
+    final direct = nonEmpty(quest['condition_text']) ??
+        nonEmpty(quest['conditions_text']) ??
+        nonEmpty(quest['condition_description']) ??
+        nonEmpty(quest['how_to_complete']) ??
+        nonEmpty(quest['task_text']) ??
+        nonEmpty(quest['rules_text']);
+    if (direct != null) return direct;
+
     final type =
         (quest['condition_type'] ?? quest['template_key'] ?? '').toString();
     final params = _jsonMapFromQuestValue(quest['condition_params']);
-    final minAmount = params['min_amount'];
-    final period = params['period'];
-    final requiredCount = params['required_count'];
-    final periodDays = params['period_days'];
+    final minAmount = params['min_amount'] ?? params['amount_from'];
+    final period = params['period'] ?? params['period_text'];
+    final requiredCount = params['required_count'] ?? params['count'];
+    final periodDays = params['period_days'] ?? params['days'];
+    final fromTime = nonEmpty(params['from_time']) ?? nonEmpty(quest['from_time']);
+    final toTime = nonEmpty(params['to_time']) ?? nonEmpty(quest['to_time']);
 
     if (type == 'evening_visit') return 'Совершите визит вечером';
     if (type == 'morning_visit') return 'Совершите визит утром';
-    if (type == 'visit_hours')
+    if (type == 'visit_hours') {
+      if (fromTime != null && toTime != null) return 'Совершите визит с $fromTime до $toTime';
       return 'Совершите визит в часы, заданные заведением';
+    }
     if (type == 'purchase_amount_min' && minAmount != null)
       return 'Покупка от ${formatMoney(toInt(minAmount))} ₽';
-    if (type == 'visits_count_period' && requiredCount != null)
-      return '${formatMoney(toInt(requiredCount))} визита за ${formatMoney(toInt(periodDays))} дней';
+    if (type == 'visits_count_period' && requiredCount != null) {
+      final daysText = toInt(periodDays) > 0 ? ' за ${formatMoney(toInt(periodDays))} дней' : '';
+      return '${formatMoney(toInt(requiredCount))} визита$daysText';
+    }
     if (type == 'visit_streak' && requiredCount != null)
       return 'Серия из ${formatMoney(toInt(requiredCount))} визитов';
     if (type == 'purchases_per_day' && requiredCount != null)
       return '${formatMoney(toInt(requiredCount))} покупки за день';
-    if (period != null) return 'Условие периода: $period';
+    if (fromTime != null && toTime != null) return 'Доступно с $fromTime до $toTime';
+    if (period != null) return 'Период: $period';
     return _questConditionText(quest);
   }
 
@@ -5543,64 +5657,35 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(18, 10, 18, 28),
             children: [
-              Row(children: [
-                Container(
-                  decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.18),
-                      borderRadius: BorderRadius.circular(18),
-                      border:
-                          Border.all(color: Colors.white.withOpacity(0.28))),
-                  child: IconButton(
-                      onPressed: () => Navigator.of(context).maybePop(),
-                      icon: const Icon(Icons.arrow_back_rounded,
-                          color: Colors.white)),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => Navigator.of(context).maybePop(),
+                    borderRadius: BorderRadius.circular(18),
+                    child: const Padding(
+                      padding: EdgeInsets.all(4),
+                      child: Icon(Icons.arrow_back_ios_new_rounded,
+                          color: Colors.white, size: 22),
+                    ),
+                  ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                    child: Text('Назад к Flowru',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 22,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -0.7))),
-              ]),
-              const SizedBox(height: 14),
+              ),
+              const SizedBox(height: 10),
               DailyPulse(home: widget.home),
               const SizedBox(height: 12),
-              SurfaceCard(
-                radius: 34,
-                padding: const EdgeInsets.all(18),
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              color: FlowColors.ink,
-                              fontSize: 26,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: -0.8)),
-                      const SizedBox(height: 6),
-                      Text(
-                          '${formatMoney(points)} баллов · ${formatMoney(visits)} визитов',
-                          style: const TextStyle(
-                              color: FlowColors.muted,
-                              fontWeight: FontWeight.w800)),
-                      const SizedBox(height: 16),
-                      StatsConstellation(
-                          points: points,
-                          visits: visits,
-                          sales: sales,
-                          lastVisit: lastVisit),
-                    ]),
+              _EstablishmentOverviewCard(
+                name: name,
+                points: points,
+                visits: visits,
+                cashback: _resolveCashbackText(widget.home),
               ),
               const SizedBox(height: 14),
               EstablishmentTabSwitch(
-                  current: innerTab,
-                  onChanged: (v) => setState(() => innerTab = v)),
+                current: innerTab,
+                onChanged: (v) => setState(() => innerTab = v),
+              ),
               const SizedBox(height: 14),
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 380),
@@ -5639,8 +5724,8 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
         icon: Icons.auto_awesome_rounded,
         title: 'Выгода',
         subtitle: 'Акции, розыгрыши и награды выбранного заведения',
-        value: '${formatMoney(points)} б.',
-        label: 'баланс',
+        value: '',
+        label: '',
         accent: FlowColors.acid,
       ),
       const SizedBox(height: 12),
@@ -5813,8 +5898,7 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
         twoGisUrl: twoGisUrl,
         yandexRatingText: yandexRatingText,
         twoGisRatingText: twoGisRatingText,
-        menuPhotoUrl: nonEmpty(est['menu_photo_url']) ??
-            nonEmpty(widget.home['menu_photo_url']),
+        menuPhotoUrl: _resolveMenuPhotoUrl(est, widget.home),
         socialMedia: map(
             map(map(widget.profile['profile'])['contacts'])['social_media']),
         onShowRules: () => showModalBottomSheet(
@@ -5882,6 +5966,132 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
 
 }
 
+class _EstablishmentOverviewCard extends StatelessWidget {
+  final String name;
+  final int points;
+  final int visits;
+  final String cashback;
+
+  const _EstablishmentOverviewCard({
+    required this.name,
+    required this.points,
+    required this.visits,
+    required this.cashback,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(18, 16, 16, 16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white.withOpacity(0.16),
+            Colors.white.withOpacity(0.08),
+            const Color(0xFF6CE5FF).withOpacity(0.08),
+          ],
+        ),
+        border: Border.all(color: Colors.white.withOpacity(0.18)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF1FD7FF).withOpacity(0.14),
+            blurRadius: 20,
+            offset: const Offset(0, 12),
+          )
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.45,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Ваше заведение',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.70),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                _TopStatLine(
+                  label: 'Баллы',
+                  value: '${formatMoney(points)}',
+                  accent: const Color(0xFFB8F4FF),
+                ),
+                const SizedBox(height: 10),
+                _TopStatLine(
+                  label: 'Визиты',
+                  value: '${formatMoney(visits)}',
+                  accent: Colors.white,
+                ),
+                const SizedBox(height: 10),
+                _TopStatLine(
+                  label: 'Кэшбэк',
+                  value: cashback,
+                  accent: const Color(0xFFFFD58A),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          const Icon(Icons.chevron_right_rounded, color: Colors.white70),
+        ],
+      ),
+    );
+  }
+}
+
+class _TopStatLine extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color accent;
+  const _TopStatLine({required this.label, required this.value, required this.accent});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.68),
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            color: accent,
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _EstablishmentSectionHero extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -5938,35 +6148,39 @@ class _EstablishmentSectionHero extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(width: 14),
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: FlowColors.ink,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -0.4,
+            if (value.trim().isNotEmpty || label.trim().isNotEmpty) ...[
+              const SizedBox(width: 14),
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: FlowColors.ink,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.4,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: FlowColors.soft,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ],
-            ),
+                  if (label.trim().isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: FlowColors.soft,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
           ],
         ),
       ),
@@ -6017,112 +6231,77 @@ class EstablishmentTabSwitch extends StatelessWidget {
       (kIconProfilePremium, Icons.person_outline_rounded, 'Профиль'),
     ];
 
-    return LayoutBuilder(builder: (context, constraints) {
-      final itemWidth = constraints.maxWidth / tabs.length;
-      final baseIconSize = (itemWidth * 0.78).clamp(58.0, 76.0).toDouble();
-      final activeIconSize = (baseIconSize + 8).clamp(64.0, 84.0).toDouble();
-      final labelFontSize = (itemWidth * 0.16).clamp(10.0, 12.0).toDouble();
-
-      return Row(
-        children: List.generate(tabs.length, (i) {
-          final active = i == current;
-          return Expanded(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => onChanged(i),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    AnimatedSlide(
-                      duration: const Duration(milliseconds: 260),
-                      curve: Curves.easeOutCubic,
-                      offset: active ? const Offset(0, -0.04) : Offset.zero,
-                      child: AnimatedScale(
-                        duration: const Duration(milliseconds: 260),
-                        curve: Curves.easeOutBack,
-                        scale: active ? 1.06 : 0.94,
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            AnimatedOpacity(
-                              duration: const Duration(milliseconds: 260),
-                              opacity: active ? 1 : 0,
-                              child: Container(
-                                width: activeIconSize * 0.95,
-                                height: activeIconSize * 0.95,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  gradient: RadialGradient(colors: [
-                                    const Color(0xFF6AD8FF).withOpacity(0.26),
-                                    const Color(0xFF8A7EFF).withOpacity(0.16),
-                                    Colors.transparent,
-                                  ]),
-                                  boxShadow: [
-                                    BoxShadow(
-                                        color: const Color(0xFF6AD8FF)
-                                            .withOpacity(0.22),
-                                        blurRadius: 22,
-                                        spreadRadius: 1),
-                                    BoxShadow(
-                                        color: const Color(0xFFFF59B6)
-                                            .withOpacity(0.10),
-                                        blurRadius: 28,
-                                        spreadRadius: 1),
-                                  ],
-                                ),
+    return Row(
+      children: List.generate(tabs.length, (i) {
+        final active = i == current;
+        return Expanded(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => onChanged(i),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 220),
+                    width: active ? 76 : 64,
+                    height: active ? 76 : 64,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: active
+                          ? Colors.white.withOpacity(0.14)
+                          : Colors.white.withOpacity(0.06),
+                      border: Border.all(
+                        color: active
+                            ? Colors.white.withOpacity(0.24)
+                            : Colors.white.withOpacity(0.10),
+                      ),
+                      boxShadow: active
+                          ? [
+                              BoxShadow(
+                                color: const Color(0xFF27D8FF).withOpacity(0.34),
+                                blurRadius: 22,
+                                spreadRadius: 2,
                               ),
-                            ),
-                            PremiumAssetIcon(
-                              asset: tabs[i].$1,
-                              size: active ? activeIconSize : baseIconSize,
-                              fallbackIcon: tabs[i].$2,
-                              fallbackColor: FlowColors.ink,
-                              withGlow: false,
-                            ),
-                          ],
-                        ),
+                              BoxShadow(
+                                color: const Color(0xFFFFB347).withOpacity(0.18),
+                                blurRadius: 18,
+                                offset: const Offset(0, 8),
+                              ),
+                            ]
+                          : [],
+                    ),
+                    child: Center(
+                      child: PremiumAssetIcon(
+                        asset: tabs[i].$1,
+                        size: active ? 52 : 46,
+                        fallbackIcon: tabs[i].$2,
+                        fallbackColor: Colors.white,
+                        withGlow: false,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    SizedBox(
-                      height: labelFontSize * 1.45,
-                      child: Center(
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            tabs[i].$3,
-                            maxLines: 1,
-                            style: TextStyle(
-                              color: active ? FlowColors.ink : FlowColors.soft,
-                              fontSize: labelFontSize,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ),
-                      ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    tabs[i].$3,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: active
+                          ? Colors.white
+                          : Colors.white.withOpacity(0.68),
+                      fontSize: 12,
+                      fontWeight: active ? FontWeight.w800 : FontWeight.w600,
                     ),
-                    const SizedBox(height: 5),
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 260),
-                      curve: Curves.easeOutCubic,
-                      width: active ? itemWidth * 0.30 : 0,
-                      height: 3,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(999),
-                        gradient: const LinearGradient(
-                            colors: [Color(0xFF6AD8FF), Color(0xFFFF59B6)]),
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-          );
-        }),
-      );
-    });
+          ),
+        );
+      }),
+    );
   }
 }
 
@@ -6432,7 +6611,7 @@ class DarkMetric extends StatelessWidget {
             Text(label,
                 style: const TextStyle(
                     color: Color(0x99FFFFFF),
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w700)),
             const SizedBox(height: 4),
             Text(value,
@@ -7843,7 +8022,7 @@ class CommandTile extends StatelessWidget {
           Text(subtitle,
               style: const TextStyle(
                   color: FlowColors.muted,
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: FontWeight.w700)),
         ]),
       ),
@@ -8390,7 +8569,7 @@ class _PromoShowcaseCardState extends State<PromoShowcaseCard>
                                     tagLabel.toUpperCase(),
                                     style: const TextStyle(
                                         color: Color(0xFF1F2937),
-                                        fontSize: 11,
+                                        fontSize: 12,
                                         fontWeight: FontWeight.w900,
                                         letterSpacing: 0.7),
                                   ),
@@ -8543,7 +8722,7 @@ class _BenefitHeroSummaryCardState extends State<BenefitHeroSummaryCard>
               end: Alignment.bottomRight,
             ),
             border:
-                Border.all(color: Colors.white.withOpacity(0.18), width: 1.1),
+                Border.all(color: Colors.white.withOpacity(0.34), width: 1.1),
             boxShadow: [
               BoxShadow(
                   color: kLoginBlue.withOpacity(0.22),
@@ -8613,19 +8792,6 @@ class _BenefitHeroSummaryCardState extends State<BenefitHeroSummaryCard>
                           ],
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: [
-                      BenefitMiniMetric(
-                          label: 'Акции', value: '${widget.offerCount}'),
-                      BenefitMiniMetric(
-                          label: 'Розыгрыши', value: '${widget.raffleCount}'),
-                      BenefitMiniMetric(
-                          label: 'Всего', value: '${widget.totalItems}'),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -9425,7 +9591,7 @@ class BenefitFeaturedCard extends StatelessWidget {
                               child: Text(label.toUpperCase(),
                                   style: const TextStyle(
                                       color: Color(0xFF1F2937),
-                                      fontSize: 11,
+                                      fontSize: 12,
                                       fontWeight: FontWeight.w900,
                                       letterSpacing: 0.8)),
                             ),
@@ -9555,7 +9721,7 @@ class BenefitSimpleCard extends StatelessWidget {
                     Text(label,
                         style: TextStyle(
                             color: item.color,
-                            fontSize: 11,
+                            fontSize: 12,
                             fontWeight: FontWeight.w900)),
                     const SizedBox(height: 5),
                     Text(item.title,
@@ -10202,34 +10368,171 @@ class EstablishmentCarousel extends StatelessWidget {
   }
 }
 
-class TimelineList extends StatelessWidget {
+class TimelineList extends StatefulWidget {
   final List<Map<String, dynamic>> history;
   final bool loading;
   const TimelineList({super.key, required this.history, required this.loading});
 
   @override
+  State<TimelineList> createState() => _TimelineListState();
+}
+
+class _TimelineListState extends State<TimelineList> {
+  String filter = 'all';
+
+  List<Map<String, dynamic>> get filteredHistory {
+    final visible = widget.history.where(isVisibleClientOperation).toList();
+    if (filter == 'all') return visible;
+    return visible.where((item) => operationFilterType(item) == filter).toList();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (loading)
-      return const SurfaceCard(
+    if (widget.loading) {
+      return const Center(
+        child: Padding(
           padding: EdgeInsets.all(30),
-          radius: 28,
-          child:
-              Center(child: CircularProgressIndicator(color: FlowColors.ink)));
-    if (history.isEmpty)
+          child: CircularProgressIndicator(color: Colors.white),
+        ),
+      );
+    }
+    final items = filteredHistory;
+    if (items.isEmpty) {
       return const EmptyState(
-          icon: Icons.history_toggle_off_rounded,
-          title: 'Операций пока нет',
-          subtitle:
-              'Когда появятся начисления или списания, мы покажем их здесь.');
+        icon: Icons.history_toggle_off_rounded,
+        title: 'Операций пока нет',
+        subtitle: 'Когда появятся начисления или списания, мы покажем их здесь.',
+      );
+    }
+
+    final content = <Widget>[];
+    String? lastGroup;
+    for (var i = 0; i < items.length; i++) {
+      final current = items[i];
+      final group = operationDayLabel(current['created_at']?.toString() ?? '');
+      if (group != lastGroup) {
+        content.add(Padding(
+          padding: EdgeInsets.only(top: lastGroup == null ? 6 : 10, bottom: 8),
+          child: _TimelineDayHeader(label: group),
+        ));
+        lastGroup = group;
+      }
+      content.add(TimelineTile(item: current, isLast: i == items.length - 1));
+    }
+
     return Column(
-        children: List.generate(
-            history.length,
-            (i) => TimelineTile(
-                item: history[i], isLast: i == history.length - 1)));
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _HistoryFilterChip(
+              label: 'Все',
+              active: filter == 'all',
+              onTap: () => setState(() => filter = 'all'),
+            ),
+            _HistoryFilterChip(
+              label: 'Начисления',
+              active: filter == 'accrual',
+              onTap: () => setState(() => filter = 'accrual'),
+            ),
+            _HistoryFilterChip(
+              label: 'Списания',
+              active: filter == 'spend',
+              onTap: () => setState(() => filter = 'spend'),
+            ),
+            _HistoryFilterChip(
+              label: 'Покупки',
+              active: filter == 'purchase',
+              onTap: () => setState(() => filter = 'purchase'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        ...content,
+      ],
+    );
   }
 }
 
-class AnimatedOperationBadge extends StatefulWidget {
+class _HistoryFilterChip extends StatelessWidget {
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+  const _HistoryFilterChip({required this.label, required this.active, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: active ? const Color(0xFF248BFF) : const Color(0xFF16263F).withOpacity(0.92),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: active ? Colors.transparent : Colors.white.withOpacity(0.10),
+            ),
+            boxShadow: active
+                ? [
+                    BoxShadow(
+                      color: const Color(0xFF248BFF).withOpacity(0.30),
+                      blurRadius: 16,
+                      offset: const Offset(0, 8),
+                    )
+                  ]
+                : [],
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: Colors.white.withOpacity(active ? 1 : 0.88),
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TimelineDayHeader extends StatelessWidget {
+  final String label;
+  const _TimelineDayHeader({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: const BoxDecoration(
+            color: Colors.white54,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Text(
+          label,
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.92),
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class AnimatedOperationBadge extends StatelessWidget {
   final Color color;
   final IconData icon;
   final bool negative;
@@ -10240,70 +10543,37 @@ class AnimatedOperationBadge extends StatefulWidget {
       required this.negative});
 
   @override
-  State<AnimatedOperationBadge> createState() => _AnimatedOperationBadgeState();
-}
-
-class _AnimatedOperationBadgeState extends State<AnimatedOperationBadge>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController controller;
-
-  @override
-  void initState() {
-    super.initState();
-    controller = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 1800))
-      ..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    controller.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: controller,
-      builder: (context, child) {
-        final t = controller.value;
-        final dy = widget.negative ? 2.5 * t : -2.5 * t;
-        return SizedBox(
-          width: 58,
-          height: 58,
-          child: Stack(alignment: Alignment.center, children: [
-            Container(
-              width: 54 + t * 4,
-              height: 54 + t * 4,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: widget.color.withOpacity(0.10 * (1 - t)),
+    return SizedBox(
+      width: 42,
+      child: Column(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                colors: [Colors.white.withOpacity(0.18), color.withOpacity(0.36)],
               ),
+              border: Border.all(color: color.withOpacity(0.95), width: 1.8),
+              boxShadow: [
+                BoxShadow(
+                  color: color.withOpacity(0.65),
+                  blurRadius: 26,
+                  spreadRadius: 3,
+                ),
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.22),
+                  blurRadius: 14,
+                  offset: const Offset(0, 8),
+                ),
+              ],
             ),
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                    colors: [widget.color, widget.color.withOpacity(0.72)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight),
-                borderRadius: BorderRadius.circular(19),
-                boxShadow: [
-                  BoxShadow(
-                      color: widget.color.withOpacity(0.30),
-                      blurRadius: 18,
-                      offset: const Offset(0, 10))
-                ],
-              ),
-              child: Transform.translate(
-                offset: Offset(0, dy),
-                child: Icon(widget.icon, color: Colors.white, size: 27),
-              ),
-            ),
-          ]),
-        );
-      },
+            child: Icon(icon, color: Colors.white, size: 23),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -10315,92 +10585,118 @@ class TimelineTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final type = item['type']?.toString() ?? 'operation';
+    final type = (item['type'] ?? item['operation_type'] ?? 'operation').toString();
     final amount = item['amount']?.toString() ?? '0';
     final comment = item['comment']?.toString() ?? '';
     final createdAt = item['created_at']?.toString() ?? '';
-    final view =
-        buildOperationView(type: type, amountRaw: amount, comment: comment);
-    final color =
-        view.isNegative ? const Color(0xFFE85B63) : const Color(0xFF0CA678);
-    final icon =
-        view.isNegative ? Icons.south_west_rounded : Icons.north_east_rounded;
+    final view = buildOperationView(type: type, amountRaw: amount, comment: comment);
+    final visual = operationVisual(type, amountRaw: amount, comment: comment);
 
-    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Column(children: [
-        AnimatedOperationBadge(
-            color: color, icon: icon, negative: view.isNegative),
-        if (!isLast)
-          Container(
-            width: 3,
-            height: 62,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [
-                color.withOpacity(0.60),
-                Colors.white.withOpacity(0.78)
-              ], begin: Alignment.topCenter, end: Alignment.bottomCenter),
-              borderRadius: BorderRadius.circular(999),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Column(
+          children: [
+            AnimatedOperationBadge(
+              color: visual.color,
+              icon: visual.icon,
+              negative: view.isNegative,
             ),
-          ),
-      ]),
-      const SizedBox(width: 14),
-      Expanded(
-        child: Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: PremiumAnimatedSurface(
-            radius: 26,
-            padding: const EdgeInsets.all(16),
-            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Expanded(
-                  child: Column(
+            if (!isLast)
+              Container(
+                width: 2,
+                height: 72,
+                margin: const EdgeInsets.symmetric(vertical: 4),
+                color: Colors.white.withOpacity(0.34),
+              ),
+          ],
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    const Color(0xFF0B1728).withOpacity(0.92),
+                    const Color(0xFF10243A).withOpacity(0.88),
+                    const Color(0xFF132F4B).withOpacity(0.82),
+                  ],
+                ),
+                border: Border.all(color: Colors.white.withOpacity(0.12)),
+                boxShadow: [
+                  BoxShadow(
+                    color: visual.color.withOpacity(0.14),
+                    blurRadius: 18,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                    Text(view.title,
-                        style: const TextStyle(
-                            color: kLoginInk,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w900)),
-                    if (view.subtitle.isNotEmpty) ...[
-                      const SizedBox(height: 5),
-                      Text(view.subtitle,
+                        Text(
+                          view.title,
                           style: const TextStyle(
-                              color: kLoginInkSoft,
-                              height: 1.3,
-                              fontWeight: FontWeight.w700)),
-                    ],
-                    const SizedBox(height: 7),
-                    Text(formatDateTime(createdAt),
-                        style: const TextStyle(
-                            color: FlowColors.soft,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700)),
-                  ])),
-              if (view.amountText.isNotEmpty)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                        colors: [color, color.withOpacity(0.82)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight),
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                          color: color.withOpacity(0.18),
-                          blurRadius: 12,
-                          offset: const Offset(0, 7))
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        if (view.subtitle.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            view.subtitle,
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.72),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              height: 1.25,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        view.amountText,
+                        style: TextStyle(
+                          color: visual.color,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        operationTimeText(createdAt),
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.62),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ],
                   ),
-                  child: Text(view.amountText,
-                      style: const TextStyle(
-                          color: Colors.white, fontWeight: FontWeight.w900)),
-                ),
-            ]),
+                ],
+              ),
+            ),
           ),
         ),
-      ),
-    ]);
+      ],
+    );
   }
 }
 
@@ -11273,7 +11569,7 @@ class LinkedEstablishmentCard extends StatelessWidget {
                         child: const Text('Выбрано',
                             style: TextStyle(
                                 color: Colors.white,
-                                fontSize: 11,
+                                fontSize: 12,
                                 fontWeight: FontWeight.w900)),
                       ),
                   ]),
@@ -11501,104 +11797,70 @@ class OrbitDock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const items = [
-      NavItem(Icons.dashboard_customize_rounded, 'Главная'),
+      NavItem(Icons.home_rounded, 'Главная'),
       NavItem(Icons.person_rounded, 'Профиль')
     ];
 
-    return Stack(
-        clipBehavior: Clip.none,
-        alignment: Alignment.center,
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(32),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-              child: Container(
-                height: 72,
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.72),
-                    borderRadius: BorderRadius.circular(32),
-                    border: Border.all(color: Colors.white.withOpacity(0.92)),
-                    boxShadow: [
-                      BoxShadow(
-                          color: const Color(0xFF0A5270).withOpacity(0.16),
-                          blurRadius: 28,
-                          offset: const Offset(0, 16))
-                    ]),
-                child: Row(
-                    children: List.generate(items.length, (i) {
-                  final active = i == current;
-                  return Expanded(
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () => onChanged(i),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 180),
-                        decoration: BoxDecoration(
-                          gradient: active
-                              ? const LinearGradient(colors: [
-                                  kLoginBlue,
-                                  kLoginViolet,
-                                  kLoginPink
-                                ])
-                              : null,
-                          borderRadius: BorderRadius.circular(24),
-                        ),
-                        child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(items[i].icon,
-                                  color: active ? Colors.white : kLoginInkSoft,
-                                  size: 21),
-                              const SizedBox(height: 3),
-                              Text(items[i].label,
-                                  style: TextStyle(
-                                      color:
-                                          active ? Colors.white : kLoginInkSoft,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w900)),
-                            ]),
-                      ),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(26),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+        child: Container(
+          height: 68,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0B1930).withOpacity(0.70),
+            borderRadius: BorderRadius.circular(26),
+            border: Border.all(color: Colors.white.withOpacity(0.10)),
+          ),
+          child: Row(
+            children: List.generate(items.length, (i) {
+              final active = i == current;
+              return Expanded(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => onChanged(i),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(20),
+                      color: active ? Colors.white.withOpacity(0.08) : Colors.transparent,
+                      boxShadow: active
+                          ? [
+                              BoxShadow(
+                                color: const Color(0xFF32C7FF).withOpacity(0.18),
+                                blurRadius: 14,
+                              ),
+                            ]
+                          : [],
                     ),
-                  );
-                })),
-              ),
-            ),
-          ),
-          Positioned(
-            top: -31,
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(999),
-                onTap: onScan,
-                child: Container(
-                  width: 70,
-                  height: 70,
-                  decoration: BoxDecoration(
-                    gradient: const RadialGradient(colors: [
-                      Color(0xFFFFEE7B),
-                      Color(0xFFFFBD2E),
-                      Color(0xFFFFA51E)
-                    ]),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                        color: Colors.white.withOpacity(0.84), width: 5),
-                    boxShadow: [
-                      BoxShadow(
-                          color: kLoginAccent.withOpacity(0.36),
-                          blurRadius: 26,
-                          offset: const Offset(0, 12))
-                    ],
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          items[i].icon,
+                          color: active ? Colors.white : Colors.white.withOpacity(0.66),
+                          size: 21,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          items[i].label,
+                          style: TextStyle(
+                            color: active ? Colors.white : Colors.white.withOpacity(0.66),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  child: const Icon(Icons.qr_code_scanner_rounded,
-                      color: Colors.white, size: 31),
                 ),
-              ),
-            ),
+              );
+            }),
           ),
-        ]);
+        ),
+      ),
+    );
   }
 }
 
@@ -12416,6 +12678,103 @@ OperationViewData buildOperationView(
               : '+${formatAmount(amount)} б.',
           isNegative: amount < 0);
   }
+}
+
+class OperationVisualData {
+  final IconData icon;
+  final Color color;
+  const OperationVisualData({required this.icon, required this.color});
+}
+
+String operationFilterType(Map<String, dynamic> item) {
+  final type = (item['type'] ?? item['operation_type'] ?? '').toString();
+  switch (type) {
+    case 'purchase_amount':
+    case 'accrual':
+    case 'manual_accrual':
+    case 'quest_cashback_boost':
+    case 'birthday_bonus':
+      return 'accrual';
+    case 'spend':
+    case 'manual_writeoff':
+    case 'writeoff':
+      return 'spend';
+    case 'visit':
+      return 'purchase';
+    default:
+      final amount = toDouble(item['amount']);
+      if (amount < 0) return 'spend';
+      return 'accrual';
+  }
+}
+
+OperationVisualData operationVisual(String type,
+    {required String amountRaw, required String comment}) {
+  switch (type) {
+    case 'purchase_amount':
+    case 'accrual':
+    case 'manual_accrual':
+    case 'quest_cashback_boost':
+    case 'birthday_bonus':
+      return const OperationVisualData(
+        icon: Icons.card_giftcard_rounded,
+        color: Color(0xFF37D7FF),
+      );
+    case 'spend':
+    case 'manual_writeoff':
+    case 'writeoff':
+      return const OperationVisualData(
+        icon: Icons.remove_circle_rounded,
+        color: Color(0xFFFFA52F),
+      );
+    case 'visit':
+      return const OperationVisualData(
+        icon: Icons.shopping_cart_rounded,
+        color: Color(0xFF56B8FF),
+      );
+    default:
+      final amount = toDouble(amountRaw);
+      if (amount < 0) {
+        return const OperationVisualData(
+          icon: Icons.remove_circle_rounded,
+          color: Color(0xFFFFA52F),
+        );
+      }
+      return const OperationVisualData(
+        icon: Icons.card_giftcard_rounded,
+        color: Color(0xFF37D7FF),
+      );
+  }
+}
+
+String operationTimeText(String raw) {
+  if (raw.trim().isEmpty) return '—';
+  final dt = DateTime.tryParse(raw);
+  if (dt == null) return raw;
+  final local = dt.toLocal();
+  return '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+}
+
+String operationDayLabel(String raw) {
+  if (raw.trim().isEmpty) return 'Без даты';
+  final dt = DateTime.tryParse(raw);
+  if (dt == null) return shortDate(raw);
+  final local = dt.toLocal();
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final day = DateTime(local.year, local.month, local.day);
+  if (day == today) return 'Сегодня';
+  if (day == today.subtract(const Duration(days: 1))) return 'Вчера';
+  return '${local.day.toString().padLeft(2, '0')} ${_monthRu(local.month)}';
+}
+
+String _monthRu(int month) {
+  const months = [
+    'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+    'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'
+  ];
+  if (month < 1 || month > 12) return '';
+  return months[month - 1];
 }
 
 String cleanComment(String raw) {
