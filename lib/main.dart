@@ -114,6 +114,7 @@ class FlowColors {
   static const line = Color(0xFFE5EEF1);
 
   static const acid = Color(0xFFFFA51E);
+  static const gold = Color(0xFFFFD700);
   static const aqua = Color(0xFF0FCAC5);
   static const violet = Color(0xFF7A4CFF);
   static const coral = Color(0xFFFF4F91);
@@ -2995,7 +2996,8 @@ class _ClientShellState extends State<ClientShell> {
           OfferTicker(
               items: actualForYouItems,
               joining: joiningDraw,
-              onJoin: joinDrawFromAggregatedItem),
+              onJoin: joinDrawFromAggregatedItem,
+              onOpenEstablishment: openEstablishmentById),
           const SizedBox(height: 18),
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
@@ -3210,6 +3212,21 @@ class _ClientShellState extends State<ClientShell> {
     } finally {
       if (mounted) setState(() => joiningDraw = false);
     }
+  }
+
+  Future<void> openEstablishmentById(int establishmentId) async {
+    Map<String, dynamic>? found;
+    for (final e in establishments) {
+      if (intOrNull(e['establishment_id']) == establishmentId) {
+        found = e;
+        break;
+      }
+    }
+    found ??= {
+      'establishment_id': establishmentId,
+      'establishment_name': establishmentNameById(establishmentId),
+    };
+    await openEstablishmentPage(found);
   }
 
   Future<void> openEstablishmentPage(Map<String, dynamic> item) async {
@@ -4777,7 +4794,7 @@ class FlowruClientQrPanel extends StatelessWidget {
                       offset: const Offset(16, 18),
                     ),
                     BoxShadow(
-                      color: Colors.white.withOpacity(0.34),
+                      color: FlowColors.ink.withOpacity(0.10),
                       blurRadius: 20,
                       spreadRadius: 2,
                     ),
@@ -4952,11 +4969,11 @@ class PremiumAssetIcon extends StatelessWidget {
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                      color: FlowColors.aqua.withOpacity(0.18),
+                      color: FlowColors.gold.withOpacity(0.24),
                       blurRadius: size * 0.35,
                       offset: Offset(0, size * 0.10)),
                   BoxShadow(
-                      color: kLoginPink.withOpacity(0.10),
+                      color: const Color(0xFFFFC107).withOpacity(0.14),
                       blurRadius: size * 0.45,
                       offset: Offset(0, size * 0.12)),
                 ],
@@ -4996,17 +5013,12 @@ class FlowruEstablishmentEntry extends StatelessWidget {
         nonEmpty(item['name']) ??
         nonEmpty(est['name']) ??
         'Заведение';
-    final type = nonEmpty(item['category_name']) ??
-        nonEmpty(item['type']) ??
-        nonEmpty(est['type']) ??
-        'Заведение';
     final points =
         toInt(item['points'] ?? loyalty['points'] ?? map(home['stats'])['points']);
     final visits = toInt(item['visits'] ??
         item['visit_count'] ??
         loyalty['visits'] ??
         map(home['stats'])['visits']);
-    final cashback = _resolveCashbackText(home);
     final imageUrl = extractImageUrl(item) ?? extractImageUrl(est) ?? extractImageUrl(home);
 
     return Material(
@@ -5017,21 +5029,13 @@ class FlowruEstablishmentEntry extends StatelessWidget {
         child: Ink(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(26),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.white.withOpacity(0.16),
-                Colors.white.withOpacity(0.08),
-                const Color(0xFF6CE5FF).withOpacity(0.08),
-              ],
-            ),
-            border: Border.all(color: Colors.white.withOpacity(0.18)),
+            color: Colors.white.withOpacity(0.34),
+            border: Border.all(color: Colors.white.withOpacity(0.62), width: 1.15),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF1FD7FF).withOpacity(0.12),
-                blurRadius: 20,
-                offset: const Offset(0, 10),
+                color: FlowColors.ink.withOpacity(0.055),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
               ),
             ],
           ),
@@ -5064,46 +5068,27 @@ class FlowruEstablishmentEntry extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
+                            color: FlowColors.ink,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w900,
                             letterSpacing: -0.35,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          type,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.70),
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
                           ),
                         ),
                         const Spacer(),
                         _EstablishmentRowMetric(
                           label: 'Баланс бонусов',
                           value: '${formatMoney(points)}',
-                          suffix: '₽',
-                          accent: const Color(0xFFB8F4FF),
+                          suffix: 'б.',
+                          accent: FlowColors.gold,
                         ),
                         const SizedBox(height: 8),
                         Row(
                           children: [
                             Expanded(
                               child: _EstablishmentRowMetric(
-                                label: 'Посещений',
+                                label: 'Посещения',
                                 value: '${formatMoney(visits)}',
-                                accent: Colors.white,
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: _EstablishmentRowMetric(
-                                label: 'Кэшбэк',
-                                value: cashback,
-                                accent: const Color(0xFFFFD58A),
+                                accent: FlowColors.ink,
                               ),
                             ),
                           ],
@@ -5115,7 +5100,7 @@ class FlowruEstablishmentEntry extends StatelessWidget {
                 const Padding(
                   padding: EdgeInsets.only(right: 12),
                   child: Icon(Icons.chevron_right_rounded,
-                      color: Colors.white70, size: 22),
+                      color: FlowColors.ink, size: 22),
                 ),
               ],
             ),
@@ -5189,48 +5174,56 @@ class _EstablishmentRowMetric extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Expanded(
-          child: Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.62),
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: FlowColors.ink.withOpacity(0.035),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: FlowColors.ink.withOpacity(0.06)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: FlowColors.muted,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
             ),
           ),
-        ),
-        const SizedBox(width: 10),
-        RichText(
-          textAlign: TextAlign.right,
-          text: TextSpan(
-            children: [
-              TextSpan(
-                text: value,
-                style: TextStyle(
-                  color: accent,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.25,
-                ),
-              ),
-              if (suffix.isNotEmpty)
+          const SizedBox(width: 8),
+          RichText(
+            textAlign: TextAlign.right,
+            text: TextSpan(
+              children: [
                 TextSpan(
-                  text: ' $suffix',
+                  text: value,
                   style: TextStyle(
                     color: accent,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.25,
                   ),
                 ),
-            ],
+                if (suffix.isNotEmpty)
+                  TextSpan(
+                    text: ' $suffix',
+                    style: TextStyle(
+                      color: accent,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -5306,21 +5299,50 @@ String _resolveCashbackText(Map<String, dynamic> home) {
 }
 
 String? _resolveMenuPhotoUrl(Map<String, dynamic> est, Map<String, dynamic> home) {
+  final estMenu = map(est['menu']);
+  final homeMenu = map(home['menu']);
+  final estCovers = mapList(est['menu_covers']);
+  final homeCovers = mapList(home['menu_covers']);
+  final estCoverUrls = mapList(est['menu_cover_urls']);
+  final homeCoverUrls = mapList(home['menu_cover_urls']);
+
+  String? firstFromList(List<Map<String, dynamic>> items) {
+    for (final item in items) {
+      final value = nonEmpty(item['photo_url']) ??
+          nonEmpty(item['image_url']) ??
+          nonEmpty(item['url']) ??
+          nonEmpty(item['src']) ??
+          nonEmpty(item['file_url']);
+      if (value != null) return value;
+    }
+    return null;
+  }
+
   return nonEmpty(est['menu_photo_url']) ??
       nonEmpty(est['menu_image_url']) ??
+      nonEmpty(est['menu_cover_url']) ??
+      nonEmpty(est['menu_cover']) ??
       nonEmpty(est['menu_photo_path']) ??
       nonEmpty(est['menu_image_path']) ??
       nonEmpty(est['menu_url']) ??
-      nonEmpty(map(est['menu'])['photo_url']) ??
-      nonEmpty(map(est['menu'])['image_url']) ??
-      nonEmpty(map(est['menu'])['url']) ??
+      nonEmpty(estMenu['photo_url']) ??
+      nonEmpty(estMenu['image_url']) ??
+      nonEmpty(estMenu['cover_url']) ??
+      nonEmpty(estMenu['url']) ??
+      firstFromList(estCovers) ??
+      firstFromList(estCoverUrls) ??
       nonEmpty(home['menu_photo_url']) ??
       nonEmpty(home['menu_image_url']) ??
+      nonEmpty(home['menu_cover_url']) ??
+      nonEmpty(home['menu_cover']) ??
       nonEmpty(home['menu_photo_path']) ??
       nonEmpty(home['menu_image_path']) ??
-      nonEmpty(map(home['menu'])['photo_url']) ??
-      nonEmpty(map(home['menu'])['image_url']) ??
-      nonEmpty(map(home['menu'])['url']);
+      nonEmpty(homeMenu['photo_url']) ??
+      nonEmpty(homeMenu['image_url']) ??
+      nonEmpty(homeMenu['cover_url']) ??
+      nonEmpty(homeMenu['url']) ??
+      firstFromList(homeCovers) ??
+      firstFromList(homeCoverUrls);
 }
 
 class EstablishmentFullScreen extends StatefulWidget {
@@ -5486,43 +5508,157 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
     return {};
   }
 
+  bool _questTextLooksGeneric(String text) {
+    final v = text.trim().toLowerCase();
+    if (v.isEmpty) return true;
+    if (v == 'совершите визит' || v == 'совершите покупку') return true;
+    if (v.contains('условия будут показаны')) return true;
+    if (v.contains('активное задание от заведения')) return true;
+    if (v.endsWith('...') || v.contains('...')) return true;
+    return false;
+  }
+
+  dynamic _questParam(Map<String, dynamic> quest, Map<String, dynamic> params, List<String> keys) {
+    for (final key in keys) {
+      final fromParams = params[key];
+      if (fromParams != null && fromParams.toString().trim().isNotEmpty) return fromParams;
+      final fromQuest = quest[key];
+      if (fromQuest != null && fromQuest.toString().trim().isNotEmpty) return fromQuest;
+    }
+    return null;
+  }
+
+  String _questWeekDaysText(dynamic value) {
+    final names = {
+      '1': 'понедельник', '2': 'вторник', '3': 'среду', '4': 'четверг',
+      '5': 'пятницу', '6': 'субботу', '7': 'воскресенье',
+      '0': 'воскресенье', 'mon': 'понедельник', 'monday': 'понедельник',
+      'tue': 'вторник', 'tuesday': 'вторник', 'wed': 'среду', 'wednesday': 'среду',
+      'thu': 'четверг', 'thursday': 'четверг', 'fri': 'пятницу', 'friday': 'пятницу',
+      'sat': 'субботу', 'saturday': 'субботу', 'sun': 'воскресенье', 'sunday': 'воскресенье',
+    };
+    final raw = value;
+    final items = <String>[];
+    if (raw is List) {
+      for (final x in raw) {
+        final key = x.toString().trim().toLowerCase();
+        if (key.isNotEmpty) items.add(names[key] ?? key);
+      }
+    } else {
+      final text = raw?.toString().trim() ?? '';
+      if (text.isNotEmpty) {
+        for (final x in text.replaceAll('[', '').replaceAll(']', '').split(RegExp(r'[,;\s]+'))) {
+          final key = x.trim().toLowerCase();
+          if (key.isNotEmpty) items.add(names[key] ?? key);
+        }
+      }
+    }
+    final unique = items.toSet().toList();
+    if (unique.isEmpty) return '';
+    if (unique.length == 1) return 'по дням: ${unique.first}';
+    return 'по дням: ${unique.join(', ')}';
+  }
+
+  String _questPeriodLabel(dynamic value) {
+    final v = value?.toString().trim().toLowerCase() ?? '';
+    if (v.isEmpty) return '';
+    if (v == 'morning') return 'утром';
+    if (v == 'day' || v == 'afternoon') return 'днём';
+    if (v == 'evening') return 'вечером';
+    if (v == 'night') return 'ночью';
+    if (v == 'week') return 'в течение недели';
+    if (v == 'month') return 'в течение месяца';
+    return v;
+  }
+
+  String _normalizeQuestTime(dynamic value) {
+    final raw = value?.toString().trim() ?? '';
+    if (raw.isEmpty) return '';
+    final asNum = num.tryParse(raw.replaceAll(',', '.'));
+    if (asNum != null) {
+      final h = asNum.floor().clamp(0, 23);
+      final m = ((asNum - asNum.floor()) * 60).round().clamp(0, 59);
+      return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
+    }
+    final match = RegExp(r'(\d{1,2})(?::(\d{1,2}))?').firstMatch(raw);
+    if (match == null) return raw;
+    final h = int.tryParse(match.group(1) ?? '')?.clamp(0, 23) ?? 0;
+    final m = int.tryParse(match.group(2) ?? '0')?.clamp(0, 59) ?? 0;
+    return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
+  }
+
   String _questConditionReadable(Map<String, dynamic> quest) {
+    final params = <String, dynamic>{
+      ..._jsonMapFromQuestValue(quest['condition_params']),
+      ..._jsonMapFromQuestValue(quest['params']),
+      ..._jsonMapFromQuestValue(quest['settings']),
+      ..._jsonMapFromQuestValue(quest['rules']),
+      ..._jsonMapFromQuestValue(quest['condition']),
+      ..._jsonMapFromQuestValue(quest['criteria']),
+      ..._jsonMapFromQuestValue(quest['config']),
+      ..._jsonMapFromQuestValue(quest['completion_rules']),
+      ..._jsonMapFromQuestValue(quest['trigger_params']),
+      ..._jsonMapFromQuestValue(quest['schedule']),
+      ..._jsonMapFromQuestValue(quest['time_rules']),
+    };
+
     final direct = nonEmpty(quest['condition_text']) ??
         nonEmpty(quest['conditions_text']) ??
         nonEmpty(quest['condition_description']) ??
         nonEmpty(quest['how_to_complete']) ??
         nonEmpty(quest['task_text']) ??
         nonEmpty(quest['rules_text']);
+
+    final type = (quest['condition_type'] ?? quest['template_key'] ?? quest['quest_type'] ?? '').toString().toLowerCase();
+    final minAmountRaw = _questParam(quest, params, [
+      'min_amount', 'amount_from', 'min_purchase_amount', 'purchase_amount',
+      'required_amount', 'amount', 'sum_from', 'min_sum', 'min_check', 'check_from', 'min_total', 'purchase_sum', 'required_spend', 'amount_rub', 'min_bill', 'check_amount'
+    ]);
+    final requiredCountRaw = _questParam(quest, params, [
+      'required_count', 'count', 'visits_count', 'visit_count', 'target', 'goal', 'required'
+    ]);
+    final periodDaysRaw = _questParam(quest, params, ['period_days', 'days', 'within_days', 'duration_days']);
+    final fromTime = nonEmpty(_normalizeQuestTime(_questParam(quest, params, ['from_time', 'start_time', 'time_from', 'hour_from', 'starts_time', 'time_window_from', 'visit_time_from', 'start_hour'])));
+    final toTime = nonEmpty(_normalizeQuestTime(_questParam(quest, params, ['to_time', 'end_time', 'time_to', 'hour_to', 'ends_time', 'time_window_to', 'visit_time_to', 'end_hour'])));
+    final daysText = _questWeekDaysText(_questParam(quest, params, ['weekdays', 'days_of_week', 'weekday', 'week_days', 'allowed_weekdays', 'week_days_json', 'valid_days']));
+    final period = nonEmpty(_questPeriodLabel(_questParam(quest, params, ['period', 'period_text', 'period_label'])));
+
+    if (direct != null && !_questTextLooksGeneric(direct)) return direct;
+
+    final parts = <String>[];
+    final minAmount = toDouble(minAmountRaw);
+    final requiredCount = toInt(requiredCountRaw);
+    final periodDays = toInt(periodDaysRaw);
+
+    if (type.contains('amount') || type.contains('purchase') || type.contains('check') || minAmount > 0) {
+      parts.add(minAmount > 0 ? 'Покупка от ${formatMoney(minAmount)} ₽' : 'Совершите покупку');
+    } else if (type.contains('streak')) {
+      parts.add(requiredCount > 0 ? 'Серия из ${formatMoney(requiredCount)} визитов' : 'Серия визитов');
+    } else if (type.contains('morning')) {
+      parts.add('Утренний визит');
+    } else if (type.contains('evening')) {
+      parts.add('Вечерний визит');
+    } else if (type.contains('visit') || requiredCount > 0) {
+      parts.add(requiredCount > 0 ? '${formatMoney(requiredCount)} визита' : 'Совершите визит');
+    }
+
+    if (fromTime != null && toTime != null) {
+      parts.add('с $fromTime до $toTime');
+    } else if (fromTime != null) {
+      parts.add('после $fromTime');
+    } else if (toTime != null) {
+      parts.add('до $toTime');
+    }
+    if (daysText.isNotEmpty) parts.add(daysText);
+    if (periodDays > 0) parts.add('за ${formatMoney(periodDays)} дней');
+    if (period != null && !parts.join(' ').toLowerCase().contains(period.toLowerCase())) parts.add(period);
+
+    if (parts.isNotEmpty) {
+      final text = parts.join(' · ');
+      return text[0].toUpperCase() + text.substring(1);
+    }
+
     if (direct != null) return direct;
-
-    final type =
-        (quest['condition_type'] ?? quest['template_key'] ?? '').toString();
-    final params = _jsonMapFromQuestValue(quest['condition_params']);
-    final minAmount = params['min_amount'] ?? params['amount_from'];
-    final period = params['period'] ?? params['period_text'];
-    final requiredCount = params['required_count'] ?? params['count'];
-    final periodDays = params['period_days'] ?? params['days'];
-    final fromTime = nonEmpty(params['from_time']) ?? nonEmpty(quest['from_time']);
-    final toTime = nonEmpty(params['to_time']) ?? nonEmpty(quest['to_time']);
-
-    if (type == 'evening_visit') return 'Совершите визит вечером';
-    if (type == 'morning_visit') return 'Совершите визит утром';
-    if (type == 'visit_hours') {
-      if (fromTime != null && toTime != null) return 'Совершите визит с $fromTime до $toTime';
-      return 'Совершите визит в часы, заданные заведением';
-    }
-    if (type == 'purchase_amount_min' && minAmount != null)
-      return 'Покупка от ${formatMoney(toInt(minAmount))} ₽';
-    if (type == 'visits_count_period' && requiredCount != null) {
-      final daysText = toInt(periodDays) > 0 ? ' за ${formatMoney(toInt(periodDays))} дней' : '';
-      return '${formatMoney(toInt(requiredCount))} визита$daysText';
-    }
-    if (type == 'visit_streak' && requiredCount != null)
-      return 'Серия из ${formatMoney(toInt(requiredCount))} визитов';
-    if (type == 'purchases_per_day' && requiredCount != null)
-      return '${formatMoney(toInt(requiredCount))} покупки за день';
-    if (fromTime != null && toTime != null) return 'Доступно с $fromTime до $toTime';
-    if (period != null) return 'Период: $period';
     return _questConditionText(quest);
   }
 
@@ -5633,6 +5769,7 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
       _establishmentBenefits(name, points, promoItems),
       _establishmentQuests(quests),
       _establishmentHistory(widget.history),
+      _establishmentMenu(name, _resolveMenuPhotoUrl(est, widget.home)),
       _establishmentInfo(
           name,
           address,
@@ -5762,14 +5899,9 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
                         Container(
                             width: 54,
                             height: 54,
-                            decoration: BoxDecoration(
-                                color: FlowColors.violet.withOpacity(0.08),
-                                borderRadius: BorderRadius.circular(20)),
-                            child: const PremiumAssetIcon(
-                                asset: kIconQuestCardPremium,
-                                size: 48,
-                                fallbackIcon: Icons.flag_rounded,
-                                fallbackColor: FlowColors.violet)),
+                            alignment: Alignment.center,
+                            child: const Icon(Icons.emoji_events_rounded,
+                                color: FlowColors.gold, size: 36)),
                         const SizedBox(width: 12),
                         Expanded(
                             child: Column(
@@ -5803,46 +5935,26 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
                         child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Row(children: [
-                                const Icon(Icons.schedule_rounded,
-                                    color: FlowColors.aqua, size: 18),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                    child: Text(_questPeriodText(quest),
-                                        style: const TextStyle(
-                                            color: FlowColors.ink,
-                                            fontWeight: FontWeight.w800,
-                                            height: 1.3))),
-                              ]),
+                              _QuestFactLine(
+                                icon: Icons.schedule_rounded,
+                                iconColor: const Color(0xFF0F766E),
+                                text: _questPeriodText(quest),
+                                weight: FontWeight.w800,
+                              ),
                               const SizedBox(height: 8),
-                              Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Icon(Icons.rule_rounded,
-                                        color: FlowColors.violet, size: 18),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                        child: Text(
-                                            _questConditionReadable(quest),
-                                            style: const TextStyle(
-                                                color: FlowColors.ink,
-                                                fontWeight: FontWeight.w700,
-                                                height: 1.3))),
-                                  ]),
+                              _QuestFactLine(
+                                icon: Icons.rule_rounded,
+                                iconColor: const Color(0xFF6D28D9),
+                                text: _questConditionReadable(quest),
+                                weight: FontWeight.w800,
+                              ),
                               const SizedBox(height: 8),
-                              Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Icon(Icons.workspace_premium_rounded,
-                                        color: FlowColors.acid, size: 18),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                        child: Text(_questRewardReadable(quest),
-                                            style: const TextStyle(
-                                                color: FlowColors.ink,
-                                                fontWeight: FontWeight.w800,
-                                                height: 1.3))),
-                                  ]),
+                              _QuestFactLine(
+                                icon: Icons.workspace_premium_rounded,
+                                iconColor: const Color(0xFFB77900),
+                                text: _questRewardReadable(quest),
+                                weight: FontWeight.w900,
+                              ),
                             ]),
                       ),
                     ]),
@@ -5863,6 +5975,89 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
       ),
       const SizedBox(height: 12),
       TimelineList(history: items, loading: false),
+    ]);
+  }
+
+  Widget _establishmentMenu(String name, String? menuPhotoUrl) {
+    final url = (menuPhotoUrl ?? '').trim();
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _EstablishmentSectionHero(
+        icon: Icons.restaurant_menu_rounded,
+        title: 'Меню',
+        subtitle: 'Фото меню, которое заведению загрузили в админке',
+        value: url.isNotEmpty ? 'есть' : '—',
+        label: 'фото',
+        accent: FlowColors.gold,
+      ),
+      const SizedBox(height: 12),
+      if (url.isEmpty)
+        const EmptyState(
+          icon: Icons.restaurant_menu_rounded,
+          title: 'Меню пока не загружено',
+          subtitle: 'Когда заведение добавит фото меню в админке, оно появится здесь.',
+        )
+      else
+        SurfaceCard(
+          radius: 30,
+          padding: const EdgeInsets.all(12),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: AspectRatio(
+                aspectRatio: 4 / 5,
+                child: Image.network(
+                  url,
+                  fit: BoxFit.cover,
+                  loadingBuilder: (context, child, progress) {
+                    if (progress == null) return child;
+                    return Container(
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.34),
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      child: const CircularProgressIndicator(strokeWidth: 2),
+                    );
+                  },
+                  errorBuilder: (_, __, ___) => Container(
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.all(22),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.42),
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: const Text(
+                      'Не удалось загрузить фото меню',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: FlowColors.ink,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Меню $name',
+              style: const TextStyle(
+                color: FlowColors.ink,
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Актуальное изображение меню из админки заведения.',
+              style: TextStyle(
+                color: FlowColors.muted,
+                fontWeight: FontWeight.w700,
+                height: 1.35,
+              ),
+            ),
+          ]),
+        ),
     ]);
   }
 
@@ -5966,6 +6161,58 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
 
 }
 
+class _QuestFactLine extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String text;
+  final FontWeight weight;
+
+  const _QuestFactLine({
+    required this.icon,
+    required this.iconColor,
+    required this.text,
+    required this.weight,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Container(
+        width: 28,
+        height: 28,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.76),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.white.withOpacity(0.92), width: 1),
+          boxShadow: [
+            BoxShadow(
+              color: FlowColors.ink.withOpacity(0.06),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Icon(icon, color: iconColor, size: 17),
+      ),
+      const SizedBox(width: 9),
+      Expanded(
+        child: Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Text(
+            text,
+            style: TextStyle(
+              color: FlowColors.ink,
+              fontWeight: weight,
+              height: 1.32,
+            ),
+          ),
+        ),
+      ),
+    ]);
+  }
+}
+
 class _EstablishmentOverviewCard extends StatelessWidget {
   final String name;
   final int points;
@@ -5986,21 +6233,13 @@ class _EstablishmentOverviewCard extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(18, 16, 16, 16),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(28),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.white.withOpacity(0.16),
-            Colors.white.withOpacity(0.08),
-            const Color(0xFF6CE5FF).withOpacity(0.08),
-          ],
-        ),
-        border: Border.all(color: Colors.white.withOpacity(0.18)),
+        color: Colors.white.withOpacity(0.34),
+        border: Border.all(color: Colors.white.withOpacity(0.66), width: 1.15),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF1FD7FF).withOpacity(0.14),
-            blurRadius: 20,
-            offset: const Offset(0, 12),
+            color: FlowColors.ink.withOpacity(0.055),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
           )
         ],
       ),
@@ -6015,44 +6254,29 @@ class _EstablishmentOverviewCard extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: FlowColors.ink,
                     fontSize: 24,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w900,
                     letterSpacing: -0.45,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Ваше заведение',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.70),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
                   ),
                 ),
                 const SizedBox(height: 18),
                 _TopStatLine(
-                  label: 'Баллы',
-                  value: '${formatMoney(points)}',
-                  accent: const Color(0xFFB8F4FF),
+                  label: 'Баланс бонусов',
+                  value: '${formatMoney(points)} б.',
+                  accent: FlowColors.gold,
                 ),
                 const SizedBox(height: 10),
                 _TopStatLine(
-                  label: 'Визиты',
+                  label: 'Посещения',
                   value: '${formatMoney(visits)}',
-                  accent: Colors.white,
-                ),
-                const SizedBox(height: 10),
-                _TopStatLine(
-                  label: 'Кэшбэк',
-                  value: cashback,
-                  accent: const Color(0xFFFFD58A),
+                  accent: FlowColors.ink,
                 ),
               ],
             ),
           ),
           const SizedBox(width: 10),
-          const Icon(Icons.chevron_right_rounded, color: Colors.white70),
+          const Icon(Icons.chevron_right_rounded, color: FlowColors.ink),
         ],
       ),
     );
@@ -6067,27 +6291,35 @@ class _TopStatLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            label,
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.68),
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: FlowColors.ink.withOpacity(0.035),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: FlowColors.ink.withOpacity(0.06)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: FlowColors.muted,
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+              ),
             ),
           ),
-        ),
-        Text(
-          value,
-          style: TextStyle(
-            color: accent,
-            fontSize: 16,
-            fontWeight: FontWeight.w800,
+          Text(
+            value,
+            style: TextStyle(
+              color: accent,
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -6111,12 +6343,22 @@ class _EstablishmentSectionHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SurfaceCard(
-      radius: 28,
+    return Container(
+      width: double.infinity,
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
-      child: SizedBox(
-        width: double.infinity,
-        child: Row(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        color: Colors.white.withOpacity(0.24),
+        border: Border.all(color: Colors.white.withOpacity(0.56), width: 1.1),
+        boxShadow: [
+          BoxShadow(
+            color: FlowColors.ink.withOpacity(0.045),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
           children: [
             Expanded(
               child: Column(
@@ -6182,7 +6424,6 @@ class _EstablishmentSectionHero extends StatelessWidget {
               ),
             ],
           ],
-        ),
       ),
     );
   }
@@ -6224,11 +6465,12 @@ class EstablishmentTabSwitch extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const tabs = [
-      (kIconBenefitsPremium, Icons.auto_awesome_rounded, 'Выгода'),
-      (kIconQuestsPremium, Icons.flag_rounded, 'Квесты'),
-      (kIconHistoryPremium, Icons.receipt_long_rounded, 'История'),
-      (kIconInfoPremium, Icons.info_outline_rounded, 'Инфо'),
-      (kIconProfilePremium, Icons.person_outline_rounded, 'Профиль'),
+      (Icons.local_offer_rounded, 'Выгода'),
+      (Icons.flag_circle_rounded, 'Квесты'),
+      (Icons.receipt_long_rounded, 'История'),
+      (Icons.restaurant_menu_rounded, 'Меню'),
+      (Icons.info_outline_rounded, 'Инфо'),
+      (Icons.account_circle_outlined, 'Профиль'),
     ];
 
     return Row(
@@ -6243,56 +6485,57 @@ class EstablishmentTabSwitch extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  AnimatedContainer(
+                  AnimatedScale(
                     duration: const Duration(milliseconds: 220),
-                    width: active ? 76 : 64,
-                    height: active ? 76 : 64,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: active
-                          ? Colors.white.withOpacity(0.14)
-                          : Colors.white.withOpacity(0.06),
-                      border: Border.all(
-                        color: active
-                            ? Colors.white.withOpacity(0.24)
-                            : Colors.white.withOpacity(0.10),
-                      ),
-                      boxShadow: active
-                          ? [
-                              BoxShadow(
-                                color: const Color(0xFF27D8FF).withOpacity(0.34),
-                                blurRadius: 22,
-                                spreadRadius: 2,
+                    curve: Curves.easeOutBack,
+                    scale: active ? 1.10 : 0.96,
+                    child: SizedBox(
+                      width: 58,
+                      height: 58,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          AnimatedOpacity(
+                            duration: const Duration(milliseconds: 220),
+                            opacity: active ? 1 : 0,
+                            child: Container(
+                              width: 50,
+                              height: 50,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: FlowColors.gold.withOpacity(0.70),
+                                    blurRadius: 24,
+                                    spreadRadius: 2,
+                                  ),
+                                  BoxShadow(
+                                    color: const Color(0xFFFFD700).withOpacity(0.36),
+                                    blurRadius: 34,
+                                    spreadRadius: 4,
+                                  ),
+                                ],
                               ),
-                              BoxShadow(
-                                color: const Color(0xFFFFB347).withOpacity(0.18),
-                                blurRadius: 18,
-                                offset: const Offset(0, 8),
-                              ),
-                            ]
-                          : [],
-                    ),
-                    child: Center(
-                      child: PremiumAssetIcon(
-                        asset: tabs[i].$1,
-                        size: active ? 52 : 46,
-                        fallbackIcon: tabs[i].$2,
-                        fallbackColor: Colors.white,
-                        withGlow: false,
+                            ),
+                          ),
+                          Icon(
+                            tabs[i].$1,
+                            size: active ? 34 : 30,
+                            color: active ? FlowColors.gold : FlowColors.ink,
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 3),
                   Text(
-                    tabs[i].$3,
+                    tabs[i].$2,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: active
-                          ? Colors.white
-                          : Colors.white.withOpacity(0.68),
+                      color: active ? FlowColors.ink : FlowColors.soft,
                       fontSize: 12,
-                      fontWeight: active ? FontWeight.w800 : FontWeight.w600,
+                      fontWeight: active ? FontWeight.w900 : FontWeight.w700,
                     ),
                   ),
                 ],
@@ -6304,6 +6547,7 @@ class EstablishmentTabSwitch extends StatelessWidget {
     );
   }
 }
+
 
 class CommandHeader extends StatelessWidget {
   final String name;
@@ -6793,16 +7037,13 @@ class EstablishmentInfoPanel extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(18, 20, 18, 18),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(34),
-                gradient: const LinearGradient(colors: [
-                  Color(0xFF06304A),
-                  Color(0xFF087F99),
-                  Color(0xFF20D9C5)
-                ], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                color: Colors.white.withOpacity(0.30),
+                border: Border.all(color: Colors.white.withOpacity(0.62), width: 1.1),
                 boxShadow: [
                   BoxShadow(
-                      color: kLoginBlue.withOpacity(0.14),
-                      blurRadius: 22,
-                      offset: const Offset(0, 12))
+                      color: FlowColors.ink.withOpacity(0.055),
+                      blurRadius: 18,
+                      offset: const Offset(0, 8))
                 ],
               ),
               child: Column(
@@ -6813,7 +7054,7 @@ class EstablishmentInfoPanel extends StatelessWidget {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                            color: Colors.white,
+                            color: FlowColors.ink,
                             fontSize: 24,
                             height: 1.05,
                             fontWeight: FontWeight.w900,
@@ -7133,7 +7374,7 @@ class _RatingLinkTile extends StatelessWidget {
               end: Alignment.bottomRight,
             ),
             border:
-                Border.all(color: Colors.white.withOpacity(0.96), width: 1.2),
+                Border.all(color: Colors.white.withOpacity(0.99), width: 1.2),
             boxShadow: [
               BoxShadow(
                   color: color.withOpacity(0.15),
@@ -7351,18 +7592,18 @@ class _QuickGlassPill extends StatelessWidget {
       constraints: const BoxConstraints(minHeight: 32),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.12),
+          color: Colors.white.withOpacity(0.58),
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: Colors.white.withOpacity(0.16))),
+          border: Border.all(color: Colors.white.withOpacity(0.82))),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 15, color: FlowColors.acid),
+        Icon(icon, size: 16, color: Color(0xFF7A4F00)),
         const SizedBox(width: 6),
         Flexible(
             child: Text(text,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                    color: Colors.white,
+                    color: FlowColors.ink,
                     fontSize: 12,
                     fontWeight: FontWeight.w800))),
       ]),
@@ -7616,16 +7857,13 @@ class WalletHubCard extends StatelessWidget {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(30),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF101828), Color(0xFF163A5F), Color(0xFF0FCAC5)],
-        ),
+        color: Colors.white.withOpacity(0.24),
+        border: Border.all(color: Colors.white.withOpacity(0.56), width: 1.1),
         boxShadow: [
           BoxShadow(
-              color: FlowColors.ink.withOpacity(0.16),
-              blurRadius: 24,
-              offset: const Offset(0, 13))
+              color: FlowColors.ink.withOpacity(0.055),
+              blurRadius: 18,
+              offset: const Offset(0, 8))
         ],
       ),
       child: Column(
@@ -7640,7 +7878,7 @@ class WalletHubCard extends StatelessWidget {
                     const Text(
                       'Wallet карта',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: FlowColors.ink,
                         fontSize: 21,
                         fontWeight: FontWeight.w900,
                         letterSpacing: -0.5,
@@ -7652,7 +7890,7 @@ class WalletHubCard extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: Color(0xEFFFFFFF),
+                        color: FlowColors.muted,
                         fontWeight: FontWeight.w800,
                         height: 1.25,
                       ),
@@ -7660,7 +7898,7 @@ class WalletHubCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const Icon(Icons.wallet_rounded, color: Colors.white, size: 28),
+              const Icon(Icons.wallet_rounded, color: FlowColors.gold, size: 28),
             ],
           ),
           const SizedBox(height: 16),
@@ -7672,7 +7910,7 @@ class WalletHubCard extends StatelessWidget {
                     emptyMessage: 'Apple Wallet пока не подключён')
                 : null,
           ),
-          const Divider(color: Color(0x30FFFFFF), height: 18),
+          Divider(color: FlowColors.ink.withOpacity(0.08), height: 18),
           _WalletActionRow(
             title: 'Google Wallet',
             subtitle: hasGoogle ? 'Открыть карту' : 'Сейчас дорабатывается',
@@ -7685,7 +7923,7 @@ class WalletHubCard extends StatelessWidget {
           const Text(
             'Нажмите на нужную карту, чтобы открыть её.',
             style: TextStyle(
-              color: Color(0xEFFFFFFF),
+              color: FlowColors.muted,
               fontWeight: FontWeight.w800,
               height: 1.3,
             ),
@@ -7720,7 +7958,7 @@ class _WalletActionRow extends StatelessWidget {
           child: Row(
             children: [
               Icon(icon,
-                  color: enabled ? Colors.white : const Color(0xCCFFFFFF),
+                  color: enabled ? FlowColors.gold : FlowColors.soft,
                   size: 22),
               const SizedBox(width: 12),
               Expanded(
@@ -7730,7 +7968,7 @@ class _WalletActionRow extends StatelessWidget {
                     Text(
                       title,
                       style: TextStyle(
-                        color: enabled ? Colors.white : const Color(0xCCFFFFFF),
+                        color: enabled ? FlowColors.ink : FlowColors.soft,
                         fontWeight: FontWeight.w900,
                         fontSize: 15,
                       ),
@@ -7739,7 +7977,7 @@ class _WalletActionRow extends StatelessWidget {
                     Text(
                       subtitle,
                       style: const TextStyle(
-                        color: Color(0xEFFFFFFF),
+                        color: FlowColors.muted,
                         fontWeight: FontWeight.w700,
                         fontSize: 12,
                       ),
@@ -7748,7 +7986,7 @@ class _WalletActionRow extends StatelessWidget {
                 ),
               ),
               Icon(Icons.arrow_forward_ios_rounded,
-                  color: enabled ? Colors.white : const Color(0x99FFFFFF),
+                  color: enabled ? FlowColors.gold : FlowColors.soft,
                   size: 16),
             ],
           ),
@@ -8034,8 +8272,13 @@ class OfferTicker extends StatelessWidget {
   final List<PromoItem> items;
   final bool joining;
   final Future<void> Function(Map<String, dynamic> draw)? onJoin;
+  final Future<void> Function(int establishmentId)? onOpenEstablishment;
   const OfferTicker(
-      {super.key, required this.items, this.joining = false, this.onJoin});
+      {super.key,
+      required this.items,
+      this.joining = false,
+      this.onJoin,
+      this.onOpenEstablishment});
 
   void _openPromo(BuildContext context, PromoItem item) {
     if (item.isRaffle && (item.rawData ?? {}).isNotEmpty) {
@@ -8054,11 +8297,25 @@ class OfferTicker extends StatelessWidget {
       );
       return;
     }
-    showBenefitSheet(context,
-        title: item.title,
-        subtitle: item.subtitle,
-        icon: item.icon,
-        color: item.color);
+    final estId = intOrNull(item.rawData?['establishment_id']);
+    final estName = promoFirstText([item.rawData?['establishment_name']]);
+    final cleanTitle = estName != null && item.title.startsWith('$estName · ')
+        ? item.title.substring(estName.length + 3)
+        : item.title;
+    showPromoDetailsSheet(
+      context,
+      title: cleanTitle,
+      subtitle: item.subtitle,
+      icon: item.icon,
+      color: item.color,
+      establishmentName: estName,
+      onOpenEstablishment: estId != null && onOpenEstablishment != null
+          ? () async {
+              Navigator.of(context).maybePop();
+              await onOpenEstablishment!(estId);
+            }
+          : null,
+    );
   }
 
   @override
@@ -8417,13 +8674,16 @@ class _PromoShowcaseCardState extends State<PromoShowcaseCard>
     final hasImage = imageUrl.isNotEmpty;
     final title = item.title.trim();
     final subtitle = item.subtitle.trim();
+    final establishmentName = promoFirstText([item.rawData?['establishment_name']]);
+    final compactEstablishmentCard = establishmentName != null && establishmentName.trim().isNotEmpty;
+    final cardTitle = compactEstablishmentCard ? establishmentName.trim() : title;
     final tagLower = item.tag.toLowerCase();
     final isImportant = tagLower.contains('важ') || tagLower.contains('flowru');
     final titleLower = title.toLowerCase();
-    final showTitle = title.isNotEmpty &&
+    final showTitle = cardTitle.isNotEmpty &&
         !item.isRaffle &&
         !(isImportant && titleLower == 'важное');
-    final showSubtitle = subtitle.isNotEmpty && !item.isRaffle;
+    final showSubtitle = subtitle.isNotEmpty && !item.isRaffle && !compactEstablishmentCard;
     final tagLabel =
         item.isRaffle ? 'Розыгрыш' : (isImportant ? 'Важное' : item.tag);
     final actionText = item.actionText;
@@ -8603,8 +8863,8 @@ class _PromoShowcaseCardState extends State<PromoShowcaseCard>
                             const Spacer(),
                             if (showTitle) ...[
                               Text(
-                                title,
-                                maxLines: 2,
+                                cardTitle,
+                                maxLines: compactEstablishmentCard ? 1 : 2,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
                                     color: Colors.white,
@@ -8808,7 +9068,7 @@ class _BenefitHeroSummaryCardState extends State<BenefitHeroSummaryCard>
                       children: [
                         Text('Сейчас в фокусе',
                             style: TextStyle(
-                                color: Colors.white.withOpacity(0.72),
+                                color: FlowColors.muted,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w800)),
                         const SizedBox(height: 6),
@@ -10473,15 +10733,15 @@ class _HistoryFilterChip extends StatelessWidget {
           duration: const Duration(milliseconds: 180),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           decoration: BoxDecoration(
-            color: active ? const Color(0xFF248BFF) : const Color(0xFF16263F).withOpacity(0.92),
+            color: active ? FlowColors.gold.withOpacity(0.22) : Colors.white.withOpacity(0.30),
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: active ? Colors.transparent : Colors.white.withOpacity(0.10),
+              color: active ? FlowColors.gold.withOpacity(0.70) : Colors.white.withOpacity(0.55),
             ),
             boxShadow: active
                 ? [
                     BoxShadow(
-                      color: const Color(0xFF248BFF).withOpacity(0.30),
+                      color: FlowColors.gold.withOpacity(0.24),
                       blurRadius: 16,
                       offset: const Offset(0, 8),
                     )
@@ -10491,7 +10751,7 @@ class _HistoryFilterChip extends StatelessWidget {
           child: Text(
             label,
             style: TextStyle(
-              color: Colors.white.withOpacity(active ? 1 : 0.88),
+              color: active ? FlowColors.ink : FlowColors.muted,
               fontSize: 12,
               fontWeight: FontWeight.w700,
             ),
@@ -10514,7 +10774,7 @@ class _TimelineDayHeader extends StatelessWidget {
           width: 8,
           height: 8,
           decoration: const BoxDecoration(
-            color: Colors.white54,
+            color: FlowColors.gold,
             shape: BoxShape.circle,
           ),
         ),
@@ -10522,7 +10782,7 @@ class _TimelineDayHeader extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            color: Colors.white.withOpacity(0.92),
+            color: FlowColors.ink,
             fontSize: 15,
             fontWeight: FontWeight.w700,
           ),
@@ -10553,24 +10813,17 @@ class AnimatedOperationBadge extends StatelessWidget {
             height: 48,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: RadialGradient(
-                colors: [Colors.white.withOpacity(0.18), color.withOpacity(0.36)],
-              ),
-              border: Border.all(color: color.withOpacity(0.95), width: 1.8),
+              color: Colors.white.withOpacity(0.70),
+              border: Border.all(color: color.withOpacity(0.62), width: 1.6),
               boxShadow: [
                 BoxShadow(
-                  color: color.withOpacity(0.65),
-                  blurRadius: 26,
-                  spreadRadius: 3,
-                ),
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.22),
-                  blurRadius: 14,
+                  color: color.withOpacity(0.14),
+                  blurRadius: 18,
                   offset: const Offset(0, 8),
                 ),
               ],
             ),
-            child: Icon(icon, color: Colors.white, size: 23),
+            child: Icon(icon, color: color, size: 23),
           ),
         ],
       ),
@@ -10607,7 +10860,7 @@ class TimelineTile extends StatelessWidget {
                 width: 2,
                 height: 72,
                 margin: const EdgeInsets.symmetric(vertical: 4),
-                color: Colors.white.withOpacity(0.34),
+                color: FlowColors.ink.withOpacity(0.10),
               ),
           ],
         ),
@@ -10619,16 +10872,8 @@ class TimelineTile extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    const Color(0xFF0B1728).withOpacity(0.92),
-                    const Color(0xFF10243A).withOpacity(0.88),
-                    const Color(0xFF132F4B).withOpacity(0.82),
-                  ],
-                ),
-                border: Border.all(color: Colors.white.withOpacity(0.12)),
+                color: Colors.white.withOpacity(0.82),
+                border: Border.all(color: FlowColors.ink.withOpacity(0.07)),
                 boxShadow: [
                   BoxShadow(
                     color: visual.color.withOpacity(0.14),
@@ -10647,9 +10892,9 @@ class TimelineTile extends StatelessWidget {
                         Text(
                           view.title,
                           style: const TextStyle(
-                            color: Colors.white,
+                            color: FlowColors.ink,
                             fontSize: 15,
-                            fontWeight: FontWeight.w800,
+                            fontWeight: FontWeight.w900,
                           ),
                         ),
                         if (view.subtitle.isNotEmpty) ...[
@@ -10657,7 +10902,7 @@ class TimelineTile extends StatelessWidget {
                           Text(
                             view.subtitle,
                             style: TextStyle(
-                              color: Colors.white.withOpacity(0.72),
+                              color: FlowColors.muted,
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
                               height: 1.25,
@@ -10683,7 +10928,7 @@ class TimelineTile extends StatelessWidget {
                       Text(
                         operationTimeText(createdAt),
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.62),
+                          color: FlowColors.soft,
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                         ),
@@ -10889,9 +11134,21 @@ class LiveEstablishmentProfileCard extends StatelessWidget {
         twoGisRating > 0 ||
         social.isNotEmpty;
 
-    return SurfaceCard(
+    return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(16),
-      radius: 30,
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.96),
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: Colors.white.withOpacity(0.98), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.18),
+            blurRadius: 34,
+            offset: const Offset(0, 18),
+          ),
+        ],
+      ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Container(
@@ -10899,16 +11156,10 @@ class LiveEstablishmentProfileCard extends StatelessWidget {
               height: 48,
               decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(18),
-                  gradient: const LinearGradient(
-                      colors: [FlowColors.ink, FlowColors.ink2]),
-                  boxShadow: [
-                    BoxShadow(
-                        color: FlowColors.ink.withOpacity(0.15),
-                        blurRadius: 18,
-                        offset: const Offset(0, 9))
-                  ]),
+                  color: Colors.white.withOpacity(0.55),
+                  border: Border.all(color: FlowColors.ink.withOpacity(0.08))),
               child:
-                  const Icon(Icons.storefront_rounded, color: FlowColors.acid)),
+                  const Icon(Icons.storefront_rounded, color: FlowColors.gold)),
           const SizedBox(width: 12),
           Expanded(
               child: Column(
@@ -11004,9 +11255,21 @@ class LiveLoyaltyRulesCard extends StatelessWidget {
     final referral = map(rules['client_referral']);
     final birthday = map(rules['birthday_campaign']);
 
-    return SurfaceCard(
+    return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(16),
-      radius: 30,
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.96),
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: Colors.white.withOpacity(0.98), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.18),
+            blurRadius: 34,
+            offset: const Offset(0, 18),
+          ),
+        ],
+      ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const SectionTitle(
             title: 'Правила лояльности',
@@ -11208,21 +11471,13 @@ class ProfileCommandCard extends StatelessWidget {
           height: 56,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
-            gradient: const LinearGradient(
-                colors: [FlowColors.ink, Color(0xFF174765)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight),
-            boxShadow: [
-              BoxShadow(
-                  color: FlowColors.ink.withOpacity(0.16),
-                  blurRadius: 18,
-                  offset: const Offset(0, 10))
-            ],
+            color: Colors.white.withOpacity(0.62),
+            border: Border.all(color: FlowColors.ink.withOpacity(0.08)),
           ),
           child: Center(
               child: Text(initials(name),
                   style: const TextStyle(
-                      color: FlowColors.acid,
+                      color: FlowColors.gold,
                       fontWeight: FontWeight.w900,
                       fontSize: 22))),
         ),
@@ -11337,7 +11592,7 @@ class ProfileQuickActionTile extends StatelessWidget {
                   width: 38,
                   height: 38,
                   decoration: BoxDecoration(
-                      color: color.withOpacity(0.13),
+                      color: Colors.transparent,
                       borderRadius: BorderRadius.circular(15)),
                   child: Icon(icon, color: color, size: 20)),
               const Spacer(),
@@ -11396,7 +11651,7 @@ class ProfileSettingsRow extends StatelessWidget {
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                    color: color.withOpacity(0.09),
+                    color: Colors.transparent,
                     borderRadius: BorderRadius.circular(15)),
                 child: Icon(icon, color: color, size: 20)),
             const SizedBox(width: 12),
@@ -11453,7 +11708,7 @@ class ProfileFeatureShell extends StatelessWidget {
               width: 52,
               height: 52,
               decoration: BoxDecoration(
-                  color: color.withOpacity(0.08),
+                  color: Colors.transparent,
                   borderRadius: BorderRadius.circular(18)),
               child: assetPath != null
                   ? PremiumAssetIcon(
@@ -11911,11 +12166,11 @@ class SurfaceCard extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(radius),
-          color: Colors.white,
-          border: Border.all(color: Colors.white, width: 1.25),
+          color: Colors.white.withOpacity(0.34),
+          border: Border.all(color: Colors.white.withOpacity(0.62), width: 1.15),
           boxShadow: [
             BoxShadow(
-                color: const Color(0xFF0A5270).withOpacity(0.10),
+                color: FlowColors.ink.withOpacity(0.055),
                 blurRadius: 18,
                 offset: const Offset(0, 8)),
           ],
@@ -12369,6 +12624,117 @@ class BenefitEntry {
   final IconData icon;
   final Color color;
   const BenefitEntry(this.title, this.subtitle, this.icon, this.color);
+}
+
+void showPromoDetailsSheet(
+  BuildContext context, {
+  required String title,
+  required String subtitle,
+  required IconData icon,
+  required Color color,
+  String? establishmentName,
+  Future<void> Function()? onOpenEstablishment,
+}) {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => Container(
+      margin: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: FlowColors.paper,
+        borderRadius: BorderRadius.circular(34),
+      ),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 12, 18, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: FlowColors.line,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: color.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Icon(icon, color: color),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if ((establishmentName ?? '').trim().isNotEmpty)
+                          Text(
+                            establishmentName!.trim(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: FlowColors.gold,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        Text(
+                          title,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: FlowColors.ink,
+                            fontSize: 22,
+                            height: 1.05,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              if (subtitle.trim().isNotEmpty) ...[
+                const SizedBox(height: 14),
+                Text(
+                  subtitle.trim(),
+                  style: const TextStyle(
+                    color: FlowColors.muted,
+                    height: 1.35,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+              if (onOpenEstablishment != null) ...[
+                const SizedBox(height: 18),
+                PrimaryButton(
+                  text: 'Перейти в заведение',
+                  icon: Icons.arrow_forward_rounded,
+                  onTap: () {
+                    onOpenEstablishment();
+                  },
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 void showBenefitSheet(BuildContext context,
