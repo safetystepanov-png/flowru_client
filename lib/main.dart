@@ -1,4 +1,4 @@
-﻿// Flowru Client V3 Concept
+// Flowru Client V3 Concept
 // Полностью новый визуальный подход: мобильный командный центр клиента.
 // Логика API/авторизации/токенов сохранена, UI-слой пересобран в другом сценарии.
 
@@ -2158,7 +2158,6 @@ class _ClientShellState extends State<ClientShell> {
     return result.take(40).toList();
   }
 
-
   void initInviteDeepLinks() {
     inviteDeepLinkSub = FlowInviteDeepLinks.stream.listen((uri) {
       final token = FlowInviteDeepLinks.parseInviteToken(uri);
@@ -2191,7 +2190,8 @@ class _ClientShellState extends State<ClientShell> {
         FlowInviteDeepLinks.pendingInviteToken = cleanToken;
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('??????? ? Flowru, ????? ???????? ?????????')),
+          const SnackBar(
+              content: Text('??????? ? Flowru, ????? ???????? ?????????')),
         );
         return;
       }
@@ -2200,7 +2200,8 @@ class _ClientShellState extends State<ClientShell> {
 
       if (!mounted) return;
 
-      final message = (res['message'] ?? '????????? ????????? ? Flowru').toString();
+      final message =
+          (res['message'] ?? '????????? ????????? ? Flowru').toString();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(message)),
       );
@@ -2227,7 +2228,8 @@ class _ClientShellState extends State<ClientShell> {
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('?? ??????? ???????? ????????? ?? ??????')),
+        const SnackBar(
+            content: Text('?? ??????? ???????? ????????? ?? ??????')),
       );
     } finally {
       if (mounted) {
@@ -2235,7 +2237,6 @@ class _ClientShellState extends State<ClientShell> {
       }
     }
   }
-
 
   @override
   void initState() {
@@ -3040,11 +3041,16 @@ class _ClientShellState extends State<ClientShell> {
               children: List.generate(establishments.length, (index) {
                 final e = establishments[index];
                 return Padding(
-                  padding: EdgeInsets.only(bottom: index == establishments.length - 1 ? 0 : 12),
+                  padding: EdgeInsets.only(
+                      bottom: index == establishments.length - 1 ? 0 : 12),
                   child: FlowruEstablishmentEntry(
                     item: e,
-                    home: homeByEstablishment[intOrNull(e['establishment_id']) ?? -1] ?? {},
-                    offers: offersByEstablishment[intOrNull(e['establishment_id']) ?? -1] ?? {},
+                    home: homeByEstablishment[
+                            intOrNull(e['establishment_id']) ?? -1] ??
+                        {},
+                    offers: offersByEstablishment[
+                            intOrNull(e['establishment_id']) ?? -1] ??
+                        {},
                     onOpen: () => openEstablishmentPage(e),
                   ),
                 );
@@ -5013,13 +5019,14 @@ class FlowruEstablishmentEntry extends StatelessWidget {
         nonEmpty(item['name']) ??
         nonEmpty(est['name']) ??
         'Заведение';
-    final points =
-        toInt(item['points'] ?? loyalty['points'] ?? map(home['stats'])['points']);
+    final points = toInt(
+        item['points'] ?? loyalty['points'] ?? map(home['stats'])['points']);
     final visits = toInt(item['visits'] ??
         item['visit_count'] ??
         loyalty['visits'] ??
         map(home['stats'])['visits']);
-    final imageUrl = extractImageUrl(item) ?? extractImageUrl(est) ?? extractImageUrl(home);
+    final imageUrl =
+        extractImageUrl(item) ?? extractImageUrl(est) ?? extractImageUrl(home);
 
     return Material(
       color: Colors.transparent,
@@ -5030,7 +5037,8 @@ class FlowruEstablishmentEntry extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(26),
             color: Colors.white.withOpacity(0.34),
-            border: Border.all(color: Colors.white.withOpacity(0.62), width: 1.15),
+            border:
+                Border.all(color: Colors.white.withOpacity(0.62), width: 1.15),
             boxShadow: [
               BoxShadow(
                 color: FlowColors.ink.withOpacity(0.055),
@@ -5078,8 +5086,8 @@ class FlowruEstablishmentEntry extends StatelessWidget {
                         _EstablishmentRowMetric(
                           label: 'Баланс бонусов',
                           value: '${formatMoney(points)}',
-                          suffix: 'б.',
-                          accent: FlowColors.gold,
+                          suffix: '',
+                          accent: FlowColors.ink,
                         ),
                         const SizedBox(height: 8),
                         Row(
@@ -5114,7 +5122,8 @@ class FlowruEstablishmentEntry extends StatelessWidget {
 class _EstablishmentPreviewImage extends StatelessWidget {
   final String? imageUrl;
   final String title;
-  const _EstablishmentPreviewImage({required this.imageUrl, required this.title});
+  const _EstablishmentPreviewImage(
+      {required this.imageUrl, required this.title});
 
   @override
   Widget build(BuildContext context) {
@@ -5298,23 +5307,49 @@ String _resolveCashbackText(Map<String, dynamic> home) {
   return '—';
 }
 
-String? _resolveMenuPhotoUrl(Map<String, dynamic> est, Map<String, dynamic> home) {
+String? _resolveMenuPhotoUrl(
+    Map<String, dynamic> est, Map<String, dynamic> home,
+    [Map<String, dynamic>? profile]) {
+  final safeProfile = profile == null ? <String, dynamic>{} : profile;
+  final profileEst = map(safeProfile['establishment']);
   final estMenu = map(est['menu']);
   final homeMenu = map(home['menu']);
-  final estCovers = mapList(est['menu_covers']);
-  final homeCovers = mapList(home['menu_covers']);
-  final estCoverUrls = mapList(est['menu_cover_urls']);
-  final homeCoverUrls = mapList(home['menu_cover_urls']);
+  final profileMenu = map(safeProfile['menu']);
+  final estModules = map(est['modules']);
+  final homeModules = map(home['modules']);
+  final profileModules = map(safeProfile['modules']);
+  final estModulesMenu = map(estModules['menu']);
+  final homeModulesMenu = map(homeModules['menu']);
+  final profileModulesMenu = map(profileModules['menu']);
 
-  String? firstFromList(List<Map<String, dynamic>> items) {
-    for (final item in items) {
-      final value = nonEmpty(item['photo_url']) ??
-          nonEmpty(item['image_url']) ??
-          nonEmpty(item['url']) ??
-          nonEmpty(item['src']) ??
-          nonEmpty(item['file_url']);
-      if (value != null) return value;
+  String? firstTextFromAny(dynamic value) {
+    if (value == null) return null;
+
+    if (value is String) {
+      return nonEmpty(value);
     }
+
+    if (value is List) {
+      for (final item in value) {
+        final resolved = firstTextFromAny(item);
+        if (resolved != null) return resolved;
+      }
+      return null;
+    }
+
+    if (value is Map) {
+      final m = Map<String, dynamic>.from(value);
+      return nonEmpty(m['photo_url']) ??
+          nonEmpty(m['image_url']) ??
+          nonEmpty(m['cover_url']) ??
+          nonEmpty(m['url']) ??
+          nonEmpty(m['src']) ??
+          nonEmpty(m['file_url']) ??
+          nonEmpty(m['menu_photo_url']) ??
+          nonEmpty(m['menu_image_url']) ??
+          nonEmpty(m['menu_cover_url']);
+    }
+
     return null;
   }
 
@@ -5325,24 +5360,53 @@ String? _resolveMenuPhotoUrl(Map<String, dynamic> est, Map<String, dynamic> home
       nonEmpty(est['menu_photo_path']) ??
       nonEmpty(est['menu_image_path']) ??
       nonEmpty(est['menu_url']) ??
+      firstTextFromAny(est['menu_cover_urls']) ??
+      firstTextFromAny(est['menu_images']) ??
+      firstTextFromAny(est['menu_covers']) ??
       nonEmpty(estMenu['photo_url']) ??
       nonEmpty(estMenu['image_url']) ??
       nonEmpty(estMenu['cover_url']) ??
       nonEmpty(estMenu['url']) ??
-      firstFromList(estCovers) ??
-      firstFromList(estCoverUrls) ??
+      firstTextFromAny(estMenu['menu_cover_urls']) ??
+      firstTextFromAny(estMenu['menu_images']) ??
+      firstTextFromAny(estMenu['menu_covers']) ??
+      firstTextFromAny(estModulesMenu['menu_cover_urls']) ??
+      firstTextFromAny(estModulesMenu['menu_images']) ??
+      firstTextFromAny(estModulesMenu['menu_covers']) ??
       nonEmpty(home['menu_photo_url']) ??
       nonEmpty(home['menu_image_url']) ??
       nonEmpty(home['menu_cover_url']) ??
       nonEmpty(home['menu_cover']) ??
       nonEmpty(home['menu_photo_path']) ??
       nonEmpty(home['menu_image_path']) ??
+      firstTextFromAny(home['menu_cover_urls']) ??
+      firstTextFromAny(home['menu_images']) ??
+      firstTextFromAny(home['menu_covers']) ??
       nonEmpty(homeMenu['photo_url']) ??
       nonEmpty(homeMenu['image_url']) ??
       nonEmpty(homeMenu['cover_url']) ??
       nonEmpty(homeMenu['url']) ??
-      firstFromList(homeCovers) ??
-      firstFromList(homeCoverUrls);
+      firstTextFromAny(homeMenu['menu_cover_urls']) ??
+      firstTextFromAny(homeMenu['menu_images']) ??
+      firstTextFromAny(homeMenu['menu_covers']) ??
+      firstTextFromAny(homeModulesMenu['menu_cover_urls']) ??
+      firstTextFromAny(homeModulesMenu['menu_images']) ??
+      firstTextFromAny(homeModulesMenu['menu_covers']) ??
+      nonEmpty(safeProfile['menu_photo_url']) ??
+      nonEmpty(safeProfile['menu_image_url']) ??
+      nonEmpty(safeProfile['menu_cover_url']) ??
+      firstTextFromAny(safeProfile['menu_cover_urls']) ??
+      firstTextFromAny(safeProfile['menu_images']) ??
+      firstTextFromAny(safeProfile['menu_covers']) ??
+      nonEmpty(profileEst['menu_photo_url']) ??
+      nonEmpty(profileEst['menu_image_url']) ??
+      nonEmpty(profileEst['menu_cover_url']) ??
+      firstTextFromAny(profileMenu['menu_cover_urls']) ??
+      firstTextFromAny(profileMenu['menu_images']) ??
+      firstTextFromAny(profileMenu['menu_covers']) ??
+      firstTextFromAny(profileModulesMenu['menu_cover_urls']) ??
+      firstTextFromAny(profileModulesMenu['menu_images']) ??
+      firstTextFromAny(profileModulesMenu['menu_covers']);
 }
 
 class EstablishmentFullScreen extends StatefulWidget {
@@ -5518,24 +5582,43 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
     return false;
   }
 
-  dynamic _questParam(Map<String, dynamic> quest, Map<String, dynamic> params, List<String> keys) {
+  dynamic _questParam(Map<String, dynamic> quest, Map<String, dynamic> params,
+      List<String> keys) {
     for (final key in keys) {
       final fromParams = params[key];
-      if (fromParams != null && fromParams.toString().trim().isNotEmpty) return fromParams;
+      if (fromParams != null && fromParams.toString().trim().isNotEmpty)
+        return fromParams;
       final fromQuest = quest[key];
-      if (fromQuest != null && fromQuest.toString().trim().isNotEmpty) return fromQuest;
+      if (fromQuest != null && fromQuest.toString().trim().isNotEmpty)
+        return fromQuest;
     }
     return null;
   }
 
   String _questWeekDaysText(dynamic value) {
     final names = {
-      '1': 'понедельник', '2': 'вторник', '3': 'среду', '4': 'четверг',
-      '5': 'пятницу', '6': 'субботу', '7': 'воскресенье',
-      '0': 'воскресенье', 'mon': 'понедельник', 'monday': 'понедельник',
-      'tue': 'вторник', 'tuesday': 'вторник', 'wed': 'среду', 'wednesday': 'среду',
-      'thu': 'четверг', 'thursday': 'четверг', 'fri': 'пятницу', 'friday': 'пятницу',
-      'sat': 'субботу', 'saturday': 'субботу', 'sun': 'воскресенье', 'sunday': 'воскресенье',
+      '1': 'понедельник',
+      '2': 'вторник',
+      '3': 'среду',
+      '4': 'четверг',
+      '5': 'пятницу',
+      '6': 'субботу',
+      '7': 'воскресенье',
+      '0': 'воскресенье',
+      'mon': 'понедельник',
+      'monday': 'понедельник',
+      'tue': 'вторник',
+      'tuesday': 'вторник',
+      'wed': 'среду',
+      'wednesday': 'среду',
+      'thu': 'четверг',
+      'thursday': 'четверг',
+      'fri': 'пятницу',
+      'friday': 'пятницу',
+      'sat': 'субботу',
+      'saturday': 'субботу',
+      'sun': 'воскресенье',
+      'sunday': 'воскресенье',
     };
     final raw = value;
     final items = <String>[];
@@ -5547,7 +5630,10 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
     } else {
       final text = raw?.toString().trim() ?? '';
       if (text.isNotEmpty) {
-        for (final x in text.replaceAll('[', '').replaceAll(']', '').split(RegExp(r'[,;\s]+'))) {
+        for (final x in text
+            .replaceAll('[', '')
+            .replaceAll(']', '')
+            .split(RegExp(r'[,;\s]+'))) {
           final key = x.trim().toLowerCase();
           if (key.isNotEmpty) items.add(names[key] ?? key);
         }
@@ -5609,19 +5695,72 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
         nonEmpty(quest['task_text']) ??
         nonEmpty(quest['rules_text']);
 
-    final type = (quest['condition_type'] ?? quest['template_key'] ?? quest['quest_type'] ?? '').toString().toLowerCase();
+    final type = (quest['condition_type'] ??
+            quest['template_key'] ??
+            quest['quest_type'] ??
+            '')
+        .toString()
+        .toLowerCase();
     final minAmountRaw = _questParam(quest, params, [
-      'min_amount', 'amount_from', 'min_purchase_amount', 'purchase_amount',
-      'required_amount', 'amount', 'sum_from', 'min_sum', 'min_check', 'check_from', 'min_total', 'purchase_sum', 'required_spend', 'amount_rub', 'min_bill', 'check_amount'
+      'min_amount',
+      'amount_from',
+      'min_purchase_amount',
+      'purchase_amount',
+      'required_amount',
+      'amount',
+      'sum_from',
+      'min_sum',
+      'min_check',
+      'check_from',
+      'min_total',
+      'purchase_sum',
+      'required_spend',
+      'amount_rub',
+      'min_bill',
+      'check_amount'
     ]);
     final requiredCountRaw = _questParam(quest, params, [
-      'required_count', 'count', 'visits_count', 'visit_count', 'target', 'goal', 'required'
+      'required_count',
+      'count',
+      'visits_count',
+      'visit_count',
+      'target',
+      'goal',
+      'required'
     ]);
-    final periodDaysRaw = _questParam(quest, params, ['period_days', 'days', 'within_days', 'duration_days']);
-    final fromTime = nonEmpty(_normalizeQuestTime(_questParam(quest, params, ['from_time', 'start_time', 'time_from', 'hour_from', 'starts_time', 'time_window_from', 'visit_time_from', 'start_hour'])));
-    final toTime = nonEmpty(_normalizeQuestTime(_questParam(quest, params, ['to_time', 'end_time', 'time_to', 'hour_to', 'ends_time', 'time_window_to', 'visit_time_to', 'end_hour'])));
-    final daysText = _questWeekDaysText(_questParam(quest, params, ['weekdays', 'days_of_week', 'weekday', 'week_days', 'allowed_weekdays', 'week_days_json', 'valid_days']));
-    final period = nonEmpty(_questPeriodLabel(_questParam(quest, params, ['period', 'period_text', 'period_label'])));
+    final periodDaysRaw = _questParam(
+        quest, params, ['period_days', 'days', 'within_days', 'duration_days']);
+    final fromTime = nonEmpty(_normalizeQuestTime(_questParam(quest, params, [
+      'from_time',
+      'start_time',
+      'time_from',
+      'hour_from',
+      'starts_time',
+      'time_window_from',
+      'visit_time_from',
+      'start_hour'
+    ])));
+    final toTime = nonEmpty(_normalizeQuestTime(_questParam(quest, params, [
+      'to_time',
+      'end_time',
+      'time_to',
+      'hour_to',
+      'ends_time',
+      'time_window_to',
+      'visit_time_to',
+      'end_hour'
+    ])));
+    final daysText = _questWeekDaysText(_questParam(quest, params, [
+      'weekdays',
+      'days_of_week',
+      'weekday',
+      'week_days',
+      'allowed_weekdays',
+      'week_days_json',
+      'valid_days'
+    ]));
+    final period = nonEmpty(_questPeriodLabel(
+        _questParam(quest, params, ['period', 'period_text', 'period_label'])));
 
     if (direct != null && !_questTextLooksGeneric(direct)) return direct;
 
@@ -5630,16 +5769,25 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
     final requiredCount = toInt(requiredCountRaw);
     final periodDays = toInt(periodDaysRaw);
 
-    if (type.contains('amount') || type.contains('purchase') || type.contains('check') || minAmount > 0) {
-      parts.add(minAmount > 0 ? 'Покупка от ${formatMoney(minAmount)} ₽' : 'Совершите покупку');
+    if (type.contains('amount') ||
+        type.contains('purchase') ||
+        type.contains('check') ||
+        minAmount > 0) {
+      parts.add(minAmount > 0
+          ? 'Покупка от ${formatMoney(minAmount)} ₽'
+          : 'Совершите покупку');
     } else if (type.contains('streak')) {
-      parts.add(requiredCount > 0 ? 'Серия из ${formatMoney(requiredCount)} визитов' : 'Серия визитов');
+      parts.add(requiredCount > 0
+          ? 'Серия из ${formatMoney(requiredCount)} визитов'
+          : 'Серия визитов');
     } else if (type.contains('morning')) {
       parts.add('Утренний визит');
     } else if (type.contains('evening')) {
       parts.add('Вечерний визит');
     } else if (type.contains('visit') || requiredCount > 0) {
-      parts.add(requiredCount > 0 ? '${formatMoney(requiredCount)} визита' : 'Совершите визит');
+      parts.add(requiredCount > 0
+          ? '${formatMoney(requiredCount)} визита'
+          : 'Совершите визит');
     }
 
     if (fromTime != null && toTime != null) {
@@ -5651,7 +5799,9 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
     }
     if (daysText.isNotEmpty) parts.add(daysText);
     if (periodDays > 0) parts.add('за ${formatMoney(periodDays)} дней');
-    if (period != null && !parts.join(' ').toLowerCase().contains(period.toLowerCase())) parts.add(period);
+    if (period != null &&
+        !parts.join(' ').toLowerCase().contains(period.toLowerCase()))
+      parts.add(period);
 
     if (parts.isNotEmpty) {
       final text = parts.join(' · ');
@@ -5697,6 +5847,10 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
     final sales = toDouble(loyalty['sales_total'] ?? stats['sales_total']);
     final lastVisit =
         (loyalty['last_visit_at'] ?? stats['last_visit_at'] ?? '').toString();
+    final establishmentImageUrl = extractImageUrl(widget.item) ??
+        extractImageUrl(est) ??
+        extractImageUrl(liveEst) ??
+        extractImageUrl(widget.home);
     final data = widget.offers.isNotEmpty ? widget.offers : widget.home;
     final promoItems = <PromoItem>[];
     for (final e in mapList(data['banners']).take(20)) {
@@ -5769,7 +5923,10 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
       _establishmentBenefits(name, points, promoItems),
       _establishmentQuests(quests),
       _establishmentHistory(widget.history),
-      _establishmentMenu(name, _resolveMenuPhotoUrl(est, widget.home)),
+      _establishmentMenu(
+          name,
+          _resolveMenuPhotoUrl(
+              est, widget.home, map(widget.profile['profile']))),
       _establishmentInfo(
           name,
           address,
@@ -5817,6 +5974,7 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
                 points: points,
                 visits: visits,
                 cashback: _resolveCashbackText(widget.home),
+                imageUrl: establishmentImageUrl,
               ),
               const SizedBox(height: 14),
               EstablishmentTabSwitch(
@@ -5834,8 +5992,8 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
                   final slide = Tween<Offset>(
                           begin: const Offset(0.08, 0), end: Offset.zero)
                       .animate(fade);
-                  final scale = Tween<double>(begin: 0.985, end: 1.0)
-                      .animate(fade);
+                  final scale =
+                      Tween<double>(begin: 0.985, end: 1.0).animate(fade);
                   return FadeTransition(
                     opacity: fade,
                     child: SlideTransition(
@@ -5994,23 +6152,28 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
         const EmptyState(
           icon: Icons.restaurant_menu_rounded,
           title: 'Меню пока не загружено',
-          subtitle: 'Когда заведение добавит фото меню в админке, оно появится здесь.',
+          subtitle:
+              'Когда заведение добавит фото меню в админке, оно появится здесь.',
         )
       else
         SurfaceCard(
           radius: 30,
           padding: const EdgeInsets.all(12),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(24),
-              child: AspectRatio(
-                aspectRatio: 4 / 5,
+              child: Container(
+                width: double.infinity,
+                color: Colors.white.withOpacity(0.30),
                 child: Image.network(
                   url,
-                  fit: BoxFit.cover,
+                  width: double.infinity,
+                  fit: BoxFit.contain,
                   loadingBuilder: (context, child, progress) {
                     if (progress == null) return child;
                     return Container(
+                      height: 260,
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         color: Colors.white.withOpacity(0.34),
@@ -6020,6 +6183,7 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
                     );
                   },
                   errorBuilder: (_, __, ___) => Container(
+                    height: 260,
                     alignment: Alignment.center,
                     padding: const EdgeInsets.all(22),
                     decoration: BoxDecoration(
@@ -6093,7 +6257,8 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
         twoGisUrl: twoGisUrl,
         yandexRatingText: yandexRatingText,
         twoGisRatingText: twoGisRatingText,
-        menuPhotoUrl: _resolveMenuPhotoUrl(est, widget.home),
+        menuPhotoUrl: _resolveMenuPhotoUrl(
+            est, widget.home, map(widget.profile['profile'])),
         socialMedia: map(
             map(map(widget.profile['profile'])['contacts'])['social_media']),
         onShowRules: () => showModalBottomSheet(
@@ -6122,9 +6287,8 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
       Map<String, dynamic> loyalty) {
     final hasWallet = ((widget.appleWalletUrl ?? '').trim().isNotEmpty ||
         (widget.googleWalletUrl ?? '').trim().isNotEmpty);
-    final profileValue = hasWallet
-        ? 'wallet'
-        : (widget.referralProgramEnabled ? 'invite' : '—');
+    final profileValue =
+        hasWallet ? 'wallet' : (widget.referralProgramEnabled ? 'invite' : '—');
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       _EstablishmentSectionHero(
@@ -6158,7 +6322,6 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
       ],
     ]);
   }
-
 }
 
 class _QuestFactLine extends StatelessWidget {
@@ -6218,19 +6381,20 @@ class _EstablishmentOverviewCard extends StatelessWidget {
   final int points;
   final int visits;
   final String cashback;
+  final String? imageUrl;
 
   const _EstablishmentOverviewCard({
     required this.name,
     required this.points,
     required this.visits,
     required this.cashback,
+    this.imageUrl,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(18, 16, 16, 16),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(28),
         color: Colors.white.withOpacity(0.34),
@@ -6243,41 +6407,60 @@ class _EstablishmentOverviewCard extends StatelessWidget {
           )
         ],
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: FlowColors.ink,
-                    fontSize: 24,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -0.45,
-                  ),
+      clipBehavior: Clip.antiAlias,
+      child: SizedBox(
+        height: 164,
+        child: Row(
+          children: [
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(18, 16, 14, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: FlowColors.ink,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.45,
+                      ),
+                    ),
+                    const Spacer(),
+                    _TopStatLine(
+                      label: 'Баланс бонусов',
+                      value: formatMoney(points),
+                      accent: FlowColors.ink,
+                    ),
+                    const SizedBox(height: 9),
+                    _TopStatLine(
+                      label: 'Посещения',
+                      value: formatMoney(visits),
+                      accent: FlowColors.ink,
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 18),
-                _TopStatLine(
-                  label: 'Баланс бонусов',
-                  value: '${formatMoney(points)} б.',
-                  accent: FlowColors.gold,
-                ),
-                const SizedBox(height: 10),
-                _TopStatLine(
-                  label: 'Посещения',
-                  value: '${formatMoney(visits)}',
-                  accent: FlowColors.ink,
-                ),
-              ],
+              ),
             ),
-          ),
-          const SizedBox(width: 10),
-          const Icon(Icons.chevron_right_rounded, color: FlowColors.ink),
-        ],
+            SizedBox(
+              width: 132,
+              height: double.infinity,
+              child: ClipRRect(
+                borderRadius: const BorderRadius.only(
+                  topRight: Radius.circular(28),
+                  bottomRight: Radius.circular(28),
+                ),
+                child: _EstablishmentPreviewImage(
+                  imageUrl: imageUrl,
+                  title: name,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -6287,7 +6470,8 @@ class _TopStatLine extends StatelessWidget {
   final String label;
   final String value;
   final Color accent;
-  const _TopStatLine({required this.label, required this.value, required this.accent});
+  const _TopStatLine(
+      {required this.label, required this.value, required this.accent});
 
   @override
   Widget build(BuildContext context) {
@@ -6359,71 +6543,71 @@ class _EstablishmentSectionHero extends StatelessWidget {
         ],
       ),
       child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: FlowColors.ink,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -0.55,
-                    ),
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: FlowColors.ink,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.55,
                   ),
-                  const SizedBox(height: 5),
-                  Text(
-                    subtitle,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: FlowColors.muted,
-                      fontWeight: FontWeight.w800,
-                      height: 1.25,
-                    ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: FlowColors.muted,
+                    fontWeight: FontWeight.w800,
+                    height: 1.25,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-            if (value.trim().isNotEmpty || label.trim().isNotEmpty) ...[
-              const SizedBox(width: 14),
-              Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
+          ),
+          if (value.trim().isNotEmpty || label.trim().isNotEmpty) ...[
+            const SizedBox(width: 14),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: FlowColors.ink,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.4,
+                  ),
+                ),
+                if (label.trim().isNotEmpty) ...[
+                  const SizedBox(height: 4),
                   Text(
-                    value,
+                    label,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      color: FlowColors.ink,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -0.4,
+                      color: FlowColors.soft,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
-                  if (label.trim().isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: FlowColors.soft,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ],
                 ],
-              ),
-            ],
+              ],
+            ),
           ],
+        ],
       ),
     );
   }
@@ -6510,7 +6694,8 @@ class EstablishmentTabSwitch extends StatelessWidget {
                                     spreadRadius: 2,
                                   ),
                                   BoxShadow(
-                                    color: const Color(0xFFFFD700).withOpacity(0.36),
+                                    color: const Color(0xFFFFD700)
+                                        .withOpacity(0.36),
                                     blurRadius: 34,
                                     spreadRadius: 4,
                                   ),
@@ -6547,7 +6732,6 @@ class EstablishmentTabSwitch extends StatelessWidget {
     );
   }
 }
-
 
 class CommandHeader extends StatelessWidget {
   final String name;
@@ -7038,7 +7222,8 @@ class EstablishmentInfoPanel extends StatelessWidget {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(34),
                 color: Colors.white.withOpacity(0.30),
-                border: Border.all(color: Colors.white.withOpacity(0.62), width: 1.1),
+                border: Border.all(
+                    color: Colors.white.withOpacity(0.62), width: 1.1),
                 boxShadow: [
                   BoxShadow(
                       color: FlowColors.ink.withOpacity(0.055),
@@ -7898,7 +8083,8 @@ class WalletHubCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const Icon(Icons.wallet_rounded, color: FlowColors.gold, size: 28),
+              const Icon(Icons.wallet_rounded,
+                  color: FlowColors.gold, size: 28),
             ],
           ),
           const SizedBox(height: 16),
@@ -7958,8 +8144,7 @@ class _WalletActionRow extends StatelessWidget {
           child: Row(
             children: [
               Icon(icon,
-                  color: enabled ? FlowColors.gold : FlowColors.soft,
-                  size: 22),
+                  color: enabled ? FlowColors.gold : FlowColors.soft, size: 22),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -7986,8 +8171,7 @@ class _WalletActionRow extends StatelessWidget {
                 ),
               ),
               Icon(Icons.arrow_forward_ios_rounded,
-                  color: enabled ? FlowColors.gold : FlowColors.soft,
-                  size: 16),
+                  color: enabled ? FlowColors.gold : FlowColors.soft, size: 16),
             ],
           ),
         ),
@@ -8674,16 +8858,20 @@ class _PromoShowcaseCardState extends State<PromoShowcaseCard>
     final hasImage = imageUrl.isNotEmpty;
     final title = item.title.trim();
     final subtitle = item.subtitle.trim();
-    final establishmentName = promoFirstText([item.rawData?['establishment_name']]);
-    final compactEstablishmentCard = establishmentName != null && establishmentName.trim().isNotEmpty;
-    final cardTitle = compactEstablishmentCard ? establishmentName.trim() : title;
+    final establishmentName =
+        promoFirstText([item.rawData?['establishment_name']]);
+    final compactEstablishmentCard =
+        establishmentName != null && establishmentName.trim().isNotEmpty;
+    final cardTitle =
+        compactEstablishmentCard ? establishmentName.trim() : title;
     final tagLower = item.tag.toLowerCase();
     final isImportant = tagLower.contains('важ') || tagLower.contains('flowru');
     final titleLower = title.toLowerCase();
     final showTitle = cardTitle.isNotEmpty &&
         !item.isRaffle &&
         !(isImportant && titleLower == 'важное');
-    final showSubtitle = subtitle.isNotEmpty && !item.isRaffle && !compactEstablishmentCard;
+    final showSubtitle =
+        subtitle.isNotEmpty && !item.isRaffle && !compactEstablishmentCard;
     final tagLabel =
         item.isRaffle ? 'Розыгрыш' : (isImportant ? 'Важное' : item.tag);
     final actionText = item.actionText;
@@ -8802,38 +8990,7 @@ class _PromoShowcaseCardState extends State<PromoShowcaseCard>
                           children: [
                             Row(
                               children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 11, vertical: 7),
-                                  decoration: BoxDecoration(
-                                    gradient: const LinearGradient(
-                                      colors: [
-                                        Color(0xFFFFF0A8),
-                                        Color(0xFFFFD447),
-                                        Color(0xFFFFA000)
-                                      ],
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                    ),
-                                    borderRadius: BorderRadius.circular(999),
-                                    border: Border.all(
-                                        color: Colors.black.withOpacity(0.08)),
-                                    boxShadow: [
-                                      BoxShadow(
-                                          color: Colors.black.withOpacity(0.28),
-                                          blurRadius: 18,
-                                          offset: const Offset(0, 8))
-                                    ],
-                                  ),
-                                  child: Text(
-                                    tagLabel.toUpperCase(),
-                                    style: const TextStyle(
-                                        color: Color(0xFF1F2937),
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w900,
-                                        letterSpacing: 0.7),
-                                  ),
-                                ),
+                                const SizedBox.shrink(),
                                 const Spacer(),
                                 Container(
                                   width: 38,
@@ -8861,29 +9018,52 @@ class _PromoShowcaseCardState extends State<PromoShowcaseCard>
                               ],
                             ),
                             const Spacer(),
-                            if (showTitle) ...[
-                              Text(
-                                cardTitle,
-                                maxLines: compactEstablishmentCard ? 1 : 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 21,
-                                    height: 1.02,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: -0.7),
-                              ),
-                            ],
-                            if (showSubtitle) ...[
-                              const SizedBox(height: 7),
-                              Text(
-                                subtitle,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                    color: Colors.white.withOpacity(0.88),
-                                    height: 1.22,
-                                    fontWeight: FontWeight.w700),
+                            if (showTitle || showSubtitle) ...[
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: hasImage
+                                      ? Colors.black.withOpacity(0.54)
+                                      : Colors.black.withOpacity(0.10),
+                                  borderRadius: BorderRadius.circular(18),
+                                  border: Border.all(
+                                    color: Colors.white
+                                        .withOpacity(hasImage ? 0.20 : 0.10),
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (showTitle)
+                                      Text(
+                                        cardTitle,
+                                        maxLines:
+                                            compactEstablishmentCard ? 1 : 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 21,
+                                            height: 1.02,
+                                            fontWeight: FontWeight.w900,
+                                            letterSpacing: -0.7),
+                                      ),
+                                    if (showSubtitle) ...[
+                                      const SizedBox(height: 7),
+                                      Text(
+                                        subtitle,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                            color:
+                                                Colors.white.withOpacity(0.92),
+                                            height: 1.22,
+                                            fontWeight: FontWeight.w700),
+                                      ),
+                                    ],
+                                  ],
+                                ),
                               ),
                             ],
                             if (item.isRaffle || hasActionButton) ...[
@@ -9825,36 +10005,6 @@ class BenefitFeaturedCard extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 11, vertical: 7),
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  colors: [
-                                    Color(0xFFFFF0A8),
-                                    Color(0xFFFFD447),
-                                    Color(0xFFFFA000)
-                                  ],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
-                                borderRadius: BorderRadius.circular(999),
-                                border: Border.all(
-                                    color: Colors.black.withOpacity(0.08)),
-                                boxShadow: [
-                                  BoxShadow(
-                                      color: Colors.black.withOpacity(0.30),
-                                      blurRadius: 18,
-                                      offset: const Offset(0, 8))
-                                ],
-                              ),
-                              child: Text(label.toUpperCase(),
-                                  style: const TextStyle(
-                                      color: Color(0xFF1F2937),
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w900,
-                                      letterSpacing: 0.8)),
-                            ),
                             const Spacer(),
                             Container(
                                 width: 38,
@@ -9880,26 +10030,48 @@ class BenefitFeaturedCard extends StatelessWidget {
                           ]),
                           const Spacer(),
                           if (showTitle) ...[
-                            Text(title,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 23,
-                                    height: 0.98,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: -1.0)),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 9),
+                              decoration: BoxDecoration(
+                                color: Colors.black
+                                    .withOpacity(hasImage ? 0.58 : 0.18),
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(
+                                  color: Colors.white
+                                      .withOpacity(hasImage ? 0.22 : 0.10),
+                                ),
+                              ),
+                              child: Text(title,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 23,
+                                      height: 0.98,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: -1.0)),
+                            ),
                           ],
                           if (showSubtitle) ...[
                             const SizedBox(height: 10),
-                            Text(subtitle,
-                                maxLines: 3,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                    color: Colors.white.withOpacity(0.88),
-                                    fontSize: 15,
-                                    height: 1.22,
-                                    fontWeight: FontWeight.w800)),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: Colors.black
+                                    .withOpacity(hasImage ? 0.48 : 0.12),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Text(subtitle,
+                                  maxLines: 3,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                      color: Colors.white.withOpacity(0.92),
+                                      fontSize: 15,
+                                      height: 1.22,
+                                      fontWeight: FontWeight.w800)),
+                            ),
                           ],
                           if (item.isRaffle || hasActionButton) ...[
                             if (showTitle || showSubtitle)
@@ -9950,12 +10122,6 @@ class BenefitSimpleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tagLower = item.tag.toLowerCase();
-    final label = item.isRaffle
-        ? 'Розыгрыш'
-        : (tagLower.contains('важ') || tagLower.contains('flowru')
-            ? 'Важное'
-            : 'Акция');
     return ClipRRect(
       borderRadius: BorderRadius.circular(26),
       child: Material(
@@ -9978,12 +10144,6 @@ class BenefitSimpleCard extends StatelessWidget {
                   child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                    Text(label,
-                        style: TextStyle(
-                            color: item.color,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w900)),
-                    const SizedBox(height: 5),
                     Text(item.title,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -10643,7 +10803,9 @@ class _TimelineListState extends State<TimelineList> {
   List<Map<String, dynamic>> get filteredHistory {
     final visible = widget.history.where(isVisibleClientOperation).toList();
     if (filter == 'all') return visible;
-    return visible.where((item) => operationFilterType(item) == filter).toList();
+    return visible
+        .where((item) => operationFilterType(item) == filter)
+        .toList();
   }
 
   @override
@@ -10661,7 +10823,8 @@ class _TimelineListState extends State<TimelineList> {
       return const EmptyState(
         icon: Icons.history_toggle_off_rounded,
         title: 'Операций пока нет',
-        subtitle: 'Когда появятся начисления или списания, мы покажем их здесь.',
+        subtitle:
+            'Когда появятся начисления или списания, мы покажем их здесь.',
       );
     }
 
@@ -10720,7 +10883,8 @@ class _HistoryFilterChip extends StatelessWidget {
   final String label;
   final bool active;
   final VoidCallback onTap;
-  const _HistoryFilterChip({required this.label, required this.active, required this.onTap});
+  const _HistoryFilterChip(
+      {required this.label, required this.active, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -10733,10 +10897,14 @@ class _HistoryFilterChip extends StatelessWidget {
           duration: const Duration(milliseconds: 180),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           decoration: BoxDecoration(
-            color: active ? FlowColors.gold.withOpacity(0.22) : Colors.white.withOpacity(0.30),
+            color: active
+                ? FlowColors.gold.withOpacity(0.22)
+                : Colors.white.withOpacity(0.30),
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: active ? FlowColors.gold.withOpacity(0.70) : Colors.white.withOpacity(0.55),
+              color: active
+                  ? FlowColors.gold.withOpacity(0.70)
+                  : Colors.white.withOpacity(0.55),
             ),
             boxShadow: active
                 ? [
@@ -10838,11 +11006,13 @@ class TimelineTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final type = (item['type'] ?? item['operation_type'] ?? 'operation').toString();
+    final type =
+        (item['type'] ?? item['operation_type'] ?? 'operation').toString();
     final amount = item['amount']?.toString() ?? '0';
     final comment = item['comment']?.toString() ?? '';
     final createdAt = item['created_at']?.toString() ?? '';
-    final view = buildOperationView(type: type, amountRaw: amount, comment: comment);
+    final view =
+        buildOperationView(type: type, amountRaw: amount, comment: comment);
     final visual = operationVisual(type, amountRaw: amount, comment: comment);
 
     return Row(
@@ -12079,11 +12249,14 @@ class OrbitDock extends StatelessWidget {
                     duration: const Duration(milliseconds: 180),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(20),
-                      color: active ? Colors.white.withOpacity(0.08) : Colors.transparent,
+                      color: active
+                          ? Colors.white.withOpacity(0.08)
+                          : Colors.transparent,
                       boxShadow: active
                           ? [
                               BoxShadow(
-                                color: const Color(0xFF32C7FF).withOpacity(0.18),
+                                color:
+                                    const Color(0xFF32C7FF).withOpacity(0.18),
                                 blurRadius: 14,
                               ),
                             ]
@@ -12094,14 +12267,18 @@ class OrbitDock extends StatelessWidget {
                       children: [
                         Icon(
                           items[i].icon,
-                          color: active ? Colors.white : Colors.white.withOpacity(0.66),
+                          color: active
+                              ? Colors.white
+                              : Colors.white.withOpacity(0.66),
                           size: 21,
                         ),
                         const SizedBox(height: 4),
                         Text(
                           items[i].label,
                           style: TextStyle(
-                            color: active ? Colors.white : Colors.white.withOpacity(0.66),
+                            color: active
+                                ? Colors.white
+                                : Colors.white.withOpacity(0.66),
                             fontSize: 10,
                             fontWeight: FontWeight.w700,
                           ),
@@ -12167,7 +12344,8 @@ class SurfaceCard extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(radius),
           color: Colors.white.withOpacity(0.34),
-          border: Border.all(color: Colors.white.withOpacity(0.62), width: 1.15),
+          border:
+              Border.all(color: Colors.white.withOpacity(0.62), width: 1.15),
           boxShadow: [
             BoxShadow(
                 color: FlowColors.ink.withOpacity(0.055),
@@ -13136,8 +13314,18 @@ String operationDayLabel(String raw) {
 
 String _monthRu(int month) {
   const months = [
-    'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
-    'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'
+    'января',
+    'февраля',
+    'марта',
+    'апреля',
+    'мая',
+    'июня',
+    'июля',
+    'августа',
+    'сентября',
+    'октября',
+    'ноября',
+    'декабря'
   ];
   if (month < 1 || month > 12) return '';
   return months[month - 1];
