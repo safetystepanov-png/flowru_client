@@ -2137,7 +2137,7 @@ class _ClientShellState extends State<ClientShell> {
       if (establishmentOnly) continue;
       result.add(PromoItem(
         tag: 'Flowru',
-        title: nonEmpty(e['title']) ?? 'Новость от Flowru',
+        title: nonEmpty(e['title']) ?? '',
         subtitle: nonEmpty(e['short_text']) ??
             nonEmpty(e['subtitle']) ??
             nonEmpty(e['description']) ??
@@ -2945,7 +2945,7 @@ class _ClientShellState extends State<ClientShell> {
           subtitle: e['short_text']?.toString() ??
               e['subtitle']?.toString() ??
               e['description']?.toString() ??
-              'Информация от Flowru',
+              'Информация',
           icon: Icons.campaign_rounded,
           color: FlowColors.blue,
           imageUrl: extractImageUrl(e),
@@ -3082,12 +3082,14 @@ class _ClientShellState extends State<ClientShell> {
             onOpen: () => showQrSheet(context),
           ),
           const SizedBox(height: 18),
-          const SectionTitle(
-              title: 'Flowru сегодня',
-              subtitle: 'Новости, обновления и объявления от команды Flowru'),
-          const SizedBox(height: 10),
-          OfferTicker(items: flowruTodayItems, joining: joiningDraw),
-          const SizedBox(height: 18),
+          if (flowruTodayItems.isNotEmpty) ...[
+            const SectionTitle(
+                title: 'Лента Flowru',
+                subtitle: 'Новости, обновления и полезные предложения'),
+            const SizedBox(height: 10),
+            OfferTicker(items: flowruTodayItems, joining: joiningDraw),
+            const SizedBox(height: 18),
+          ],
           const SectionTitle(
               title: 'Актуальное для вас',
               subtitle:
@@ -6262,9 +6264,25 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
           rawData: e));
     }
     final draws = <Map<String, dynamic>>[];
-    if (map(data['draw_banner']).isNotEmpty)
-      draws.add(map(data['draw_banner']));
-    draws.addAll(mapList(data['draws']));
+    final seenDrawKeys = <String>{};
+
+    void addDrawOnce(Map<String, dynamic> draw) {
+      if (draw.isEmpty) return;
+      final key = (draw['run_id'] ??
+              draw['id'] ??
+              draw['raffle_id'] ??
+              draw['title'] ??
+              draw.hashCode)
+          .toString();
+      if (!seenDrawKeys.add(key)) return;
+      draws.add(draw);
+    }
+
+    addDrawOnce(map(data['draw_banner']));
+    for (final e in mapList(data['draws'])) {
+      addDrawOnce(e);
+    }
+
     for (final e in draws.take(10)) {
       promoItems.add(PromoItem(
           tag: 'розыгрыш',
@@ -9265,9 +9283,13 @@ class _PromoShowcaseCardState extends State<PromoShowcaseCard>
     final titleLower = title.toLowerCase();
     final showTitle = cardTitle.isNotEmpty &&
         !item.isRaffle &&
-        !(isImportant && titleLower == 'важное');
-    final showSubtitle =
-        subtitle.isNotEmpty && !item.isRaffle && !compactEstablishmentCard;
+        !isImportant &&
+        titleLower != 'новость от flowru';
+    final showSubtitle = subtitle.isNotEmpty &&
+        !item.isRaffle &&
+        !isImportant &&
+        titleLower != 'новость от flowru' &&
+        !compactEstablishmentCard;
     final tagLabel =
         item.isRaffle ? 'Розыгрыш' : (isImportant ? 'Важное' : item.tag);
     final actionText = item.actionText;
