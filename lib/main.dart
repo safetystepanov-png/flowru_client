@@ -62,9 +62,45 @@ class FlowReferralDeepLink {
 
 class FlowInviteDeepLinks {
   static final AppLinks _appLinks = AppLinks();
+  static const FlutterSecureStorage _inviteStorage = FlutterSecureStorage();
+
+  static const String _pendingInviteTokenKey = 'flowru_pending_invite_token';
 
   static String? pendingInviteToken;
   static FlowReferralDeepLink? pendingReferral;
+
+  static Future<void> savePendingInviteToken(String token) async {
+    final cleanToken = token.trim();
+    if (cleanToken.isEmpty) return;
+
+    pendingInviteToken = cleanToken;
+    await _inviteStorage.write(
+      key: _pendingInviteTokenKey,
+      value: cleanToken,
+    );
+  }
+
+  static Future<String?> loadPendingInviteToken() async {
+    final inMemory = pendingInviteToken?.trim();
+    if (inMemory != null && inMemory.isNotEmpty) return inMemory;
+
+    final saved = (await _inviteStorage.read(key: _pendingInviteTokenKey))?.trim();
+    if (saved != null && saved.isNotEmpty) {
+      pendingInviteToken = saved;
+      return saved;
+    }
+
+    return null;
+  }
+
+  static Future<void> clearPendingInviteToken() async {
+    pendingInviteToken = null;
+    await _inviteStorage.delete(key: _pendingInviteTokenKey);
+  }
+
+  static Future<void> restorePendingInviteToken() async {
+    await loadPendingInviteToken();
+  }
 
   static int? _toInt(String? value) {
     if (value == null) return null;
@@ -160,7 +196,7 @@ class FlowInviteDeepLinks {
 
       final token = parseInviteToken(uri);
       if (token != null && token.isNotEmpty) {
-        pendingInviteToken = token;
+        await savePendingInviteToken(token);
       }
     } catch (_) {
       // Не блокируем запуск приложения из-за ошибки deep link.
@@ -172,6 +208,7 @@ class FlowInviteDeepLinks {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await FlowInviteDeepLinks.restorePendingInviteToken();
   await FlowInviteDeepLinks.initInitialLink();
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
@@ -489,12 +526,18 @@ class FlowApi {
       _request(path: '/client/qr', token: token);
 
   Future<Map<String, dynamic>> joinEstablishment(
-      String token, String inviteToken) {
+      String token, String inviteToken, {String? referralCode}) {
+    final body = <String, dynamic>{'invite_token': inviteToken};
+    final cleanReferralCode = (referralCode ?? '').trim();
+    if (cleanReferralCode.isNotEmpty) {
+      body['referral_code'] = cleanReferralCode;
+    }
+
     return _request(
         path: '/client/establishments/join',
         method: 'POST',
         token: token,
-        body: {'invite_token': inviteToken});
+        body: body);
   }
 
   Future<Map<String, dynamic>> applyReferral(
@@ -2462,10 +2505,9 @@ class _ClientShellState extends State<ClientShell> {
   }
 
   Future<void> consumePendingInviteToken() async {
-    final token = FlowInviteDeepLinks.pendingInviteToken;
+    final token = await FlowInviteDeepLinks.loadPendingInviteToken();
     if (token == null || token.trim().isEmpty) return;
 
-    FlowInviteDeepLinks.pendingInviteToken = null;
     await handleInviteToken(token.trim());
   }
 
@@ -2564,21 +2606,34 @@ class _ClientShellState extends State<ClientShell> {
     try {
       final token = await getFreshAccessToken();
       if (token == null || token.isEmpty) {
-        FlowInviteDeepLinks.pendingInviteToken = cleanToken;
+        await FlowInviteDeepLinks.savePendingInviteToken(cleanToken);
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-              content: Text('??????? ? Flowru, ????? ???????? ?????????')),
+              content: Text('Войдите в Flowru, чтобы добавить заведение')),
         );
         return;
       }
 
-      final res = await api.joinEstablishment(token, cleanToken);
+      final pendingReferral = FlowInviteDeepLinks.pendingReferral;
+      final referralCodeForJoin = pendingReferral?.referralCode.trim();
+
+      final res = await api.joinEstablishment(
+        token,
+        cleanToken,
+        referralCode: referralCodeForJoin,
+      );
+
+      if (referralCodeForJoin != null && referralCodeForJoin.isNotEmpty) {
+        FlowInviteDeepLinks.pendingReferral = null;
+      }
+
+      await FlowInviteDeepLinks.clearPendingInviteToken();
 
       if (!mounted) return;
 
       final message =
-          (res['message'] ?? '????????? ????????? ? Flowru').toString();
+          (res['message'] ?? 'Заведение добавлено в Flowru').toString();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(message)),
       );
@@ -2595,7 +2650,7 @@ class _ClientShellState extends State<ClientShell> {
       if (!mounted) return;
 
       if (e.status == 401) {
-        FlowInviteDeepLinks.pendingInviteToken = cleanToken;
+        await FlowInviteDeepLinks.savePendingInviteToken(cleanToken);
         return logout();
       }
 
@@ -2606,7 +2661,7 @@ class _ClientShellState extends State<ClientShell> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('?? ??????? ???????? ????????? ?? ??????')),
+            content: Text('Не удалось добавить заведение по ссылке')),
       );
     } finally {
       if (mounted) {
@@ -14347,3 +14402,5 @@ num establishmentCardScore(Map<String, dynamic> item) {
 // CLIENT_MENU_2_ONLY_REFERRAL_ONE_BUTTON_20260521
 
 // CLIENT_REFERRAL_SHARE_AND_DUPLICATE_FIX_20260521
+
+// CLIENT_PENDING_INVITE_STORAGE_20260528
