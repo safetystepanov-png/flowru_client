@@ -14748,7 +14748,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen> {
       case 'cancelled':
         return const Color(0xFFDC2626);
       default:
-        return FlowColors.textMuted;
+        return Colors.black54;
     }
   }
 
@@ -14802,7 +14802,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen> {
         child: Text(
           label,
           style: TextStyle(
-            color: selected ? Colors.white : FlowColors.text,
+            color: selected ? Colors.white : Colors.black87,
             fontWeight: FontWeight.w900,
             fontSize: 13,
           ),
@@ -14867,7 +14867,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen> {
           Text(
             (item['order_text'] ?? '').toString(),
             style: const TextStyle(
-              color: FlowColors.text,
+              color: Colors.black87,
               fontSize: 15,
               fontWeight: FontWeight.w800,
               height: 1.25,
@@ -14879,9 +14879,9 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen> {
             runSpacing: 8,
             children: [
               if (createdTime.isNotEmpty)
-                _InfoChip(icon: Icons.access_time_rounded, text: 'Поступил $createdTime'),
+                _preorderInfoChip(icon: Icons.access_time_rounded, text: 'Поступил $createdTime'),
               if (pickupTime.isNotEmpty)
-                _InfoChip(icon: Icons.schedule_rounded, text: 'Забрать $pickupTime'),
+                _preorderInfoChip(icon: Icons.schedule_rounded, text: 'Забрать $pickupTime'),
             ],
           ),
         ],
@@ -14916,7 +14916,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen> {
             child: Text(
               'Меню заведения доступно в карточке. Посмотрите фото меню и напишите заказ здесь.',
               style: TextStyle(
-                color: FlowColors.text.withOpacity(0.86),
+                color: Colors.black87.withOpacity(0.86),
                 fontSize: 13,
                 fontWeight: FontWeight.w800,
                 height: 1.25,
@@ -14938,7 +14938,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen> {
       appBar: AppBar(
         title: const Text('Заказ'),
         backgroundColor: Colors.white,
-        foregroundColor: FlowColors.text,
+        foregroundColor: Colors.black87,
         elevation: 0,
       ),
       body: RefreshIndicator(
@@ -14996,14 +14996,14 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen> {
               )
             else ...[
               if (_error != null) ...[
-                ErrorCard(message: _error!, onRetry: _load),
+                _preorderErrorCard(_error!),
                 const SizedBox(height: 14),
               ],
               if (_active.isNotEmpty) ...[
                 const Text(
                   'Активный заказ',
                   style: TextStyle(
-                    color: FlowColors.text,
+                    color: Colors.black87,
                     fontSize: 20,
                     fontWeight: FontWeight.w900,
                   ),
@@ -15033,7 +15033,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen> {
                       const Text(
                         'Что приготовить?',
                         style: TextStyle(
-                          color: FlowColors.text,
+                          color: Colors.black87,
                           fontSize: 18,
                           fontWeight: FontWeight.w900,
                         ),
@@ -15066,7 +15066,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen> {
                       const Text(
                         'Когда заберёте?',
                         style: TextStyle(
-                          color: FlowColors.text,
+                          color: Colors.black87,
                           fontSize: 15,
                           fontWeight: FontWeight.w900,
                         ),
