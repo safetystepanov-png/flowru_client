@@ -1,4 +1,4 @@
-﻿// Flowru Client V3 Concept
+// Flowru Client V3 Concept
 // Полностью новый визуальный подход: мобильный командный центр клиента.
 // Логика API/авторизации/токенов сохранена, UI-слой пересобран в другом сценарии.
 
@@ -569,6 +569,55 @@ class FlowApi {
           path: '/client/rewards',
           token: token,
           query: {'establishment_id': '$establishmentId'});
+
+  Future<Map<String, dynamic>> preorderSettings(
+          String token, int establishmentId) =>
+      _request(
+          path: '/client/preorders/settings',
+          token: token,
+          query: {'establishment_id': '$establishmentId'});
+
+  Future<Map<String, dynamic>> preorderActive(
+          String token, int establishmentId) =>
+      _request(
+          path: '/client/preorders/active',
+          token: token,
+          query: {'establishment_id': '$establishmentId'});
+
+  Future<Map<String, dynamic>> preorderHistory(
+          String token, int establishmentId) =>
+      _request(
+          path: '/client/preorders/history',
+          token: token,
+          query: {'establishment_id': '$establishmentId'});
+
+  Future<Map<String, dynamic>> createPreorder(
+    String token, {
+    required int establishmentId,
+    required String orderText,
+    required String pickupType,
+    int? pickupMinutes,
+    String? pickupAt,
+  }) {
+    final body = <String, dynamic>{
+      'establishment_id': establishmentId,
+      'order_text': orderText,
+      'pickup_type': pickupType,
+      'pickup_minutes': pickupMinutes,
+    };
+
+    if (pickupAt != null && pickupAt.trim().isNotEmpty) {
+      body['pickup_at'] = pickupAt.trim();
+    }
+
+    return _request(
+      path: '/client/preorders',
+      method: 'POST',
+      token: token,
+      body: body,
+    );
+  }
+
 
   Future<Map<String, dynamic>> updateBirthDate(
       String token, int establishmentId, String birthDate) async {
@@ -3881,6 +3930,8 @@ class _ClientShellState extends State<ClientShell> {
     if (!mounted) return;
 
     Navigator.of(context).push(appRoute(EstablishmentFullScreen(
+      api: api,
+      token: token,
       item: item,
       home: h,
       offers: off,
@@ -6158,6 +6209,8 @@ String? _resolveMenuPhotoUrl(
 }
 
 class EstablishmentFullScreen extends StatefulWidget {
+  final FlowApi api;
+  final String token;
   final Map<String, dynamic> item;
   final Map<String, dynamic> home;
   final Map<String, dynamic> offers;
@@ -6176,6 +6229,8 @@ class EstablishmentFullScreen extends StatefulWidget {
 
   const EstablishmentFullScreen({
     super.key,
+    required this.api,
+    required this.token,
     required this.item,
     required this.home,
     required this.offers,
@@ -6200,6 +6255,40 @@ class EstablishmentFullScreen extends StatefulWidget {
 
 class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
   int innerTab = 0;
+
+  int? get _establishmentId {
+    return intOrNull(widget.item['establishment_id']) ??
+        intOrNull(map(widget.home['establishment'])['id']) ??
+        intOrNull(map(widget.home['establishment'])['establishment_id']);
+  }
+
+  String get _establishmentNameForPreorder {
+    return nonEmpty(widget.item['establishment_name']) ??
+        nonEmpty(map(widget.home['establishment'])['name']) ??
+        'Заведение';
+  }
+
+  void _openPreorderScreen() {
+    final id = _establishmentId;
+    if (id == null || id <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Не удалось определить заведение')),
+      );
+      return;
+    }
+
+    Navigator.of(context).push(appRoute(ClientPreorderScreen(
+      api: widget.api,
+      token: widget.token,
+      establishmentId: id,
+      establishmentName: _establishmentNameForPreorder,
+      menuPhotoUrls: _resolveMenuPhotoUrls(
+        map(widget.home['establishment']),
+        widget.home,
+      ),
+    )));
+  }
+
 
   List<Map<String, dynamic>> _extractQuestItems(Map<String, dynamic> data) {
     final raw = <Map<String, dynamic>>[
@@ -6572,6 +6661,93 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
     return _questRewardText(quest);
   }
 
+
+  Widget _preorderQuickCard() {
+    return GestureDetector(
+      onTap: _openPreorderScreen,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(30),
+          gradient: const LinearGradient(
+            colors: [Color(0xFFFFA51E), Color(0xFFFF4F91), Color(0xFF7A4CFF)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFFF4F91).withOpacity(0.24),
+              blurRadius: 26,
+              offset: const Offset(0, 14),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 54,
+              height: 54,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.20),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.white.withOpacity(0.24)),
+              ),
+              child: const Icon(
+                Icons.shopping_bag_rounded,
+                color: Colors.white,
+                size: 28,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Заказ',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 21,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.4,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Напишите заранее и заберите без ожидания',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.88),
+                      fontSize: 13.5,
+                      height: 1.22,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.18),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Icon(
+                Icons.arrow_forward_rounded,
+                color: Colors.white,
+                size: 22,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final est = map(widget.home['establishment']);
@@ -6715,6 +6891,9 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(18, 10, 18, 28),
             children: [
+
+              _preorderQuickCard(),
+              const SizedBox(height: 14),
               Align(
                 alignment: Alignment.centerLeft,
                 child: Material(
@@ -14404,3 +14583,540 @@ num establishmentCardScore(Map<String, dynamic> item) {
 // CLIENT_REFERRAL_SHARE_AND_DUPLICATE_FIX_20260521
 
 // CLIENT_PENDING_INVITE_STORAGE_20260528
+class ClientPreorderScreen extends StatefulWidget {
+  final FlowApi api;
+  final String token;
+  final int establishmentId;
+  final String establishmentName;
+  final List<String> menuPhotoUrls;
+
+  const ClientPreorderScreen({
+    super.key,
+    required this.api,
+    required this.token,
+    required this.establishmentId,
+    required this.establishmentName,
+    this.menuPhotoUrls = const [],
+  });
+
+  @override
+  State<ClientPreorderScreen> createState() => _ClientPreorderScreenState();
+}
+
+class _ClientPreorderScreenState extends State<ClientPreorderScreen> {
+  final TextEditingController _orderController = TextEditingController();
+
+  bool _loading = true;
+  bool _sending = false;
+  String? _error;
+
+  Map<String, dynamic> _settings = {};
+  List<Map<String, dynamic>> _active = [];
+
+  String _pickupType = 'in_minutes';
+  int _pickupMinutes = 15;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _orderController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      final settings = await widget.api.preorderSettings(
+        widget.token,
+        widget.establishmentId,
+      );
+      final active = await widget.api.preorderActive(
+        widget.token,
+        widget.establishmentId,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _settings = settings;
+        _active = mapList(active['items']);
+        _loading = false;
+      });
+    } on ApiError catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.message;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Не удалось загрузить заказы';
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _send() async {
+    final text = _orderController.text.trim();
+
+    if (text.length < 2) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Напишите, что приготовить')),
+      );
+      return;
+    }
+
+    setState(() {
+      _sending = true;
+      _error = null;
+    });
+
+    try {
+      await widget.api.createPreorder(
+        widget.token,
+        establishmentId: widget.establishmentId,
+        orderText: text,
+        pickupType: _pickupType,
+        pickupMinutes: _pickupType == 'asap' ? 0 : _pickupMinutes,
+      );
+
+      _orderController.clear();
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Заказ отправлен')),
+      );
+
+      await _load();
+    } on ApiError catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Не удалось отправить заказ';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _sending = false;
+        });
+      }
+    }
+  }
+
+  String _statusText(String status) {
+    switch (status) {
+      case 'new':
+        return 'Новый';
+      case 'in_work':
+        return 'В работе';
+      case 'ready':
+        return 'Готов';
+      case 'completed':
+        return 'Выдан';
+      case 'cancelled':
+        return 'Отменён';
+      default:
+        return status.isEmpty ? 'Заказ' : status;
+    }
+  }
+
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'new':
+        return const Color(0xFFFF8A00);
+      case 'in_work':
+        return const Color(0xFF2563EB);
+      case 'ready':
+        return const Color(0xFF16A34A);
+      case 'completed':
+        return const Color(0xFF16A34A);
+      case 'cancelled':
+        return const Color(0xFFDC2626);
+      default:
+        return FlowColors.textMuted;
+    }
+  }
+
+  String _formatTime(dynamic raw) {
+    final text = (raw ?? '').toString();
+    if (text.isEmpty) return '';
+    try {
+      final dt = DateTime.parse(text).toLocal();
+      final hh = dt.hour.toString().padLeft(2, '0');
+      final mm = dt.minute.toString().padLeft(2, '0');
+      return '$hh:$mm';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  Widget _timeButton(String label, String type, int minutes) {
+    final selected = _pickupType == type && _pickupMinutes == minutes;
+
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _pickupType = type;
+          _pickupMinutes = minutes;
+        });
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          gradient: selected
+              ? const LinearGradient(
+                  colors: [Color(0xFFFFA51E), Color(0xFFFF4F91)],
+                )
+              : null,
+          color: selected ? null : Colors.white,
+          border: Border.all(
+            color: selected ? Colors.transparent : const Color(0xFFE3EEF3),
+          ),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFFFF4F91).withOpacity(0.22),
+                    blurRadius: 18,
+                    offset: const Offset(0, 10),
+                  )
+                ]
+              : null,
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? Colors.white : FlowColors.text,
+            fontWeight: FontWeight.w900,
+            fontSize: 13,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _activeOrderCard(Map<String, dynamic> item) {
+    final status = (item['status'] ?? '').toString();
+    final statusColor = _statusColor(status);
+    final pickupTime = _formatTime(item['pickup_at']);
+    final createdTime = _formatTime(item['created_at']);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: const Color(0xFFE3EEF3)),
+        boxShadow: [
+          BoxShadow(
+            color: FlowColors.ink.withOpacity(0.08),
+            blurRadius: 22,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: statusColor.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(
+                  Icons.shopping_bag_rounded,
+                  color: statusColor,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  _statusText(status),
+                  style: TextStyle(
+                    color: statusColor,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            (item['order_text'] ?? '').toString(),
+            style: const TextStyle(
+              color: FlowColors.text,
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              height: 1.25,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (createdTime.isNotEmpty)
+                _InfoChip(icon: Icons.access_time_rounded, text: 'Поступил $createdTime'),
+              if (pickupTime.isNotEmpty)
+                _InfoChip(icon: Icons.schedule_rounded, text: 'Забрать $pickupTime'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _menuPreview() {
+    final urls = widget.menuPhotoUrls
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+
+    if (urls.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7ED),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFFFD7A8)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.restaurant_menu_rounded, color: Color(0xFFFF8A00)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Меню заведения доступно в карточке. Посмотрите фото меню и напишите заказ здесь.',
+              style: TextStyle(
+                color: FlowColors.text.withOpacity(0.86),
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                height: 1.25,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final allowed = boolValue(_settings['allowed']);
+    final message = nonEmpty(_settings['message']) ?? 'Предзаказы сейчас недоступны';
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF4F8FB),
+      appBar: AppBar(
+        title: const Text('Заказ'),
+        backgroundColor: Colors.white,
+        foregroundColor: FlowColors.text,
+        elevation: 0,
+      ),
+      body: RefreshIndicator(
+        onRefresh: _load,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(18, 14, 18, 28),
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(32),
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFFFA51E), Color(0xFFFF4F91), Color(0xFF7A4CFF)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFFF4F91).withOpacity(0.24),
+                    blurRadius: 28,
+                    offset: const Offset(0, 16),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.establishmentName,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 23,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Напишите заказ заранее, чтобы забрать без ожидания.',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.88),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      height: 1.25,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (_loading)
+              const Padding(
+                padding: EdgeInsets.only(top: 40),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else ...[
+              if (_error != null) ...[
+                ErrorCard(message: _error!, onRetry: _load),
+                const SizedBox(height: 14),
+              ],
+              if (_active.isNotEmpty) ...[
+                const Text(
+                  'Активный заказ',
+                  style: TextStyle(
+                    color: FlowColors.text,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                ..._active.map(_activeOrderCard),
+                const SizedBox(height: 8),
+              ],
+              _menuPreview(),
+              if (!allowed)
+                EmptyState(
+                  icon: Icons.lock_rounded,
+                  title: 'Заказы недоступны',
+                  subtitle: message,
+                )
+              else
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(28),
+                    border: Border.all(color: const Color(0xFFE3EEF3)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Что приготовить?',
+                        style: TextStyle(
+                          color: FlowColors.text,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _orderController,
+                        minLines: 4,
+                        maxLines: 7,
+                        textInputAction: TextInputAction.newline,
+                        decoration: InputDecoration(
+                          hintText: 'Например: капучино большой и круассан',
+                          filled: true,
+                          fillColor: const Color(0xFFF7FAFC),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(22),
+                            borderSide: const BorderSide(color: Color(0xFFE3EEF3)),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(22),
+                            borderSide: const BorderSide(color: Color(0xFFE3EEF3)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(22),
+                            borderSide: const BorderSide(color: Color(0xFFFF8A00), width: 1.4),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      const Text(
+                        'Когда заберёте?',
+                        style: TextStyle(
+                          color: FlowColors.text,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          _timeButton('Как можно скорее', 'asap', 0),
+                          _timeButton('Через 10 минут', 'in_minutes', 10),
+                          _timeButton('Через 15 минут', 'in_minutes', 15),
+                          _timeButton('Через 20 минут', 'in_minutes', 20),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 54,
+                        child: ElevatedButton.icon(
+                          onPressed: _sending ? null : _send,
+                          icon: _sending
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Icon(Icons.send_rounded),
+                          label: Text(_sending ? 'Отправляем...' : 'Отправить заказ'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFFF4F91),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            textStyle: const TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
