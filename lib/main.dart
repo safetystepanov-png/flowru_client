@@ -3914,9 +3914,12 @@ class _ClientShellState extends State<ClientShell> {
 
     // ВАЖНО: перед открытием заведения принудительно берём свежий /client/home.
     // Так вкладка «Квесты» не зависит от старого кэша главного экрана.
+    String freshToken = '';
+
     try {
       final token = await getFreshAccessToken();
       if (token != null && token.isNotEmpty) {
+        freshToken = token;
         final freshHome = await api.home(token, establishmentId: estId);
         if (freshHome.isNotEmpty) {
           h = freshHome;
@@ -3931,7 +3934,7 @@ class _ClientShellState extends State<ClientShell> {
 
     Navigator.of(context).push(appRoute(EstablishmentFullScreen(
       api: api,
-      token: token,
+      token: freshToken,
       item: item,
       home: h,
       offers: off,
@@ -14922,6 +14925,68 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen> {
                 height: 1.25,
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+
+  Widget _preorderInfoChip({
+    required IconData icon,
+    required String text,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF4F8FB),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0xFFE3EEF3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: Colors.black54),
+          const SizedBox(width: 5),
+          Text(
+            text,
+            style: const TextStyle(
+              color: Colors.black54,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _preorderErrorCard(String message) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF1F2),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFFECACA)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline_rounded, color: Color(0xFFDC2626)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                color: Color(0xFF991B1B),
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: _load,
+            child: const Text('Повторить'),
           ),
         ],
       ),
