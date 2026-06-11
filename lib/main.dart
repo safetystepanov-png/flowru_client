@@ -9,6 +9,8 @@ import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:app_links/app_links.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -208,6 +210,7 @@ class FlowInviteDeepLinks {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
   await FlowInviteDeepLinks.restorePendingInviteToken();
   await FlowInviteDeepLinks.initInitialLink();
   SystemChrome.setSystemUIOverlayStyle(
@@ -491,6 +494,24 @@ class FlowApi {
       body: {'refresh_token': refreshToken});
   Future<Map<String, dynamic>> me(String token) =>
       _request(path: '/client/me', token: token);
+
+  Future<Map<String, dynamic>> registerClientDevice(
+    String token, {
+    required String pushToken,
+    String platform = 'unknown',
+    String appVersion = '1.0.3+31',
+  }) {
+    return _request(
+      path: '/client/device/register',
+      method: 'POST',
+      token: token,
+      body: {
+        'push_token': pushToken,
+        'platform': platform,
+        'app_version': appVersion,
+      },
+    );
+  }
   Future<Map<String, dynamic>> login(String phone, String password) => _request(
       path: '/client/auth/login',
       method: 'POST',
@@ -837,6 +858,67 @@ String formatClientDateTime(dynamic value) {
   return time.isEmpty ? '$day.$month.$year' : '$day.$month.$year в $time';
 }
 
+
+class FlowClientPush {
+  static final FlowApi _api = FlowApi();
+  static bool _tokenRefreshListenerStarted = false;
+
+  static Future<void> registerSavedToken() async {
+    final token = await AuthStorage.access();
+    if (token == null || token.trim().isEmpty) return;
+    await registerWithToken(token.trim());
+  }
+
+  static Future<void> registerWithToken(String accessToken) async {
+    if (kIsWeb) return;
+
+    try {
+      final messaging = FirebaseMessaging.instance;
+
+      await messaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+
+      final pushToken = await messaging.getToken();
+      if (pushToken != null && pushToken.trim().isNotEmpty) {
+        await _api.registerClientDevice(
+          accessToken,
+          pushToken: pushToken.trim(),
+          platform: defaultTargetPlatform.name,
+          appVersion: '1.0.3+31',
+        );
+      }
+
+      if (!_tokenRefreshListenerStarted) {
+        _tokenRefreshListenerStarted = true;
+
+        FirebaseMessaging.instance.onTokenRefresh.listen((newPushToken) async {
+          try {
+            final freshAccessToken = await AuthStorage.access();
+            if (freshAccessToken == null || freshAccessToken.trim().isEmpty) {
+              return;
+            }
+
+            await _api.registerClientDevice(
+              freshAccessToken.trim(),
+              pushToken: newPushToken.trim(),
+              platform: defaultTargetPlatform.name,
+              appVersion: '1.0.3+31',
+            );
+          } catch (_) {
+            // Не блокируем приложение из-за ошибки регистрации push-токена.
+          }
+        });
+      }
+    } catch (_) {
+      // Не блокируем вход/запуск приложения из-за push.
+    }
+  }
+}
+
+
 class BootstrapScreen extends StatefulWidget {
   const BootstrapScreen({super.key});
   @override
@@ -872,6 +954,7 @@ class _BootstrapScreenState extends State<BootstrapScreen> {
       return;
     }
 
+    unawaited(FlowClientPush.registerSavedToken());
     Navigator.of(context).pushReplacement(appRoute(const ClientShell()));
   }
 
@@ -1322,6 +1405,7 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
     if (access.isEmpty || refresh.isEmpty)
       throw const ApiError('Сервер не вернул токены', 500);
     await AuthStorage.save(access: access, refresh: refresh);
+    unawaited(FlowClientPush.registerWithToken(access));
     if (rememberCredentials) {
       await AuthStorage.saveRememberedCredentials(
           phone: phone, password: password);
