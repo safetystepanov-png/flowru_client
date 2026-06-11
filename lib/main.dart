@@ -6665,91 +6665,174 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
   }
 
 
+
   Widget _preorderQuickCard() {
-    return GestureDetector(
-      onTap: _openPreorderScreen,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(30),
-          gradient: const LinearGradient(
-            colors: [Color(0xFFFFA51E), Color(0xFFFF4F91), Color(0xFF7A4CFF)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 900),
+      curve: Curves.easeOutBack,
+      builder: (context, value, child) {
+        final safeValue = value.clamp(0.0, 1.0);
+        return Transform.translate(
+          offset: Offset(0, (1 - safeValue) * 10),
+          child: Opacity(
+            opacity: safeValue,
+            child: child,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFFFF4F91).withOpacity(0.24),
-              blurRadius: 26,
-              offset: const Offset(0, 14),
+        );
+      },
+      child: GestureDetector(
+        onTap: _openPreorderScreen,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(30),
+            gradient: const LinearGradient(
+              colors: [
+                Color(0xFFFFF4DD),
+                Color(0xFFFFE7C2),
+                Color(0xFFEAF7FF),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 54,
-              height: 54,
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.20),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.white.withOpacity(0.24)),
+            border: Border.all(color: Colors.white.withOpacity(0.82)),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFFFA51E).withOpacity(0.18),
+                blurRadius: 26,
+                offset: const Offset(0, 14),
               ),
-              child: const Icon(
-                Icons.shopping_bag_rounded,
-                color: Colors.white,
-                size: 28,
+              BoxShadow(
+                color: const Color(0xFF0EA5E9).withOpacity(0.08),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
               ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Заказ',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 21,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -0.4,
+            ],
+          ),
+          child: Row(
+            children: [
+              TweenAnimationBuilder<double>(
+                tween: Tween<double>(begin: 0.96, end: 1.0),
+                duration: const Duration(milliseconds: 950),
+                curve: Curves.easeInOut,
+                builder: (context, scale, child) {
+                  return Transform.scale(scale: scale, child: child);
+                },
+                child: Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(21),
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFFFA51E), Color(0xFFFF6A00)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFFF8A00).withOpacity(0.25),
+                        blurRadius: 16,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Напишите заранее и заберите без ожидания',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.88),
-                      fontSize: 13.5,
-                      height: 1.22,
-                      fontWeight: FontWeight.w800,
+                  child: const Icon(
+                    Icons.local_cafe_rounded,
+                    color: Colors.white,
+                    size: 29,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Заказ',
+                            style: TextStyle(
+                              color: FlowColors.ink,
+                              fontSize: 21,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -0.45,
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 9, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.78),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                              color: const Color(0xFFFFC36B).withOpacity(0.55),
+                            ),
+                          ),
+                          child: const Text(
+                            'без очереди',
+                            style: TextStyle(
+                              color: Color(0xFFB45309),
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
+                    const SizedBox(height: 5),
+                    Text(
+                      'Напишите заранее  приготовят к вашему приходу',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: FlowColors.muted.withOpacity(0.88),
+                        fontSize: 13.4,
+                        height: 1.23,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              TweenAnimationBuilder<double>(
+                tween: Tween<double>(begin: 0, end: 1),
+                duration: const Duration(milliseconds: 1200),
+                curve: Curves.easeInOut,
+                builder: (context, value, child) {
+                  final dx = 2.5 * value;
+                  return Transform.translate(
+                    offset: Offset(dx, 0),
+                    child: child,
+                  );
+                },
+                child: Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.78),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.white.withOpacity(0.86)),
                   ),
-                ],
+                  child: const Icon(
+                    Icons.arrow_forward_rounded,
+                    color: FlowColors.ink,
+                    size: 22,
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(width: 10),
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.18),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: const Icon(
-                Icons.arrow_forward_rounded,
-                color: Colors.white,
-                size: 22,
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -6895,8 +6978,6 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
             padding: const EdgeInsets.fromLTRB(18, 10, 18, 28),
             children: [
 
-              _preorderQuickCard(),
-              const SizedBox(height: 14),
               Align(
                 alignment: Alignment.centerLeft,
                 child: Material(
@@ -6922,6 +7003,8 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
                 cashback: _resolveCashbackText(widget.home),
                 imageUrl: establishmentImageUrl,
               ),
+              const SizedBox(height: 14),
+              _preorderQuickCard(),
               const SizedBox(height: 14),
               EstablishmentTabSwitch(
                 current: innerTab,
