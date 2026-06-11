@@ -598,12 +598,14 @@ class FlowApi {
     required String pickupType,
     int? pickupMinutes,
     String? pickupAt,
+    String paymentMethod = 'card',
   }) {
     final body = <String, dynamic>{
       'establishment_id': establishmentId,
       'order_text': orderText,
       'pickup_type': pickupType,
       'pickup_minutes': pickupMinutes,
+      'payment_method': paymentMethod,
     };
 
     if (pickupAt != null && pickupAt.trim().isNotEmpty) {
@@ -14701,6 +14703,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen> {
 
   String _pickupType = 'in_minutes';
   int _pickupMinutes = 15;
+  String _paymentMethod = 'card';
 
   @override
   void initState() {
@@ -14774,6 +14777,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen> {
         orderText: text,
         pickupType: _pickupType,
         pickupMinutes: _pickupType == 'asap' ? 0 : _pickupMinutes,
+        paymentMethod: _paymentMethod,
       );
 
       _orderController.clear();
@@ -14849,6 +14853,75 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen> {
     } catch (_) {
       return '';
     }
+  }
+
+  Widget _paymentButton({
+    required String label,
+    required String value,
+    required IconData icon,
+  }) {
+    final selected = _paymentMethod == value;
+
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          setState(() {
+            _paymentMethod = value;
+          });
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          height: 54,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            gradient: selected
+                ? const LinearGradient(
+                    colors: [Color(0xFF2563EB), Color(0xFF0EA5E9)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  )
+                : null,
+            color: selected ? null : const Color(0xFFF7FAFC),
+            border: Border.all(
+              color: selected ? Colors.transparent : const Color(0xFFE3EEF3),
+            ),
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                      color: const Color(0xFF2563EB).withOpacity(0.18),
+                      blurRadius: 18,
+                      offset: const Offset(0, 9),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 20,
+                color: selected ? Colors.white : Colors.black54,
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: selected ? Colors.white : Colors.black87,
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _timeButton(String label, String type, int minutes) {
@@ -15125,7 +15198,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Напишите заказ заранее, чтобы забрать без ожидания.',
+                    'Выберите время, способ оплаты и напишите, что приготовить.',
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.88),
                       fontSize: 14,
@@ -15193,7 +15266,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen> {
                         maxLines: 7,
                         textInputAction: TextInputAction.newline,
                         decoration: InputDecoration(
-                          hintText: 'Например: капучино большой и круассан',
+                          hintText: 'Например: капучино большой, круассан, без сахара',
                           filled: true,
                           fillColor: const Color(0xFFF7FAFC),
                           border: OutlineInputBorder(
@@ -15211,6 +15284,31 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen> {
                         ),
                       ),
                       const SizedBox(height: 14),
+                      const Text(
+                        'Как будете оплачивать?',
+                        style: TextStyle(
+                          color: Colors.black87,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          _paymentButton(
+                            label: 'Картой',
+                            value: 'card',
+                            icon: Icons.credit_card_rounded,
+                          ),
+                          const SizedBox(width: 10),
+                          _paymentButton(
+                            label: 'Наличными',
+                            value: 'cash',
+                            icon: Icons.payments_rounded,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
                       const Text(
                         'Когда заберёте?',
                         style: TextStyle(
