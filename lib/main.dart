@@ -876,6 +876,19 @@ class FlowClientPush {
   static Future<void> registerWithToken(String accessToken) async {
     if (kIsWeb) return;
 
+    // Диагностика: если эта запись появится в user_devices,
+    // значит FlowClientPush реально запускается и accessToken есть.
+    try {
+      await _api.registerClientDevice(
+        accessToken,
+        pushToken: 'debug-client-push-start-1.0.3+36',
+        platform: defaultTargetPlatform.name,
+        appVersion: 'debug-start-1.0.3+36',
+      );
+    } catch (_) {
+      // Если даже это не прошло  проблема не в Firebase, а в запуске/токене/API.
+    }
+
     try {
       final messaging = FirebaseMessaging.instance;
 
@@ -891,7 +904,7 @@ class FlowClientPush {
           accessToken,
           pushToken: pushToken.trim(),
           platform: defaultTargetPlatform.name,
-          appVersion: '1.0.3+31',
+          appVersion: '1.0.3+36',
         );
       }
 
@@ -909,7 +922,7 @@ class FlowClientPush {
               freshAccessToken.trim(),
               pushToken: newPushToken.trim(),
               platform: defaultTargetPlatform.name,
-              appVersion: '1.0.3+31',
+              appVersion: '1.0.3+36',
             );
           } catch (_) {
             // Не блокируем приложение из-за ошибки регистрации push-токена.
