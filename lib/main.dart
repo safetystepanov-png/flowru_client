@@ -2811,6 +2811,7 @@ class _ClientShellState extends State<ClientShell> {
 
   @override
   void initState() {
+    unawaited(FlowClientPush.registerSavedToken());
     super.initState();
     initInviteDeepLinks();
 
