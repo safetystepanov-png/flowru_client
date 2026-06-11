@@ -210,7 +210,11 @@ class FlowInviteDeepLinks {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
+  try {
+    await Firebase.initializeApp();
+  } catch (_) {
+    // Не блокируем запуск приложения, если Firebase не инициализировался.
+  }
   await FlowInviteDeepLinks.restorePendingInviteToken();
   await FlowInviteDeepLinks.initInitialLink();
   SystemChrome.setSystemUIOverlayStyle(
