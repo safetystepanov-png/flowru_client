@@ -867,6 +867,17 @@ class FlowClientPush {
   static final FlowApi _api = FlowApi();
   static bool _tokenRefreshListenerStarted = false;
 
+  static Future<void> _mark(String accessToken, String code) async {
+    try {
+      await _api.registerClientDevice(
+        accessToken,
+        pushToken: code,
+        platform: defaultTargetPlatform.name,
+        appVersion: code,
+      );
+    } catch (_) {}
+  }
+
   static Future<void> registerSavedToken() async {
     final token = await AuthStorage.access();
     if (token == null || token.trim().isEmpty) return;
@@ -876,35 +887,42 @@ class FlowClientPush {
   static Future<void> registerWithToken(String accessToken) async {
     if (kIsWeb) return;
 
-    // Диагностика: если эта запись появится в user_devices,
-    // значит FlowClientPush реально запускается и accessToken есть.
     try {
-      await _api.registerClientDevice(
-        accessToken,
-        pushToken: 'debug-client-push-start-1.0.3+36',
-        platform: defaultTargetPlatform.name,
-        appVersion: 'debug-start-1.0.3+36',
-      );
-    } catch (_) {
-      // Если даже это не прошло  проблема не в Firebase, а в запуске/токене/API.
-    }
+      await _mark(accessToken, 'debug-01-start-1.0.3+37');
 
-    try {
       final messaging = FirebaseMessaging.instance;
 
-      await messaging.requestPermission(
+      await _mark(accessToken, 'debug-02-before-permission-1.0.3+37');
+
+      final settings = await messaging.requestPermission(
         alert: true,
         badge: true,
         sound: true,
       );
 
+      await _mark(
+        accessToken,
+        'debug-03-permission-${settings.authorizationStatus.name}-1.0.3+37',
+      );
+
+      final apnsToken = await messaging.getAPNSToken();
+      if (apnsToken == null || apnsToken.trim().isEmpty) {
+        await _mark(accessToken, 'debug-04-apns-empty-1.0.3+37');
+      } else {
+        await _mark(accessToken, 'debug-04-apns-ok-1.0.3+37');
+      }
+
       final pushToken = await messaging.getToken();
-      if (pushToken != null && pushToken.trim().isNotEmpty) {
+      if (pushToken == null || pushToken.trim().isEmpty) {
+        await _mark(accessToken, 'debug-05-fcm-empty-1.0.3+37');
+      } else {
+        await _mark(accessToken, 'debug-05-fcm-ok-1.0.3+37');
+
         await _api.registerClientDevice(
           accessToken,
           pushToken: pushToken.trim(),
           platform: defaultTargetPlatform.name,
-          appVersion: '1.0.3+36',
+          appVersion: '1.0.3+37',
         );
       }
 
@@ -922,14 +940,20 @@ class FlowClientPush {
               freshAccessToken.trim(),
               pushToken: newPushToken.trim(),
               platform: defaultTargetPlatform.name,
-              appVersion: '1.0.3+36',
+              appVersion: '1.0.3+37',
             );
           } catch (_) {
             // Не блокируем приложение из-за ошибки регистрации push-токена.
           }
         });
       }
-    } catch (_) {
+    } catch (e) {
+      final raw = e.toString();
+      final safe = raw
+          .replaceAll(RegExp(r'[^a-zA-Z0-9_\-]+'), '_')
+          .substring(0, raw.length > 80 ? 80 : raw.length);
+
+      await _mark(accessToken, 'debug-99-error-$safe-1.0.3+37');
       // Не блокируем вход/запуск приложения из-за push.
     }
   }
