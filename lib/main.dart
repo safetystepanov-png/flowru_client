@@ -208,7 +208,7 @@ class FlowInviteDeepLinks {
   static Stream<Uri> get stream => _appLinks.uriLinkStream;
 }
 
-String firebaseInitStatus = 'firebase-init-not-started-1.0.3+45';
+String firebaseInitStatus = 'firebase-init-not-started-1.0.3+49';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -223,12 +223,12 @@ void main() async {
         iosBundleId: 'ru.flowru.client',
       ),
     );
-    firebaseInitStatus = 'firebase-init-ok-1.0.3+45';
+    firebaseInitStatus = 'firebase-init-ok-1.0.3+49';
   } catch (e) {
     final raw = e.toString();
     final safeRaw = raw.replaceAll(RegExp(r'[^a-zA-Z0-9_\\-]+'), '_');
     final safe = safeRaw.length > 80 ? safeRaw.substring(0, 80) : safeRaw;
-    firebaseInitStatus = 'firebase-init-error-$safe-1.0.3+45';
+    firebaseInitStatus = 'firebase-init-error-$safe-1.0.3+49';
   }
   await FlowInviteDeepLinks.restorePendingInviteToken();
   await FlowInviteDeepLinks.initInitialLink();
@@ -878,6 +878,33 @@ String formatClientDateTime(dynamic value) {
 }
 
 
+
+class FlowNativePushBridge {
+  static const MethodChannel _channel = MethodChannel('ru.flowru.client/push_native');
+
+  static Future<String> registerForRemoteNotifications() async {
+    try {
+      final result = await _channel.invokeMethod('registerForRemoteNotifications');
+      return result?.toString() ?? 'native-register-null';
+    } catch (e) {
+      final raw = e.toString().replaceAll(RegExp(r'[^a-zA-Z0-9_\-]+'), '_');
+      final safe = raw.length > 120 ? raw.substring(0, 120) : raw;
+      return 'native-register-error-$safe';
+    }
+  }
+
+  static Future<String> getApnsStatus() async {
+    try {
+      final result = await _channel.invokeMethod('getApnsStatus');
+      return result?.toString() ?? 'native-status-null';
+    } catch (e) {
+      final raw = e.toString().replaceAll(RegExp(r'[^a-zA-Z0-9_\-]+'), '_');
+      final safe = raw.length > 120 ? raw.substring(0, 120) : raw;
+      return 'native-status-error-$safe';
+    }
+  }
+}
+
 class FlowClientPush {
   static final FlowApi _api = FlowApi();
   static bool _tokenRefreshListenerStarted = false;
@@ -903,12 +930,12 @@ class FlowClientPush {
     if (kIsWeb) return;
 
     try {
-      await _mark(accessToken, 'debug-01-start-1.0.3+45');
+      await _mark(accessToken, 'debug-01-start-1.0.3+49');
       await _mark(accessToken, firebaseInitStatus);
 
       final messaging = FirebaseMessaging.instance;
 
-      await _mark(accessToken, 'debug-02-before-permission-1.0.3+45');
+      await _mark(accessToken, 'debug-02-before-permission-1.0.3+49');
 
       final settings = await messaging.requestPermission(
         alert: true,
@@ -918,36 +945,55 @@ class FlowClientPush {
 
       await _mark(
         accessToken,
-        'debug-03-permission-${settings.authorizationStatus.name}-1.0.3+45',
+        'debug-03-permission-${settings.authorizationStatus.name}-1.0.3+49',
       );
 
+      final nativeRegisterStatus =
+          await FlowNativePushBridge.registerForRemoteNotifications();
+      await _mark(
+        accessToken,
+        'debug-native-register-$nativeRegisterStatus-1.0.3+49',
+      );
+
+      String nativeStatus = 'native-status-not-read';
       String? apnsToken;
-      for (var i = 0; i < 12; i++) {
+
+      for (var i = 0; i < 15; i++) {
+        nativeStatus = await FlowNativePushBridge.getApnsStatus();
+        await _mark(
+          accessToken,
+          'debug-native-status-$nativeStatus-1.0.3+49',
+        );
+
         apnsToken = await messaging.getAPNSToken();
         if (apnsToken != null && apnsToken.trim().isNotEmpty) {
           break;
         }
+
         await Future.delayed(const Duration(seconds: 1));
       }
 
       if (apnsToken == null || apnsToken.trim().isEmpty) {
-        await _mark(accessToken, 'debug-04-apns-empty-after-wait-1.0.3+45');
+        await _mark(
+          accessToken,
+          'debug-04-apns-empty-native-$nativeStatus-1.0.3+49',
+        );
         return;
       } else {
-        await _mark(accessToken, 'debug-04-apns-ok-1.0.3+45');
+        await _mark(accessToken, 'debug-04-apns-ok-1.0.3+49');
       }
 
       final pushToken = await messaging.getToken();
       if (pushToken == null || pushToken.trim().isEmpty) {
-        await _mark(accessToken, 'debug-05-fcm-empty-1.0.3+45');
+        await _mark(accessToken, 'debug-05-fcm-empty-1.0.3+49');
       } else {
-        await _mark(accessToken, 'debug-05-fcm-ok-1.0.3+45');
+        await _mark(accessToken, 'debug-05-fcm-ok-1.0.3+49');
 
         await _api.registerClientDevice(
           accessToken,
           pushToken: pushToken.trim(),
           platform: defaultTargetPlatform.name,
-          appVersion: '1.0.3+45',
+          appVersion: '1.0.3+49',
         );
       }
 
@@ -965,7 +1011,7 @@ class FlowClientPush {
               freshAccessToken.trim(),
               pushToken: newPushToken.trim(),
               platform: defaultTargetPlatform.name,
-              appVersion: '1.0.3+45',
+              appVersion: '1.0.3+49',
             );
           } catch (_) {
             // Не блокируем приложение из-за ошибки регистрации push-токена.
@@ -978,7 +1024,7 @@ class FlowClientPush {
           .replaceAll(RegExp(r'[^a-zA-Z0-9_\-]+'), '_')
           .substring(0, raw.length > 80 ? 80 : raw.length);
 
-      await _mark(accessToken, 'debug-99-error-$safe-1.0.3+45');
+      await _mark(accessToken, 'debug-99-error-$safe-1.0.3+49');
       // Не блокируем вход/запуск приложения из-за push.
     }
   }
