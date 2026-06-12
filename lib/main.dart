@@ -208,18 +208,27 @@ class FlowInviteDeepLinks {
   static Stream<Uri> get stream => _appLinks.uriLinkStream;
 }
 
-String firebaseInitStatus = 'firebase-init-not-started-1.0.3+42';
+String firebaseInitStatus = 'firebase-init-not-started-1.0.3+44';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
-    await Firebase.initializeApp();
-    firebaseInitStatus = 'firebase-init-ok-1.0.3+42';
+    await Firebase.initializeApp(
+      options: const FirebaseOptions(
+        apiKey: 'AIzaSyDA3U9idkt-yQaDaxpuU_1SYLXMNb_Uw18',
+        appId: '1:992660960797:ios:1373d717d4618882ddf8f4',
+        messagingSenderId: '992660960797',
+        projectId: 'flowru-mobile-a05b7',
+        storageBucket: 'flowru-mobile-a05b7.firebasestorage.app',
+        iosBundleId: 'ru.flowru.client',
+      ),
+    );
+    firebaseInitStatus = 'firebase-init-ok-1.0.3+44';
   } catch (e) {
     final raw = e.toString();
-    final safe = raw
-        .replaceAll(RegExp(r'[^a-zA-Z0-9_\-]+'), '_');
-    firebaseInitStatus = 'firebase-init-error-${safe.length > 90 ? safe.substring(0, 90) : safe}-1.0.3+42';
+    final safeRaw = raw.replaceAll(RegExp(r'[^a-zA-Z0-9_\\-]+'), '_');
+    final safe = safeRaw.length > 80 ? safeRaw.substring(0, 80) : safeRaw;
+    firebaseInitStatus = 'firebase-init-error-$safe-1.0.3+44';
   }
   await FlowInviteDeepLinks.restorePendingInviteToken();
   await FlowInviteDeepLinks.initInitialLink();
@@ -894,12 +903,12 @@ class FlowClientPush {
     if (kIsWeb) return;
 
     try {
-      await _mark(accessToken, 'debug-01-start-1.0.3+42');
+      await _mark(accessToken, 'debug-01-start-1.0.3+44');
       await _mark(accessToken, firebaseInitStatus);
 
       final messaging = FirebaseMessaging.instance;
 
-      await _mark(accessToken, 'debug-02-before-permission-1.0.3+42');
+      await _mark(accessToken, 'debug-02-before-permission-1.0.3+44');
 
       final settings = await messaging.requestPermission(
         alert: true,
@@ -909,27 +918,27 @@ class FlowClientPush {
 
       await _mark(
         accessToken,
-        'debug-03-permission-${settings.authorizationStatus.name}-1.0.3+42',
+        'debug-03-permission-${settings.authorizationStatus.name}-1.0.3+44',
       );
 
       final apnsToken = await messaging.getAPNSToken();
       if (apnsToken == null || apnsToken.trim().isEmpty) {
-        await _mark(accessToken, 'debug-04-apns-empty-1.0.3+42');
+        await _mark(accessToken, 'debug-04-apns-empty-1.0.3+44');
       } else {
-        await _mark(accessToken, 'debug-04-apns-ok-1.0.3+42');
+        await _mark(accessToken, 'debug-04-apns-ok-1.0.3+44');
       }
 
       final pushToken = await messaging.getToken();
       if (pushToken == null || pushToken.trim().isEmpty) {
-        await _mark(accessToken, 'debug-05-fcm-empty-1.0.3+42');
+        await _mark(accessToken, 'debug-05-fcm-empty-1.0.3+44');
       } else {
-        await _mark(accessToken, 'debug-05-fcm-ok-1.0.3+42');
+        await _mark(accessToken, 'debug-05-fcm-ok-1.0.3+44');
 
         await _api.registerClientDevice(
           accessToken,
           pushToken: pushToken.trim(),
           platform: defaultTargetPlatform.name,
-          appVersion: '1.0.3+42',
+          appVersion: '1.0.3+44',
         );
       }
 
@@ -947,7 +956,7 @@ class FlowClientPush {
               freshAccessToken.trim(),
               pushToken: newPushToken.trim(),
               platform: defaultTargetPlatform.name,
-              appVersion: '1.0.3+42',
+              appVersion: '1.0.3+44',
             );
           } catch (_) {
             // Не блокируем приложение из-за ошибки регистрации push-токена.
@@ -960,7 +969,7 @@ class FlowClientPush {
           .replaceAll(RegExp(r'[^a-zA-Z0-9_\-]+'), '_')
           .substring(0, raw.length > 80 ? 80 : raw.length);
 
-      await _mark(accessToken, 'debug-99-error-$safe-1.0.3+42');
+      await _mark(accessToken, 'debug-99-error-$safe-1.0.3+44');
       // Не блокируем вход/запуск приложения из-за push.
     }
   }
