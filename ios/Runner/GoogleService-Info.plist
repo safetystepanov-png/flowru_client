@@ -9,7 +9,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.flowru.staff</string>
+	<string>ru.flowru.client</string>
 	<key>PROJECT_ID</key>
 	<string>flowru-mobile-a05b7</string>
 	<key>STORAGE_BUCKET</key>
@@ -25,6 +25,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:992660960797:ios:56d7ce06553aec2eddf8f4</string>
+	<string>1:992660960797:ios:1373d717d4618882ddf8f4</string>
 </dict>
 </plist>
