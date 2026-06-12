@@ -10,16 +10,18 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     willConnectTo session: UISceneSession,
     options connectionOptions: UIScene.ConnectionOptions
   ) {
-    guard let windowScene = scene as? UIWindowScene else {
-      FlowNativePushState.apnsStatus = "native-scene-no-window-scene"
+    setupPushNativeChannel()
+  }
+
+  func sceneDidBecomeActive(_ scene: UIScene) {
+    setupPushNativeChannel()
+  }
+
+  private func setupPushNativeChannel() {
+    guard let flutterViewController = window?.rootViewController as? FlutterViewController else {
+      FlowNativePushState.apnsStatus = "native-channel-no-flutter-root"
       return
     }
-
-    let flutterViewController = FlutterViewController()
-    let window = UIWindow(windowScene: windowScene)
-    window.rootViewController = flutterViewController
-    self.window = window
-    window.makeKeyAndVisible()
 
     let channel = FlutterMethodChannel(
       name: pushChannelName,
