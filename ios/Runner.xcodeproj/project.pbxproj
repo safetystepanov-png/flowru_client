@@ -213,14 +213,14 @@ F2C79EF9224542BEA8B6A6D7 /* GoogleService-Info.plist in Resources */ = {isa = PB
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-			
-F2C79EF9224542BEA8B6A6D7 /* GoogleService-Info.plist in Resources */,);
+			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		97C146EC1CF9000F007C117D /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F2C79EF9224542BEA8B6A6D7 /* GoogleService-Info.plist in Resources */,
 				97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */,
 				3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */,
 				97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */,
