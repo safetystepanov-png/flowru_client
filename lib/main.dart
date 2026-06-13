@@ -6992,7 +6992,7 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
                         Text(
                           hint,
                           style: TextStyle(
-                            color: FlowColors.text.withOpacity(0.72),
+                            color: FlowColors.ink.withOpacity(0.72),
                             fontSize: 13,
                             fontWeight: FontWeight.w800,
                             height: 1.25,
