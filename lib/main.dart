@@ -6868,171 +6868,162 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
 
 
   Widget _preorderQuickCard() {
-    return TweenAnimationBuilder<double>(
-      tween: Tween<double>(begin: 0.0, end: 1.0),
-      duration: const Duration(milliseconds: 900),
-      curve: Curves.easeOutBack,
-      builder: (context, value, child) {
-        final safeValue = value.clamp(0.0, 1.0);
-        return Transform.translate(
-          offset: Offset(0, (1 - safeValue) * 10),
-          child: Opacity(
-            opacity: safeValue,
-            child: child,
-          ),
-        );
-      },
-      child: GestureDetector(
-        onTap: _openPreorderScreen,
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(30),
-            gradient: const LinearGradient(
-              colors: [
-                Color(0xFFFFF4DD),
-                Color(0xFFFFE7C2),
-                Color(0xFFEAF7FF),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            border: Border.all(color: Colors.white.withOpacity(0.82)),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFFFFA51E).withOpacity(0.18),
-                blurRadius: 26,
-                offset: const Offset(0, 14),
+    final id = _establishmentId;
+    final token = widget.token.trim();
+
+    if (id == null || id <= 0 || token.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return FutureBuilder<Map<String, dynamic>>(
+      future: widget.api.preorderSettings(token, id),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SizedBox.shrink();
+        }
+
+        final settings = snapshot.data ?? {};
+        final enabled = boolValue(settings['enabled']);
+        final allowed = boolValue(settings['allowed']);
+
+        if (!enabled || !allowed) {
+          return const SizedBox.shrink();
+        }
+
+        final actionLabel =
+            nonEmpty(settings['action_label']) ?? 'Сделать заказ';
+        final featureType = (settings['feature_type'] ?? 'order').toString();
+        final hint = nonEmpty(settings['client_hint']) ??
+            (featureType == 'appointment'
+                ? 'Оставьте заявку  сотрудник свяжется с вами и подтвердит время.'
+                : 'Напишите заранее и заберите без ожидания');
+
+        final icon = featureType == 'appointment'
+            ? Icons.event_available_rounded
+            : featureType == 'booking'
+                ? Icons.bookmark_added_rounded
+                : Icons.local_cafe_rounded;
+
+        return TweenAnimationBuilder<double>(
+          tween: Tween<double>(begin: 0, end: 1),
+          duration: const Duration(milliseconds: 520),
+          curve: Curves.easeOutCubic,
+          builder: (context, value, child) {
+            final safeValue = value.clamp(0.0, 1.0);
+            return Transform.translate(
+              offset: Offset(0, (1 - safeValue) * 10),
+              child: Opacity(
+                opacity: safeValue,
+                child: child,
               ),
-              BoxShadow(
-                color: const Color(0xFF0EA5E9).withOpacity(0.08),
-                blurRadius: 20,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              TweenAnimationBuilder<double>(
-                tween: Tween<double>(begin: 0.96, end: 1.0),
-                duration: const Duration(milliseconds: 950),
-                curve: Curves.easeInOut,
-                builder: (context, scale, child) {
-                  return Transform.scale(scale: scale, child: child);
-                },
-                child: Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(21),
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFFFA51E), Color(0xFFFF6A00)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFFFF8A00).withOpacity(0.25),
-                        blurRadius: 16,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.local_cafe_rounded,
-                    color: Colors.white,
-                    size: 29,
-                  ),
+            );
+          },
+          child: GestureDetector(
+            onTap: _openPreorderScreen,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(30),
+                gradient: const LinearGradient(
+                  colors: [
+                    Color(0xFFFFF4DD),
+                    Color(0xFFFFE7C2),
+                    Color(0xFFEAF7FF),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
+                border: Border.all(color: Colors.white.withOpacity(0.82)),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFFFA51E).withOpacity(0.18),
+                    blurRadius: 26,
+                    offset: const Offset(0, 14),
+                  ),
+                  BoxShadow(
+                    color: const Color(0xFF0EA5E9).withOpacity(0.08),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
               ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+              child: Row(
+                children: [
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(21),
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFFFA51E), Color(0xFFFF6A00)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFFF8A00).withOpacity(0.25),
+                          blurRadius: 16,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      icon,
+                      color: Colors.white,
+                      size: 29,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Expanded(
-                          child: Text(
-                            'Заказ',
-                            style: TextStyle(
-                              color: FlowColors.ink,
-                              fontSize: 21,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: -0.45,
-                            ),
+                        Text(
+                          actionLabel,
+                          style: const TextStyle(
+                            color: FlowColors.ink,
+                            fontSize: 21,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -0.45,
                           ),
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 9, vertical: 5),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.78),
-                            borderRadius: BorderRadius.circular(999),
-                            border: Border.all(
-                              color: const Color(0xFFFFC36B).withOpacity(0.55),
-                            ),
-                          ),
-                          child: const Text(
-                            'без очереди',
-                            style: TextStyle(
-                              color: Color(0xFFB45309),
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w900,
-                            ),
+                        const SizedBox(height: 5),
+                        Text(
+                          hint,
+                          style: TextStyle(
+                            color: FlowColors.text.withOpacity(0.72),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            height: 1.25,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 5),
-                    Text(
-                      'Напишите заранее  приготовят к вашему приходу',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: FlowColors.muted.withOpacity(0.88),
-                        fontSize: 13.4,
-                        height: 1.23,
-                        fontWeight: FontWeight.w800,
-                      ),
+                  ),
+                  const SizedBox(width: 10),
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.42),
+                      borderRadius: BorderRadius.circular(16),
                     ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 10),
-              TweenAnimationBuilder<double>(
-                tween: Tween<double>(begin: 0, end: 1),
-                duration: const Duration(milliseconds: 1200),
-                curve: Curves.easeInOut,
-                builder: (context, value, child) {
-                  final dx = 2.5 * value;
-                  return Transform.translate(
-                    offset: Offset(dx, 0),
-                    child: child,
-                  );
-                },
-                child: Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.78),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.white.withOpacity(0.86)),
+                    child: const Icon(
+                      Icons.arrow_forward_rounded,
+                      color: FlowColors.ink,
+                      size: 22,
+                    ),
                   ),
-                  child: const Icon(
-                    Icons.arrow_forward_rounded,
-                    color: FlowColors.ink,
-                    size: 22,
-                  ),
-                ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
+
 
 
   @override
@@ -15058,6 +15049,65 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen> {
     super.dispose();
   }
 
+  String get _featureType => (_settings['feature_type'] ?? 'order').toString();
+
+  String get _actionLabel =>
+      nonEmpty(_settings['action_label']) ?? 'Сделать заказ';
+
+  String get _itemLabel =>
+      nonEmpty(_settings['item_label']) ??
+      nonEmpty(_settings['object_label']) ??
+      'заказ';
+
+  String get _screenTitle =>
+      nonEmpty(_settings['screen_title']) ?? 'Заказ в заведении';
+
+  String get _inputLabel =>
+      nonEmpty(_settings['input_label']) ?? 'Что хотите заказать?';
+
+  String get _inputHint =>
+      nonEmpty(_settings['input_hint']) ??
+      (_featureType == 'appointment'
+          ? 'Например: стрижка, консультация, удобный день и время'
+          : 'Например: капучино большой, круассан, без сахара');
+
+  String get _timeMode => (_settings['time_mode'] ?? 'in_minutes').toString();
+
+  bool get _allowAsap => boolValue(_settings['allow_asap']);
+
+  bool get _allowScheduledTime => boolValue(_settings['allow_scheduled_time']);
+
+  String get _submitLabel =>
+      nonEmpty(_settings['submit_label']) ?? 'Отправить заказ';
+
+  String get _emptyTextError {
+    if (_featureType == 'appointment') {
+      return 'Напишите, на какую услугу хотите записаться';
+    }
+    if (_featureType == 'booking') {
+      return 'Напишите, что хотите забронировать';
+    }
+    return 'Напишите, что хотите заказать';
+  }
+
+  String get _successText {
+    if (_featureType == 'appointment') return 'Заявка на запись отправлена';
+    if (_featureType == 'booking') return 'Заявка на бронь отправлена';
+    return 'Заказ отправлен';
+  }
+
+  String get _activeTitle {
+    if (_featureType == 'appointment') return 'Активная запись';
+    if (_featureType == 'booking') return 'Активная бронь';
+    return 'Активный заказ';
+  }
+
+  String get _timeTitle {
+    if (_featureType == 'appointment') return 'Когда удобно?';
+    if (_featureType == 'booking') return 'Когда нужна бронь?';
+    return 'Когда заберёте?';
+  }
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -15079,6 +15129,21 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen> {
       setState(() {
         _settings = settings;
         _active = mapList(active['items']);
+
+        final mode = (settings['time_mode'] ?? 'in_minutes').toString();
+        final allowAsap = boolValue(settings['allow_asap']);
+
+        if (mode == 'scheduled') {
+          _pickupType = 'at_time';
+          _pickupMinutes = 0;
+        } else if (mode == 'none') {
+          _pickupType = 'asap';
+          _pickupMinutes = 0;
+        } else if (allowAsap && _pickupType.trim().isEmpty) {
+          _pickupType = 'asap';
+          _pickupMinutes = 0;
+        }
+
         _loading = false;
       });
     } on ApiError catch (e) {
@@ -15101,7 +15166,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen> {
 
     if (text.length < 2) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Напишите, что приготовить')),
+        SnackBar(content: Text(_emptyTextError)),
       );
       return;
     }
@@ -15126,7 +15191,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Заказ отправлен')),
+        SnackBar(content: Text(_successText)),
       );
 
       await _load();
@@ -15138,7 +15203,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen> {
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _error = 'Не удалось отправить заказ';
+        _error = 'Не удалось отправить заявку';
       });
     } finally {
       if (mounted) {
@@ -15493,12 +15558,12 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen> {
   @override
   Widget build(BuildContext context) {
     final allowed = boolValue(_settings['allowed']);
-    final message = nonEmpty(_settings['message']) ?? 'Предзаказы сейчас недоступны';
+    final message = nonEmpty(_settings['message']) ?? '$_actionLabel сейчас недоступно';
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F8FB),
       appBar: AppBar(
-        title: const Text('Заказ'),
+        title: Text(_screenTitle),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black87,
         elevation: 0,
@@ -15562,8 +15627,8 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen> {
                 const SizedBox(height: 14),
               ],
               if (_active.isNotEmpty) ...[
-                const Text(
-                  'Активный заказ',
+                Text(
+                  _activeTitle,
                   style: TextStyle(
                     color: Colors.black87,
                     fontSize: 20,
@@ -15592,8 +15657,8 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Что приготовить?',
+                      Text(
+                        _inputLabel,
                         style: TextStyle(
                           color: Colors.black87,
                           fontSize: 18,
@@ -15607,7 +15672,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen> {
                         maxLines: 7,
                         textInputAction: TextInputAction.newline,
                         decoration: InputDecoration(
-                          hintText: 'Например: капучино большой, круассан, без сахара',
+                          hintText: _inputHint,
                           filled: true,
                           fillColor: const Color(0xFFF7FAFC),
                           border: OutlineInputBorder(
@@ -15650,8 +15715,8 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen> {
                         ],
                       ),
                       const SizedBox(height: 16),
-                      const Text(
-                        'Когда заберёте?',
+                      Text(
+                        _timeTitle,
                         style: TextStyle(
                           color: Colors.black87,
                           fontSize: 15,
@@ -15663,10 +15728,21 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen> {
                         spacing: 8,
                         runSpacing: 8,
                         children: [
-                          _timeButton('Как можно скорее', 'asap', 0),
-                          _timeButton('Через 10 минут', 'in_minutes', 10),
-                          _timeButton('Через 15 минут', 'in_minutes', 15),
-                          _timeButton('Через 20 минут', 'in_minutes', 20),
+                          if (_allowAsap)
+                            _timeButton('Как можно скорее', 'asap', 0),
+                          if (_timeMode != 'scheduled') ...[
+                            _timeButton('Через 10 минут', 'in_minutes', 10),
+                            _timeButton('Через 15 минут', 'in_minutes', 15),
+                            _timeButton('Через 20 минут', 'in_minutes', 20),
+                          ],
+                          if (_allowScheduledTime || _timeMode == 'scheduled')
+                            _timeButton(
+                              _featureType == 'appointment'
+                                  ? 'Согласовать дату и время'
+                                  : 'К выбранному времени',
+                              'at_time',
+                              0,
+                            ),
                         ],
                       ),
                       const SizedBox(height: 16),
