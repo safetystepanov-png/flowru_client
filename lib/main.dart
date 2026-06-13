@@ -3677,17 +3677,19 @@ class _ClientShellState extends State<ClientShell> {
             OfferTicker(items: flowruTodayItems, joining: joiningDraw),
             const SizedBox(height: 18),
           ],
-          const SectionTitle(
-              title: 'Актуальное для вас',
-              subtitle:
-                  'Акции, розыгрыши и награды из заведений, где вы уже есть'),
-          const SizedBox(height: 10),
-          OfferTicker(
-              items: actualForYouItems,
-              joining: joiningDraw,
-              onJoin: joinDrawFromAggregatedItem,
-              onOpenEstablishment: openEstablishmentById),
-          const SizedBox(height: 18),
+          if (actualForYouItems.isNotEmpty) ...[
+            const SectionTitle(
+                title: 'Актуальное для вас',
+                subtitle:
+                    'Акции, розыгрыши и награды из заведений, где вы уже есть'),
+            const SizedBox(height: 10),
+            OfferTicker(
+                items: actualForYouItems,
+                joining: joiningDraw,
+                onJoin: joinDrawFromAggregatedItem,
+                onOpenEstablishment: openEstablishmentById),
+            const SizedBox(height: 18),
+          ],
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
@@ -7364,6 +7366,111 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
     ]);
   }
 
+  void _openMenuPhotoViewer(List<String> urls, int initialIndex) {
+    final cleanUrls = urls
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toSet()
+        .toList();
+
+    if (cleanUrls.isEmpty) return;
+
+    final safeIndex = initialIndex < 0
+        ? 0
+        : (initialIndex >= cleanUrls.length ? cleanUrls.length - 1 : initialIndex);
+
+    showDialog<void>(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.92),
+      builder: (dialogContext) {
+        final controller = PageController(initialPage: safeIndex);
+
+        return Dialog(
+          insetPadding: EdgeInsets.zero,
+          backgroundColor: Colors.black,
+          child: SafeArea(
+            child: Stack(
+              children: [
+                PageView.builder(
+                  controller: controller,
+                  itemCount: cleanUrls.length,
+                  itemBuilder: (context, index) {
+                    final url = cleanUrls[index];
+
+                    return InteractiveViewer(
+                      minScale: 1,
+                      maxScale: 5,
+                      child: Center(
+                        child: Image.network(
+                          url,
+                          fit: BoxFit.contain,
+                          loadingBuilder: (context, child, progress) {
+                            if (progress == null) return child;
+                            return const Center(
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            );
+                          },
+                          errorBuilder: (_, __, ___) => const Padding(
+                            padding: EdgeInsets.all(24),
+                            child: Text(
+                              'Не удалось загрузить фото меню',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                Positioned(
+                  top: 12,
+                  right: 12,
+                  child: Material(
+                    color: Colors.black.withOpacity(0.45),
+                    shape: const CircleBorder(),
+                    child: IconButton(
+                      icon: const Icon(Icons.close_rounded, color: Colors.white),
+                      onPressed: () => Navigator.of(dialogContext).pop(),
+                    ),
+                  ),
+                ),
+                if (cleanUrls.length > 1)
+                  Positioned(
+                    left: 16,
+                    right: 16,
+                    bottom: 16,
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.45),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          'Листайте фото меню. Можно увеличить пальцами.',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _establishmentMenu(String name, List<String> menuPhotoUrls) {
     final urls = menuPhotoUrls
         .map((e) => e.trim())
@@ -7400,51 +7507,88 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
 
               return Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(32),
-                    boxShadow: [
-                      BoxShadow(
-                        color: FlowColors.ink.withOpacity(0.18),
-                        blurRadius: 28,
-                        offset: const Offset(0, 18),
-                      ),
-                      BoxShadow(
-                        color: FlowColors.gold.withOpacity(0.16),
-                        blurRadius: 38,
-                        offset: const Offset(0, 10),
-                      ),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(32),
-                    child: Container(
-                      color: Colors.white.withOpacity(0.18),
-                      child: Image.network(
-                        url,
-                        width: double.infinity,
-                        fit: BoxFit.contain,
-                        loadingBuilder: (context, child, progress) {
-                          if (progress == null) return child;
-                          return Container(
-                            alignment: Alignment.center,
-                            color: Colors.white.withOpacity(0.24),
-                            child: const CircularProgressIndicator(strokeWidth: 2),
-                          );
-                        },
-                        errorBuilder: (_, __, ___) => Container(
-                          alignment: Alignment.center,
-                          padding: const EdgeInsets.all(22),
-                          color: Colors.white.withOpacity(0.34),
-                          child: const Text(
-                            'Не удалось загрузить фото меню',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: FlowColors.ink,
-                              fontWeight: FontWeight.w900,
+                child: GestureDetector(
+                  onTap: () => _openMenuPhotoViewer(urls, index),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(32),
+                      boxShadow: [
+                        BoxShadow(
+                          color: FlowColors.ink.withOpacity(0.18),
+                          blurRadius: 28,
+                          offset: const Offset(0, 18),
+                        ),
+                        BoxShadow(
+                          color: FlowColors.gold.withOpacity(0.16),
+                          blurRadius: 38,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(32),
+                      child: Stack(
+                        children: [
+                          Container(
+                            color: Colors.white.withOpacity(0.18),
+                            child: Image.network(
+                              url,
+                              width: double.infinity,
+                              height: double.infinity,
+                              fit: BoxFit.contain,
+                              loadingBuilder: (context, child, progress) {
+                                if (progress == null) return child;
+                                return Container(
+                                  alignment: Alignment.center,
+                                  color: Colors.white.withOpacity(0.24),
+                                  child: const CircularProgressIndicator(
+                                      strokeWidth: 2),
+                                );
+                              },
+                              errorBuilder: (_, __, ___) => Container(
+                                alignment: Alignment.center,
+                                padding: const EdgeInsets.all(22),
+                                color: Colors.white.withOpacity(0.34),
+                                child: const Text(
+                                  'Не удалось загрузить фото меню',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: FlowColors.ink,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
-                        ),
+                          Positioned(
+                            right: 12,
+                            bottom: 12,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 7),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.48),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.zoom_in_rounded,
+                                      color: Colors.white, size: 16),
+                                  SizedBox(width: 5),
+                                  Text(
+                                    'Увеличить',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
