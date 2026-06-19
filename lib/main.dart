@@ -15494,6 +15494,50 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen> {
   }
 
 
+
+  // CLIENT_PREORDER_BONUS_INFO_20260619
+  Widget _bonusAfterPickupInfoCard() {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEFFDF5),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFBBF7D0)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: const Color(0xFF16A34A).withOpacity(0.12),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(
+              Icons.stars_rounded,
+              color: Color(0xFF16A34A),
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Бонусы начислятся автоматически после выдачи заказа сотрудником. Сумма и начисление появятся в истории лояльности.',
+              style: TextStyle(
+                color: Colors.black87.withOpacity(0.86),
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                height: 1.28,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
   Widget _preorderInfoChip({
     required IconData icon,
     required String text,
@@ -15640,6 +15684,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen> {
                 const SizedBox(height: 8),
               ],
               _menuPreview(),
+              _bonusAfterPickupInfoCard(),
               if (!allowed)
                 EmptyState(
                   icon: Icons.lock_rounded,
