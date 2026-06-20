@@ -15078,7 +15078,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen> {
   bool get _allowScheduledTime => boolValue(_settings['allow_scheduled_time']);
 
   String get _submitLabel =>
-      nonEmpty(_settings['submit_label']) ?? 'Отправить заказ';
+      nonEmpty(_settings['submit_label']) ?? 'Отправить';
 
   String get _emptyTextError {
     if (_featureType == 'appointment') {
@@ -15347,7 +15347,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen> {
           borderRadius: BorderRadius.circular(18),
           gradient: selected
               ? const LinearGradient(
-                  colors: [Color(0xFFFFA51E), Color(0xFFFF4F91)],
+                  colors: [Color(0xFF42E8DF), Color(0xFF0BAEBB), Color(0xFF064B64)],
                 )
               : null,
           color: selected ? null : Colors.white,
@@ -15357,7 +15357,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen> {
           boxShadow: selected
               ? [
                   BoxShadow(
-                    color: const Color(0xFFFF4F91).withOpacity(0.22),
+                    color: const Color(0xFF0BAEBB).withOpacity(0.22),
                     blurRadius: 18,
                     offset: const Offset(0, 10),
                   )
@@ -15628,7 +15628,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen> {
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFFFF4F91).withOpacity(0.24),
+                    color: const Color(0xFF0BAEBB).withOpacity(0.24),
                     blurRadius: 28,
                     offset: const Offset(0, 16),
                   ),
@@ -15730,7 +15730,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen> {
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(22),
-                            borderSide: const BorderSide(color: Color(0xFFFF8A00), width: 1.4),
+                            borderSide: const BorderSide(color: Color(0xFF0BAEBB), width: 1.4),
                           ),
                         ),
                       ),
@@ -15803,9 +15803,9 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen> {
                                   child: CircularProgressIndicator(strokeWidth: 2),
                                 )
                               : const Icon(Icons.send_rounded),
-                          label: Text(_sending ? 'Отправляем...' : 'Отправить заказ'),
+                          label: Text(_sending ? 'Отправляем...' : 'Отправить'),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFFF4F91),
+                            backgroundColor: const Color(0xFF064B64),
                             foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(20),
