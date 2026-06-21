@@ -15032,6 +15032,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
   static const Color _mint = Color(0xFF0BAEBB);
   static const Color _mintLight = Color(0xFF42E8DF);
   static const Color _deep = Color(0xFF064B64);
+  static const Color _deep2 = Color(0xFF032F44);
   static const Color _ink = Color(0xFF0A2B47);
   static const Color _soft = Color(0xFF557186);
   static const Color _bg = Color(0xFFF3FAFB);
@@ -15059,7 +15060,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
     super.initState();
     _motion = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 1900),
     )..repeat(reverse: true);
     _load();
   }
@@ -15085,7 +15086,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
   String get _inputHint =>
       nonEmpty(_settings['input_hint']) ??
       (_featureType == 'appointment'
-          ? 'Например: стрижка, консультация, удобный день и время'
+          ? 'Напишите услугу, мастера и удобное время'
           : 'Например: капучино большой, круассан, без сахара');
 
   String get _timeMode => (_settings['time_mode'] ?? 'in_minutes').toString();
@@ -15093,6 +15094,8 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
   bool get _allowAsap => boolValue(_settings['allow_asap']);
 
   bool get _allowScheduledTime => boolValue(_settings['allow_scheduled_time']);
+
+  bool get _allowed => boolValue(_settings['allowed']);
 
   String get _submitLabel => nonEmpty(_settings['submit_label']) ?? 'Отправить';
 
@@ -15233,7 +15236,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
   String _statusText(String status) {
     switch (status) {
       case 'new':
-        return 'Новый';
+        return 'Принят';
       case 'in_work':
         return 'В работе';
       case 'ready':
@@ -15246,6 +15249,21 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
         return 'Пропущен';
       default:
         return status.isEmpty ? 'Заказ' : status;
+    }
+  }
+
+  int _statusStep(String status) {
+    switch (status) {
+      case 'new':
+        return 1;
+      case 'in_work':
+        return 2;
+      case 'ready':
+        return 3;
+      case 'completed':
+        return 4;
+      default:
+        return 1;
     }
   }
 
@@ -15269,7 +15287,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
   IconData _statusIcon(String status) {
     switch (status) {
       case 'new':
-        return Icons.notifications_active_rounded;
+        return Icons.bolt_rounded;
       case 'in_work':
         return Icons.local_fire_department_rounded;
       case 'ready':
@@ -15297,20 +15315,24 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
     }
   }
 
-  Widget _fadeIn({
+  Widget _reveal({
     required Widget child,
     int delay = 0,
+    double dy = 20,
   }) {
     return TweenAnimationBuilder<double>(
-      duration: Duration(milliseconds: 430 + delay),
+      duration: Duration(milliseconds: 520 + delay),
       tween: Tween(begin: 0, end: 1),
       curve: Curves.easeOutCubic,
       builder: (context, t, _) {
         return Opacity(
           opacity: t,
           child: Transform.translate(
-            offset: Offset(0, 20 * (1 - t)),
-            child: child,
+            offset: Offset(0, dy * (1 - t)),
+            child: Transform.scale(
+              scale: 0.982 + (0.018 * t),
+              child: child,
+            ),
           ),
         );
       },
@@ -15318,99 +15340,238 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
     );
   }
 
-  Widget _heroCard() {
+  Widget _background() {
     return AnimatedBuilder(
       animation: _motion,
-      builder: (context, child) {
-        final glow = 0.17 + (_motion.value * 0.10);
-        return Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(22),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(34),
-            gradient: const LinearGradient(
-              colors: [_mintLight, _mint, _deep],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+      builder: (context, _) {
+        final v = _motion.value;
+        return Stack(
+          children: [
+            Container(color: const Color(0xFFF0FBFC)),
+            Positioned(
+              top: -120 + (v * 18),
+              right: -90,
+              child: _glowCircle(260, _mint.withOpacity(0.22)),
             ),
-            boxShadow: [
-              BoxShadow(
-                color: _mint.withOpacity(glow),
-                blurRadius: 34,
-                offset: const Offset(0, 18),
-              ),
-            ],
-          ),
-          child: child,
+            Positioned(
+              top: 150 - (v * 20),
+              left: -150,
+              child: _glowCircle(300, _deep.withOpacity(0.12)),
+            ),
+            Positioned(
+              bottom: -160 + (v * 20),
+              right: -130,
+              child: _glowCircle(340, _mintLight.withOpacity(0.18)),
+            ),
+          ],
         );
       },
-      child: Stack(
+    );
+  }
+
+  Widget _glowCircle(double size, Color color) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: color,
+      ),
+    );
+  }
+
+  Widget _glass({
+    required Widget child,
+    EdgeInsets padding = const EdgeInsets.all(18),
+    double radius = 30,
+  }) {
+    return Container(
+      padding: padding,
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.90),
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(color: Colors.white.withOpacity(0.72)),
+        boxShadow: [
+          BoxShadow(
+            color: _deep.withOpacity(0.07),
+            blurRadius: 30,
+            offset: const Offset(0, 18),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+
+  Widget _hero() {
+    return _reveal(
+      child: AnimatedBuilder(
+        animation: _motion,
+        builder: (context, child) {
+          final glow = 0.20 + (_motion.value * 0.12);
+          return Container(
+            padding: const EdgeInsets.all(22),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(36),
+              gradient: const LinearGradient(
+                colors: [_deep2, _deep, _mint],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: _mint.withOpacity(glow),
+                  blurRadius: 44,
+                  offset: const Offset(0, 22),
+                ),
+              ],
+            ),
+            child: child,
+          );
+        },
+        child: Stack(
+          children: [
+            Positioned(
+              right: -42,
+              top: -48,
+              child: _heroBubble(140, Colors.white.withOpacity(0.09)),
+            ),
+            Positioned(
+              right: 34,
+              bottom: -54,
+              child: _heroBubble(104, Colors.white.withOpacity(0.07)),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 62,
+                      height: 62,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.16),
+                        borderRadius: BorderRadius.circular(25),
+                        border:
+                            Border.all(color: Colors.white.withOpacity(0.24)),
+                      ),
+                      child: const Icon(
+                        Icons.shopping_bag_rounded,
+                        color: Colors.white,
+                        size: 31,
+                      ),
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.14),
+                        borderRadius: BorderRadius.circular(999),
+                        border:
+                            Border.all(color: Colors.white.withOpacity(0.18)),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.flash_on_rounded,
+                              color: Colors.white, size: 15),
+                          SizedBox(width: 5),
+                          Text(
+                            'Order Studio',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 22),
+                Text(
+                  widget.establishmentName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 30,
+                    height: 1.02,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.9,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  _featureType == 'appointment'
+                      ? 'Выберите услугу и время — заведение подтвердит запись.'
+                      : 'Соберите заказ красиво: описание, время, оплата — и отправьте в заведение.',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.88),
+                    fontSize: 14.5,
+                    height: 1.33,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _heroBubble(double size, Color color) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+    );
+  }
+
+  Widget _titleBlock(String title, String subtitle, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(2, 18, 2, 11),
+      child: Row(
         children: [
-          Positioned(
-            right: -32,
-            top: -34,
-            child: Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withOpacity(0.10),
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [_mintLight, _mint, _deep],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
+              borderRadius: BorderRadius.circular(16),
             ),
+            child: Icon(icon, color: Colors.white, size: 20),
           ),
-          Positioned(
-            right: 34,
-            bottom: -48,
-            child: Container(
-              width: 94,
-              height: 94,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withOpacity(0.08),
-              ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: _ink,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.45,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    color: _soft,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
             ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.18),
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: Colors.white.withOpacity(0.22)),
-                ),
-                child: const Icon(
-                  Icons.shopping_bag_rounded,
-                  color: Colors.white,
-                  size: 30,
-                ),
-              ),
-              const SizedBox(height: 15),
-              Text(
-                widget.establishmentName,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 28,
-                  height: 1.05,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -0.7,
-                ),
-              ),
-              const SizedBox(height: 9),
-              Text(
-                _featureType == 'appointment'
-                    ? 'Опишите услугу и удобное время — сотрудник подтвердит запись.'
-                    : 'Соберите заказ за пару секунд: описание, время и способ оплаты.',
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.88),
-                  fontSize: 14.5,
-                  height: 1.32,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
           ),
         ],
       ),
@@ -15424,110 +15585,89 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
     final createdTime = _formatTime(item['created_at']);
     final orderText = (item['order_text'] ?? '').toString().trim();
 
-    return _fadeIn(
+    return _reveal(
       delay: 80,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: statusColor.withOpacity(0.22)),
-          boxShadow: [
-            BoxShadow(
-              color: statusColor.withOpacity(0.12),
-              blurRadius: 26,
-              offset: const Offset(0, 14),
-            ),
-          ],
-        ),
-        child: Stack(
+      child: _glass(
+        radius: 32,
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Positioned(
-              right: -24,
-              top: -26,
-              child: Container(
-                width: 92,
-                height: 92,
-                decoration: BoxDecoration(
-                  color: statusColor.withOpacity(0.07),
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            Row(
               children: [
-                Row(
-                  children: [
-                    AnimatedBuilder(
-                      animation: _motion,
-                      builder: (context, child) {
-                        final scale = 1.0 + (_motion.value * 0.030);
-                        return Transform.scale(scale: scale, child: child);
-                      },
-                      child: Container(
-                        width: 46,
-                        height: 46,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              statusColor,
-                              statusColor.withOpacity(0.65)
-                            ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(18),
-                        ),
-                        child: Icon(
-                          _statusIcon(status),
-                          color: Colors.white,
-                          size: 23,
+                AnimatedBuilder(
+                  animation: _motion,
+                  builder: (context, child) {
+                    final scale = 1.0 + (_motion.value * 0.035);
+                    return Transform.scale(scale: scale, child: child);
+                  },
+                  child: Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [statusColor, statusColor.withOpacity(0.65)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Icon(_statusIcon(status), color: Colors.white),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Ваш заказ в процессе',
+                        style: TextStyle(
+                          color: _soft,
+                          fontSize: 12.2,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
+                      const SizedBox(height: 3),
+                      Text(
                         _statusText(status),
                         style: TextStyle(
                           color: statusColor,
-                          fontSize: 18,
+                          fontSize: 21,
                           fontWeight: FontWeight.w900,
-                          letterSpacing: -0.35,
+                          letterSpacing: -0.45,
                         ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 13),
-                Text(
-                  orderText.isEmpty ? 'Заказ без описания' : orderText,
-                  style: const TextStyle(
-                    color: _ink,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    height: 1.28,
+                    ],
                   ),
                 ),
-                const SizedBox(height: 13),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    if (createdTime.isNotEmpty)
-                      _infoChip(
-                        icon: Icons.access_time_rounded,
-                        text: 'Поступил $createdTime',
-                      ),
-                    if (pickupTime.isNotEmpty)
-                      _infoChip(
-                        icon: Icons.schedule_rounded,
-                        text: 'Забрать $pickupTime',
-                      ),
-                  ],
-                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _statusTracker(_statusStep(status)),
+            const SizedBox(height: 16),
+            Text(
+              orderText.isEmpty ? 'Заказ без описания' : orderText,
+              style: const TextStyle(
+                color: _ink,
+                fontSize: 15,
+                height: 1.30,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 13),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                if (createdTime.isNotEmpty)
+                  _infoChip(
+                      icon: Icons.access_time_rounded,
+                      text: 'Поступил $createdTime'),
+                if (pickupTime.isNotEmpty)
+                  _infoChip(
+                      icon: Icons.schedule_rounded,
+                      text: 'Забрать $pickupTime'),
               ],
             ),
           ],
@@ -15536,51 +15676,112 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
     );
   }
 
+  Widget _statusTracker(int step) {
+    const labels = ['Отправлен', 'В работе', 'Готов', 'Выдан'];
+
+    return Row(
+      children: [
+        for (int i = 0; i < labels.length; i++) ...[
+          Expanded(
+            child: Column(
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 260),
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: i + 1 <= step
+                        ? const LinearGradient(
+                            colors: [_mintLight, _mint, _deep],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          )
+                        : null,
+                    color: i + 1 <= step ? null : const Color(0xFFE9F1F5),
+                  ),
+                  child: Icon(
+                    i + 1 <= step ? Icons.check_rounded : Icons.circle_rounded,
+                    color:
+                        i + 1 <= step ? Colors.white : _soft.withOpacity(0.35),
+                    size: i + 1 <= step ? 17 : 9,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  labels[i],
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: i + 1 <= step ? _ink : _soft,
+                    fontSize: 10.6,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (i != labels.length - 1)
+            Container(
+              width: 18,
+              height: 3,
+              margin: const EdgeInsets.only(bottom: 23),
+              decoration: BoxDecoration(
+                color: i + 1 < step ? _mint : const Color(0xFFE9F1F5),
+                borderRadius: BorderRadius.circular(99),
+              ),
+            ),
+        ],
+      ],
+    );
+  }
+
   Widget _infoCard({
     required IconData icon,
     required Color color,
+    required String title,
     required String text,
   }) {
-    return _fadeIn(
-      delay: 90,
-      child: Container(
-        width: double.infinity,
-        margin: const EdgeInsets.only(bottom: 14),
+    return _reveal(
+      delay: 100,
+      child: _glass(
+        radius: 26,
         padding: const EdgeInsets.all(15),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(25),
-          border: Border.all(color: _stroke),
-          boxShadow: [
-            BoxShadow(
-              color: _deep.withOpacity(0.045),
-              blurRadius: 20,
-              offset: const Offset(0, 11),
-            ),
-          ],
-        ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              width: 38,
-              height: 38,
+              width: 42,
+              height: 42,
               decoration: BoxDecoration(
                 color: color.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(15),
+                borderRadius: BorderRadius.circular(17),
               ),
-              child: Icon(icon, color: color, size: 21),
+              child: Icon(icon, color: color, size: 23),
             ),
-            const SizedBox(width: 11),
+            const SizedBox(width: 12),
             Expanded(
-              child: Text(
-                text,
-                style: const TextStyle(
-                  color: _ink,
-                  fontSize: 13.4,
-                  fontWeight: FontWeight.w800,
-                  height: 1.30,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: _ink,
+                      fontSize: 14.2,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    text,
+                    style: const TextStyle(
+                      color: _soft,
+                      fontSize: 12.8,
+                      fontWeight: FontWeight.w700,
+                      height: 1.30,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -15594,14 +15795,13 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
         .map((e) => e.trim())
         .where((e) => e.isNotEmpty)
         .toList();
-
     if (urls.isEmpty) return const SizedBox.shrink();
 
     return _infoCard(
       icon: Icons.restaurant_menu_rounded,
       color: _orange,
-      text:
-          'Меню заведения доступно в карточке. Посмотрите фото меню и напишите заказ здесь.',
+      title: 'Меню рядом',
+      text: 'Посмотрите меню в карточке заведения и напишите заказ здесь.',
     );
   }
 
@@ -15609,15 +15809,13 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
     return _infoCard(
       icon: Icons.stars_rounded,
       color: _green,
+      title: 'Бонусы после выдачи',
       text:
-          'Бонусы начислятся автоматически после выдачи заказа сотрудником. Сумма и начисление появятся в истории лояльности.',
+          'Когда сотрудник выдаст заказ, начисление автоматически появится в истории лояльности.',
     );
   }
 
-  Widget _infoChip({
-    required IconData icon,
-    required String text,
-  }) {
+  Widget _infoChip({required IconData icon, required String text}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
@@ -15633,10 +15831,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
           Text(
             text,
             style: const TextStyle(
-              color: _soft,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-            ),
+                color: _soft, fontSize: 12, fontWeight: FontWeight.w800),
           ),
         ],
       ),
@@ -15644,15 +15839,9 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
   }
 
   Widget _errorCard(String message) {
-    return Container(
-      width: double.infinity,
+    return _glass(
+      radius: 24,
       padding: const EdgeInsets.all(14),
-      margin: const EdgeInsets.only(bottom: 14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFF1F2),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFFFECACA)),
-      ),
       child: Row(
         children: [
           const Icon(Icons.error_outline_rounded, color: Color(0xFFDC2626)),
@@ -15667,20 +15856,52 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
               ),
             ),
           ),
-          TextButton(
-            onPressed: _load,
-            child: const Text('Повторить'),
-          ),
+          TextButton(onPressed: _load, child: const Text('Повторить')),
         ],
       ),
     );
   }
 
-  Widget _paymentButton({
-    required String label,
-    required String value,
-    required IconData icon,
-  }) {
+  Widget _stepBadge(int number, String title) {
+    return Row(
+      children: [
+        Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [_mintLight, _mint, _deep],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Center(
+            child: Text(
+              number.toString(),
+              style: const TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.w900),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            title,
+            style: const TextStyle(
+              color: _ink,
+              fontSize: 17,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -0.25,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _paymentTile(
+      {required String label, required String value, required IconData icon}) {
     final selected = _paymentMethod == value;
 
     return Expanded(
@@ -15690,59 +15911,58 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
             _paymentMethod = value;
           });
         },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOutCubic,
-          height: 56,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(21),
-            gradient: selected
-                ? const LinearGradient(
-                    colors: [_mintLight, _mint, _deep],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  )
-                : null,
-            color: selected ? null : const Color(0xFFF7FAFC),
-            border: Border.all(
-              color: selected ? Colors.transparent : _stroke,
+        child: AnimatedScale(
+          duration: const Duration(milliseconds: 170),
+          scale: selected ? 1.02 : 1,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 230),
+            curve: Curves.easeOutCubic,
+            height: 86,
+            padding: const EdgeInsets.all(13),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              gradient: selected
+                  ? const LinearGradient(
+                      colors: [_mintLight, _mint, _deep],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    )
+                  : null,
+              color: selected ? null : const Color(0xFFF7FAFC),
+              border:
+                  Border.all(color: selected ? Colors.transparent : _stroke),
+              boxShadow: selected
+                  ? [
+                      BoxShadow(
+                        color: _mint.withOpacity(0.22),
+                        blurRadius: 22,
+                        offset: const Offset(0, 12),
+                      ),
+                    ]
+                  : null,
             ),
-            boxShadow: selected
-                ? [
-                    BoxShadow(
-                      color: _mint.withOpacity(0.22),
-                      blurRadius: 20,
-                      offset: const Offset(0, 10),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 20, color: selected ? Colors.white : _soft),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(icon, color: selected ? Colors.white : _soft, size: 24),
+                const Spacer(),
+                Text(
                   label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: selected ? Colors.white : _ink,
-                    fontSize: 13.5,
+                    fontSize: 14,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _timeButton(String label, String type, int minutes) {
+  Widget _timeTile(String label, String type, int minutes, IconData icon) {
     final selected = _pickupType == type && _pickupMinutes == minutes;
 
     return GestureDetector(
@@ -15752,77 +15972,73 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
           _pickupMinutes = minutes;
         });
       },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(19),
-          gradient: selected
-              ? const LinearGradient(
-                  colors: [_mintLight, _mint, _deep],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                )
-              : null,
-          color: selected ? null : Colors.white,
-          border: Border.all(
-            color: selected ? Colors.transparent : _stroke,
+      child: AnimatedScale(
+        duration: const Duration(milliseconds: 170),
+        scale: selected ? 1.025 : 1,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 230),
+          curve: Curves.easeOutCubic,
+          width: 142,
+          padding: const EdgeInsets.all(13),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            gradient: selected
+                ? const LinearGradient(
+                    colors: [_mintLight, _mint, _deep],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  )
+                : null,
+            color: selected ? null : Colors.white.withOpacity(0.92),
+            border: Border.all(color: selected ? Colors.transparent : _stroke),
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                      color: _mint.withOpacity(0.22),
+                      blurRadius: 22,
+                      offset: const Offset(0, 12),
+                    ),
+                  ]
+                : [
+                    BoxShadow(
+                      color: _deep.withOpacity(0.035),
+                      blurRadius: 12,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
           ),
-          boxShadow: selected
-              ? [
-                  BoxShadow(
-                    color: _mint.withOpacity(0.20),
-                    blurRadius: 18,
-                    offset: const Offset(0, 9),
-                  ),
-                ]
-              : null,
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: selected ? Colors.white : _ink,
-            fontWeight: FontWeight.w900,
-            fontSize: 13,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, color: selected ? Colors.white : _mint, size: 23),
+              const SizedBox(height: 12),
+              Text(
+                label,
+                style: TextStyle(
+                  color: selected ? Colors.white : _ink,
+                  fontSize: 13.2,
+                  fontWeight: FontWeight.w900,
+                  height: 1.15,
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _formCard() {
-    final buttonLabel = _sending ? 'Отправляем...' : _submitLabel;
-
-    return _fadeIn(
+  Widget _studioCard() {
+    return _reveal(
       delay: 120,
-      child: Container(
+      child: _glass(
+        radius: 34,
         padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(31),
-          border: Border.all(color: _stroke),
-          boxShadow: [
-            BoxShadow(
-              color: _deep.withOpacity(0.055),
-              blurRadius: 26,
-              offset: const Offset(0, 14),
-            ),
-          ],
-        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              _inputLabel,
-              style: const TextStyle(
-                color: _ink,
-                fontSize: 20,
-                fontWeight: FontWeight.w900,
-                letterSpacing: -0.35,
-              ),
-            ),
-            const SizedBox(height: 12),
+            _stepBadge(1, _inputLabel),
+            const SizedBox(height: 14),
             TextField(
               controller: _orderController,
               minLines: 4,
@@ -15833,106 +16049,70 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                 filled: true,
                 fillColor: const Color(0xFFF7FAFC),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(26),
                   borderSide: const BorderSide(color: _stroke),
                 ),
                 enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(26),
                   borderSide: const BorderSide(color: _stroke),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
-                  borderSide: const BorderSide(color: _mint, width: 1.5),
+                  borderRadius: BorderRadius.circular(26),
+                  borderSide: const BorderSide(color: _mint, width: 1.6),
                 ),
               ),
             ),
-            const SizedBox(height: 16),
-            const Text(
-              'Как будете оплачивать?',
-              style: TextStyle(
-                color: _ink,
-                fontSize: 15,
-                fontWeight: FontWeight.w900,
+            const SizedBox(height: 20),
+            _stepBadge(2, _timeTitle),
+            const SizedBox(height: 14),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              child: Row(
+                children: [
+                  if (_allowAsap) ...[
+                    _timeTile(
+                        'Как можно скорее', 'asap', 0, Icons.flash_on_rounded),
+                    const SizedBox(width: 10),
+                  ],
+                  if (_timeMode != 'scheduled') ...[
+                    _timeTile('Через 10 минут', 'in_minutes', 10,
+                        Icons.timer_10_rounded),
+                    const SizedBox(width: 10),
+                    _timeTile('Через 15 минут', 'in_minutes', 15,
+                        Icons.schedule_rounded),
+                    const SizedBox(width: 10),
+                    _timeTile('Через 20 минут', 'in_minutes', 20,
+                        Icons.timer_rounded),
+                    const SizedBox(width: 10),
+                  ],
+                  if (_allowScheduledTime || _timeMode == 'scheduled')
+                    _timeTile(
+                      _featureType == 'appointment'
+                          ? 'Согласовать время'
+                          : 'К выбранному времени',
+                      'at_time',
+                      0,
+                      Icons.calendar_month_rounded,
+                    ),
+                ],
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 20),
+            _stepBadge(3, 'Оплата'),
+            const SizedBox(height: 14),
             Row(
               children: [
-                _paymentButton(
-                  label: 'Картой',
-                  value: 'card',
-                  icon: Icons.credit_card_rounded,
-                ),
+                _paymentTile(
+                    label: 'Картой',
+                    value: 'card',
+                    icon: Icons.credit_card_rounded),
                 const SizedBox(width: 10),
-                _paymentButton(
-                  label: 'Наличными',
-                  value: 'cash',
-                  icon: Icons.payments_rounded,
-                ),
+                _paymentTile(
+                    label: 'Наличными',
+                    value: 'cash',
+                    icon: Icons.payments_rounded),
               ],
-            ),
-            const SizedBox(height: 17),
-            Text(
-              _timeTitle,
-              style: const TextStyle(
-                color: _ink,
-                fontSize: 15,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                if (_allowAsap) _timeButton('Как можно скорее', 'asap', 0),
-                if (_timeMode != 'scheduled') ...[
-                  _timeButton('Через 10 минут', 'in_minutes', 10),
-                  _timeButton('Через 15 минут', 'in_minutes', 15),
-                  _timeButton('Через 20 минут', 'in_minutes', 20),
-                ],
-                if (_allowScheduledTime || _timeMode == 'scheduled')
-                  _timeButton(
-                    _featureType == 'appointment'
-                        ? 'Согласовать дату и время'
-                        : 'К выбранному времени',
-                    'at_time',
-                    0,
-                  ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            SizedBox(
-              width: double.infinity,
-              height: 58,
-              child: ElevatedButton.icon(
-                onPressed: _sending ? null : _send,
-                icon: _sending
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(Icons.send_rounded),
-                label: Text(buttonLabel),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _deep,
-                  foregroundColor: Colors.white,
-                  disabledBackgroundColor: _deep.withOpacity(0.45),
-                  disabledForegroundColor: Colors.white.withOpacity(0.78),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(22),
-                  ),
-                  elevation: 0,
-                  textStyle: const TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 15.5,
-                  ),
-                ),
-              ),
             ),
           ],
         ),
@@ -15940,64 +16120,121 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
     );
   }
 
+  Widget _bottomCta() {
+    if (_loading || !_allowed) return const SizedBox.shrink();
+
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(18, 10, 18, 14),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.86),
+          border: Border(top: BorderSide(color: _stroke.withOpacity(0.8))),
+          boxShadow: [
+            BoxShadow(
+              color: _deep.withOpacity(0.08),
+              blurRadius: 28,
+              offset: const Offset(0, -10),
+            ),
+          ],
+        ),
+        child: SizedBox(
+          width: double.infinity,
+          height: 58,
+          child: ElevatedButton.icon(
+            onPressed: _sending ? null : _send,
+            icon: _sending
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white),
+                  )
+                : const Icon(Icons.send_rounded),
+            label: Text(_sending ? 'Отправляем...' : _submitLabel),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _deep,
+              foregroundColor: Colors.white,
+              disabledBackgroundColor: _deep.withOpacity(0.45),
+              disabledForegroundColor: Colors.white.withOpacity(0.78),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(23)),
+              elevation: 0,
+              textStyle:
+                  const TextStyle(fontWeight: FontWeight.w900, fontSize: 15.5),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final allowed = boolValue(_settings['allowed']);
     final message =
         nonEmpty(_settings['message']) ?? '$_actionLabel сейчас недоступно';
 
     return Scaffold(
+      extendBody: true,
       backgroundColor: _bg,
       appBar: AppBar(
         title: Text(_screenTitle),
-        backgroundColor: _bg,
+        backgroundColor: Colors.transparent,
         foregroundColor: _ink,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
       ),
-      body: RefreshIndicator(
-        onRefresh: _load,
-        color: _mint,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(18, 14, 18, 30),
-          children: [
-            _fadeIn(child: _heroCard()),
-            const SizedBox(height: 16),
-            if (_loading)
-              const Padding(
-                padding: EdgeInsets.only(top: 40),
-                child: Center(child: CircularProgressIndicator()),
-              )
-            else ...[
-              if (_error != null) _errorCard(_error!),
-              if (_active.isNotEmpty) ...[
-                const SizedBox(height: 2),
-                Text(
-                  _activeTitle,
-                  style: const TextStyle(
-                    color: _ink,
-                    fontSize: 21,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -0.45,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                ..._active.map(_activeOrderCard),
-                const SizedBox(height: 8),
+      bottomNavigationBar: _bottomCta(),
+      body: Stack(
+        children: [
+          _background(),
+          RefreshIndicator(
+            onRefresh: _load,
+            color: _mint,
+            child: ListView(
+              padding: EdgeInsets.fromLTRB(18, 14, 18, _allowed ? 112 : 30),
+              physics: const BouncingScrollPhysics(
+                parent: AlwaysScrollableScrollPhysics(),
+              ),
+              children: [
+                _hero(),
+                const SizedBox(height: 16),
+                if (_loading)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 44),
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                else ...[
+                  if (_error != null) ...[
+                    _errorCard(_error!),
+                    const SizedBox(height: 14),
+                  ],
+                  if (_active.isNotEmpty) ...[
+                    _titleBlock(_activeTitle, 'Следите за статусом заказа',
+                        Icons.route_rounded),
+                    ..._active.map(_activeOrderCard),
+                  ],
+                  _menuPreview(),
+                  _bonusAfterPickupInfoCard(),
+                  if (!_allowed)
+                    _glass(
+                      radius: 28,
+                      child: EmptyState(
+                        icon: Icons.lock_rounded,
+                        title: 'Заказы недоступны',
+                        subtitle: message,
+                      ),
+                    )
+                  else ...[
+                    _titleBlock('Собрать заказ', 'Три быстрых шага до отправки',
+                        Icons.auto_awesome_rounded),
+                    _studioCard(),
+                  ],
+                ],
               ],
-              _menuPreview(),
-              _bonusAfterPickupInfoCard(),
-              if (!allowed)
-                EmptyState(
-                  icon: Icons.lock_rounded,
-                  title: 'Заказы недоступны',
-                  subtitle: message,
-                )
-              else
-                _formCard(),
-            ],
-          ],
-        ),
+            ),
+          ),
+        ],
       ),
     );
   }
