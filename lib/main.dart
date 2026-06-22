@@ -2542,7 +2542,7 @@ class ClientShell extends StatefulWidget {
   State<ClientShell> createState() => _ClientShellState();
 }
 
-class _ClientShellState extends State<ClientShell> {
+class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
   final api = FlowApi();
   bool loading = true;
   bool historyLoading = false;
@@ -2750,12 +2750,25 @@ class _ClientShellState extends State<ClientShell> {
 
       final token = FlowInviteDeepLinks.parseInviteToken(uri);
       if (token != null && token.isNotEmpty) {
+        unawaited(FlowInviteDeepLinks.savePendingInviteToken(token));
         handleInviteToken(token);
       }
     });
   }
 
+  Future<void> retryPendingInviteToken({String source = 'manual'}) async {
+    if (joiningInvite) return;
+
+    final token = await FlowInviteDeepLinks.loadPendingInviteToken();
+    if (token == null || token.trim().isEmpty) return;
+
+    debugPrint('FLOWRU_INVITE_RETRY source=$source token=${token.trim()}');
+    await handleInviteToken(token.trim());
+  }
+
   Future<void> consumePendingInviteToken() async {
+    if (joiningInvite) return;
+
     final token = await FlowInviteDeepLinks.loadPendingInviteToken();
     if (token == null || token.trim().isEmpty) return;
 
@@ -2925,14 +2938,16 @@ class _ClientShellState extends State<ClientShell> {
   void initState() {
     unawaited(FlowClientPush.registerSavedToken());
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     initInviteDeepLinks();
 
     loadAll().then((_) {
       refreshClientQr(silent: true);
+      retryPendingInviteToken(source: 'after_load_all');
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      consumePendingInviteToken();
+      retryPendingInviteToken(source: 'post_frame');
       consumePendingReferralLink();
     });
 
@@ -2943,7 +2958,18 @@ class _ClientShellState extends State<ClientShell> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    if (state == AppLifecycleState.resumed) {
+      retryPendingInviteToken(source: 'app_resumed');
+      consumePendingReferralLink();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     inviteDeepLinkSub?.cancel();
     flowruQrTimer?.cancel();
     super.dispose();
