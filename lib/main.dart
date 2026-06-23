@@ -635,6 +635,50 @@ class FlowApi {
           token: token,
           query: {'establishment_id': '$establishmentId'});
 
+  Future<Map<String, dynamic>> appointmentServices(
+          String token, int establishmentId) =>
+      _request(
+          path: '/client/appointment-services',
+          token: token,
+          query: {'establishment_id': '$establishmentId'});
+
+  Future<Map<String, dynamic>> appointmentSlots(
+    String token, {
+    required int establishmentId,
+    required int serviceId,
+    required String date,
+  }) {
+    return _request(
+      path: '/client/appointment-slots',
+      token: token,
+      query: {
+        'establishment_id': '$establishmentId',
+        'service_id': '$serviceId',
+        'date': date,
+      },
+    );
+  }
+
+  Future<Map<String, dynamic>> createAppointment(
+    String token, {
+    required int establishmentId,
+    required int serviceId,
+    required String appointmentAt,
+    String? comment,
+  }) {
+    return _request(
+      path: '/client/appointments',
+      method: 'POST',
+      token: token,
+      body: {
+        'establishment_id': establishmentId,
+        'service_id': serviceId,
+        'appointment_at': appointmentAt,
+        'comment': comment ?? '',
+      },
+    );
+  }
+
   Future<Map<String, dynamic>> createPreorder(
     String token, {
     required int establishmentId,
@@ -15062,6 +15106,14 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
   Map<String, dynamic> _settings = {};
   List<Map<String, dynamic>> _active = [];
 
+  List<Map<String, dynamic>> _appointmentServices = [];
+  List<Map<String, dynamic>> _appointmentSlots = [];
+  Map<String, dynamic>? _selectedAppointmentService;
+  Map<String, dynamic>? _selectedAppointmentSlot;
+  DateTime _appointmentDate = DateTime.now();
+  bool _loadingAppointmentServices = false;
+  bool _loadingAppointmentSlots = false;
+
   String _pickupType = 'in_minutes';
   int _pickupMinutes = 15;
   String _paymentMethod = 'card';
@@ -15108,6 +15160,58 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
   bool get _allowScheduledTime => boolValue(_settings['allow_scheduled_time']);
 
   bool get _allowed => boolValue(_settings['allowed']);
+
+  bool get _isAppointment => _featureType == 'appointment';
+
+  String get _appointmentSubmitLabel =>
+      nonEmpty(_settings['action_label']) ?? 'Записаться';
+
+  String _dateApi(DateTime date) {
+    final y = date.year.toString().padLeft(4, '0');
+    final m = date.month.toString().padLeft(2, '0');
+    final d = date.day.toString().padLeft(2, '0');
+    return '$y-$m-$d';
+  }
+
+  String _dateLabel(DateTime date) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final current = DateTime(date.year, date.month, date.day);
+    final diff = current.difference(today).inDays;
+
+    if (diff == 0) return 'Сегодня';
+    if (diff == 1) return 'Завтра';
+
+    final d = date.day.toString().padLeft(2, '0');
+    final m = date.month.toString().padLeft(2, '0');
+    return '$d.$m';
+  }
+
+  String _slotLabel(Map<String, dynamic> slot) {
+    final label = (slot['label'] ?? '').toString().trim();
+    if (label.isNotEmpty) return label;
+
+    final raw = (slot['time'] ?? '').toString();
+    try {
+      final dt = DateTime.parse(raw).toLocal();
+      final hh = dt.hour.toString().padLeft(2, '0');
+      final mm = dt.minute.toString().padLeft(2, '0');
+      return '$hh:$mm';
+    } catch (_) {
+      return raw;
+    }
+  }
+
+  int? _appointmentServiceId(Map<String, dynamic>? service) {
+    if (service == null) return null;
+    return intOrNull(service['id']);
+  }
+
+  String get _appointmentSlotTime {
+    final slot = _selectedAppointmentSlot;
+    if (slot == null) return '';
+    return (slot['time'] ?? '').toString().trim();
+  }
 
   String get _submitLabel => nonEmpty(_settings['submit_label']) ?? 'Отправить';
 
@@ -15177,6 +15281,10 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
 
         _loading = false;
       });
+
+      if ((settings['feature_type'] ?? 'order').toString() == 'appointment') {
+        await _loadAppointmentServices(silent: true);
+      }
     } on ApiError catch (e) {
       if (!mounted) return;
       setState(() {
@@ -15192,7 +15300,192 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
     }
   }
 
+  Future<void> _loadAppointmentServices({bool silent = false}) async {
+    if (!silent && mounted) {
+      setState(() {
+        _loadingAppointmentServices = true;
+        _error = null;
+      });
+    } else if (mounted) {
+      setState(() {
+        _loadingAppointmentServices = true;
+      });
+    }
+
+    try {
+      final res = await widget.api.appointmentServices(
+        widget.token,
+        widget.establishmentId,
+      );
+
+      final services = mapList(res['items']);
+      Map<String, dynamic>? selected = _selectedAppointmentService;
+
+      if (selected == null && services.isNotEmpty) {
+        selected = services.first;
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        _appointmentServices = services;
+        _selectedAppointmentService = selected;
+        _loadingAppointmentServices = false;
+      });
+
+      if (selected != null) {
+        await _loadAppointmentSlots(silent: true);
+      }
+    } on ApiError catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.message;
+        _loadingAppointmentServices = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Не удалось загрузить услуги для записи';
+        _loadingAppointmentServices = false;
+      });
+    }
+  }
+
+  Future<void> _loadAppointmentSlots({bool silent = false}) async {
+    final serviceId = _appointmentServiceId(_selectedAppointmentService);
+    if (serviceId == null) {
+      if (!mounted) return;
+      setState(() {
+        _appointmentSlots = [];
+        _selectedAppointmentSlot = null;
+      });
+      return;
+    }
+
+    if (!silent && mounted) {
+      setState(() {
+        _loadingAppointmentSlots = true;
+        _error = null;
+      });
+    } else if (mounted) {
+      setState(() {
+        _loadingAppointmentSlots = true;
+      });
+    }
+
+    try {
+      final res = await widget.api.appointmentSlots(
+        widget.token,
+        establishmentId: widget.establishmentId,
+        serviceId: serviceId,
+        date: _dateApi(_appointmentDate),
+      );
+
+      final slots = mapList(res['items'])
+          .where((slot) => boolValue(slot['available']))
+          .toList();
+
+      Map<String, dynamic>? selected = _selectedAppointmentSlot;
+      final selectedTime = _appointmentSlotTime;
+
+      if (selectedTime.isEmpty ||
+          !slots
+              .any((slot) => (slot['time'] ?? '').toString() == selectedTime)) {
+        selected = slots.isNotEmpty ? slots.first : null;
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        _appointmentSlots = slots;
+        _selectedAppointmentSlot = selected;
+        _loadingAppointmentSlots = false;
+      });
+    } on ApiError catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.message;
+        _appointmentSlots = [];
+        _selectedAppointmentSlot = null;
+        _loadingAppointmentSlots = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Не удалось загрузить свободное время';
+        _appointmentSlots = [];
+        _selectedAppointmentSlot = null;
+        _loadingAppointmentSlots = false;
+      });
+    }
+  }
+
+  Future<void> _sendAppointment() async {
+    final serviceId = _appointmentServiceId(_selectedAppointmentService);
+    final appointmentAt = _appointmentSlotTime;
+
+    if (serviceId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Выберите услугу')),
+      );
+      return;
+    }
+
+    if (appointmentAt.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Выберите свободное время')),
+      );
+      return;
+    }
+
+    setState(() {
+      _sending = true;
+      _error = null;
+    });
+
+    try {
+      await widget.api.createAppointment(
+        widget.token,
+        establishmentId: widget.establishmentId,
+        serviceId: serviceId,
+        appointmentAt: appointmentAt,
+        comment: _orderController.text.trim(),
+      );
+
+      _orderController.clear();
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Запись отправлена')),
+      );
+
+      await _load();
+    } on ApiError catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Не удалось отправить запись';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _sending = false;
+        });
+      }
+    }
+  }
+
   Future<void> _send() async {
+    if (_isAppointment) {
+      await _sendAppointment();
+      return;
+    }
+
     final text = _orderController.text.trim();
 
     if (text.length < 2) {
@@ -15538,7 +15831,8 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                           ),
                         ),
                         const Spacer(),
-                        _miniMetric('Формат', 'Предзаказ'),
+                        _miniMetric(
+                            'Формат', _isAppointment ? 'Запись' : 'Предзаказ'),
                         const SizedBox(height: 8),
                         _miniMetric('Статус', _allowed ? 'Доступен' : 'Закрыт'),
                       ],
@@ -15740,7 +16034,492 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
     );
   }
 
+  Widget _appointmentFormCard() {
+    return _reveal(
+      _surface(
+        color: Colors.white.withOpacity(0.90),
+        radius: 34,
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _appointmentTitle(),
+            const SizedBox(height: 16),
+            _appointmentInfoNotice(),
+            const SizedBox(height: 18),
+            _selectorTitle('Услуга', Icons.content_cut_rounded),
+            const SizedBox(height: 10),
+            _appointmentServicePicker(),
+            const SizedBox(height: 18),
+            _selectorTitle('Дата', Icons.calendar_month_rounded),
+            const SizedBox(height: 10),
+            _appointmentDatePicker(),
+            const SizedBox(height: 18),
+            _selectorTitle('Время', Icons.schedule_rounded),
+            const SizedBox(height: 10),
+            _appointmentSlotPicker(),
+            const SizedBox(height: 18),
+            _selectorTitle('Комментарий', Icons.edit_note_rounded),
+            const SizedBox(height: 10),
+            _appointmentCommentField(),
+          ],
+        ),
+      ),
+      delay: 90,
+    );
+  }
+
+  Widget _appointmentTitle() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        _appointmentMark(),
+        const SizedBox(width: 14),
+        const Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Запись',
+                style: TextStyle(
+                  color: FlowColors.ink,
+                  fontSize: 26,
+                  height: 1,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -0.7,
+                ),
+              ),
+              SizedBox(height: 6),
+              Text(
+                'Выберите услугу, дату и свободное время',
+                style: TextStyle(
+                  color: FlowColors.muted,
+                  fontSize: 13.2,
+                  height: 1.15,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _appointmentMark() {
+    return AnimatedBuilder(
+      animation: _motion,
+      builder: (context, _) {
+        final t = _motion.value;
+        return Transform.translate(
+          offset: Offset(0, -3 + (t * 6)),
+          child: Container(
+            width: 74,
+            height: 74,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFF103B5A),
+                  Color(0xFF0C5A78),
+                  Color(0xFF19C7C3),
+                ],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF19C7C3).withOpacity(0.20),
+                  blurRadius: 24 + (t * 10),
+                  offset: const Offset(0, 12),
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons.calendar_month_rounded,
+              size: 35,
+              color: Colors.white,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _appointmentInfoNotice() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
+      decoration: BoxDecoration(
+        color: FlowColors.aqua.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: FlowColors.aqua.withOpacity(0.20)),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.verified_rounded, color: FlowColors.aqua, size: 22),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'После отправки запись появится у сотрудников. Если это время уже занято, Flowru попросит выбрать другое.',
+              style: TextStyle(
+                color: FlowColors.ink,
+                fontSize: 12.8,
+                height: 1.25,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _appointmentServicePicker() {
+    if (_loadingAppointmentServices) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(18),
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    if (_appointmentServices.isEmpty) {
+      return _emptyAppointmentBox(
+        icon: Icons.content_cut_rounded,
+        title: 'Услуги пока не добавлены',
+        text: 'Заведение ещё не настроило услуги для записи.',
+      );
+    }
+
+    return Column(
+      children: [
+        for (final service in _appointmentServices)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: _appointmentServiceTile(service),
+          ),
+      ],
+    );
+  }
+
+  Widget _appointmentServiceTile(Map<String, dynamic> service) {
+    final id = intOrNull(service['id']);
+    final selectedId = _appointmentServiceId(_selectedAppointmentService);
+    final selected = id != null && id == selectedId;
+    final title = (service['title'] ?? 'Услуга').toString();
+    final duration = intOrNull(service['duration_minutes']) ?? 60;
+    final price = toDouble(service['price']);
+
+    return GestureDetector(
+      onTap: () async {
+        setState(() {
+          _selectedAppointmentService = service;
+          _selectedAppointmentSlot = null;
+          _appointmentSlots = [];
+        });
+        await _loadAppointmentSlots();
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: selected
+              ? FlowColors.ink2.withOpacity(0.92)
+              : FlowColors.paper2.withOpacity(0.96),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(
+            color:
+                selected ? FlowColors.ink2 : FlowColors.ink.withOpacity(0.06),
+          ),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: FlowColors.ink2.withOpacity(0.18),
+                    blurRadius: 22,
+                    offset: const Offset(0, 12),
+                  )
+                ]
+              : [],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: selected
+                    ? Colors.white.withOpacity(0.14)
+                    : FlowColors.aqua.withOpacity(0.11),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(
+                Icons.content_cut_rounded,
+                color: selected ? Colors.white : FlowColors.aqua,
+                size: 21,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: selected ? Colors.white : FlowColors.ink,
+                      fontSize: 15.5,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '$duration мин${price > 0 ? '  ${price.toStringAsFixed(0)} ₽' : ''}',
+                    style: TextStyle(
+                      color: selected
+                          ? Colors.white.withOpacity(0.78)
+                          : FlowColors.muted,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (selected)
+              const Icon(
+                Icons.check_circle_rounded,
+                color: Colors.white,
+                size: 22,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _appointmentDatePicker() {
+    final dates = List<DateTime>.generate(7, (index) {
+      final now = DateTime.now();
+      return DateTime(now.year, now.month, now.day + index);
+    });
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      clipBehavior: Clip.none,
+      physics: const BouncingScrollPhysics(),
+      child: Row(
+        children: [
+          for (int i = 0; i < dates.length; i++) ...[
+            _appointmentDateChip(dates[i]),
+            if (i != dates.length - 1) const SizedBox(width: 9),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _appointmentDateChip(DateTime date) {
+    final selected = _dateApi(date) == _dateApi(_appointmentDate);
+
+    return GestureDetector(
+      onTap: () async {
+        setState(() {
+          _appointmentDate = date;
+          _selectedAppointmentSlot = null;
+          _appointmentSlots = [];
+        });
+        await _loadAppointmentSlots();
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+        decoration: BoxDecoration(
+          gradient: selected
+              ? const LinearGradient(colors: [FlowColors.ink2, FlowColors.aqua])
+              : null,
+          color: selected ? null : FlowColors.paper2.withOpacity(0.96),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color:
+                selected ? FlowColors.aqua : FlowColors.ink.withOpacity(0.06),
+          ),
+        ),
+        child: Text(
+          _dateLabel(date),
+          style: TextStyle(
+            color: selected ? Colors.white : FlowColors.ink,
+            fontSize: 13.5,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _appointmentSlotPicker() {
+    if (_selectedAppointmentService == null) {
+      return _emptyAppointmentBox(
+        icon: Icons.content_cut_rounded,
+        title: 'Сначала выберите услугу',
+        text: 'После выбора услуги появятся доступные интервалы времени.',
+      );
+    }
+
+    if (_loadingAppointmentSlots) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(18),
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    if (_appointmentSlots.isEmpty) {
+      return _emptyAppointmentBox(
+        icon: Icons.event_busy_rounded,
+        title: 'Свободного времени нет',
+        text: 'Выберите другую дату или уточните время у заведения.',
+      );
+    }
+
+    return Wrap(
+      spacing: 9,
+      runSpacing: 9,
+      children: [
+        for (final slot in _appointmentSlots) _appointmentSlotChip(slot),
+      ],
+    );
+  }
+
+  Widget _appointmentSlotChip(Map<String, dynamic> slot) {
+    final time = (slot['time'] ?? '').toString();
+    final selected = _appointmentSlotTime == time;
+
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _selectedAppointmentSlot = slot;
+        });
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          gradient: selected
+              ? const LinearGradient(colors: [FlowColors.ink2, FlowColors.aqua])
+              : null,
+          color: selected ? null : FlowColors.paper2.withOpacity(0.96),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color:
+                selected ? FlowColors.aqua : FlowColors.ink.withOpacity(0.06),
+          ),
+        ),
+        child: Text(
+          _slotLabel(slot),
+          style: TextStyle(
+            color: selected ? Colors.white : FlowColors.ink,
+            fontSize: 13.5,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _appointmentCommentField() {
+    return Container(
+      decoration: BoxDecoration(
+        color: FlowColors.paper2.withOpacity(0.96),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withOpacity(0.86)),
+      ),
+      child: TextField(
+        controller: _orderController,
+        minLines: 3,
+        maxLines: 5,
+        style: const TextStyle(
+          color: FlowColors.ink,
+          fontSize: 15,
+          height: 1.35,
+          fontWeight: FontWeight.w800,
+        ),
+        decoration: InputDecoration(
+          hintText: _inputHint,
+          hintStyle: TextStyle(
+            color: FlowColors.muted.withOpacity(0.72),
+            fontSize: 14,
+            height: 1.35,
+            fontWeight: FontWeight.w800,
+          ),
+          contentPadding: const EdgeInsets.all(16),
+          border: InputBorder.none,
+        ),
+      ),
+    );
+  }
+
+  Widget _emptyAppointmentBox({
+    required IconData icon,
+    required String title,
+    required String text,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: FlowColors.paper2.withOpacity(0.96),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: FlowColors.ink.withOpacity(0.06)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: FlowColors.muted, size: 22),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: FlowColors.ink,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  text,
+                  style: const TextStyle(
+                    color: FlowColors.muted,
+                    fontSize: 12.5,
+                    height: 1.3,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _formCard() {
+    if (_isAppointment) {
+      return _appointmentFormCard();
+    }
+
     return _reveal(
       _surface(
         color: Colors.white.withOpacity(0.88),
@@ -16349,7 +17128,9 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                           color: Colors.white,
                         ),
                       )
-                    : Text(_submitLabel),
+                    : Text(_isAppointment
+                        ? _appointmentSubmitLabel
+                        : _submitLabel),
               ),
             ),
           ),
@@ -16417,7 +17198,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                   ),
                 )
               : Text(
-                  _submitLabel,
+                  _isAppointment ? _appointmentSubmitLabel : _submitLabel,
                   key: const ValueKey('label'),
                 ),
         ),
