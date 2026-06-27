@@ -642,20 +642,47 @@ class FlowApi {
           token: token,
           query: {'establishment_id': '$establishmentId'});
 
+  Future<Map<String, dynamic>> appointmentStaff(
+    String token,
+    int establishmentId, {
+    int? serviceId,
+  }) {
+    final query = <String, String>{
+      'establishment_id': '$establishmentId',
+    };
+
+    if (serviceId != null) {
+      query['service_id'] = '$serviceId';
+    }
+
+    return _request(
+      path: '/client/appointment-staff',
+      token: token,
+      query: query,
+    );
+  }
+
   Future<Map<String, dynamic>> appointmentSlots(
     String token, {
     required int establishmentId,
     required int serviceId,
     required String date,
+    int? staffId,
   }) {
+    final query = <String, String>{
+      'establishment_id': '$establishmentId',
+      'service_id': '$serviceId',
+      'date': date,
+    };
+
+    if (staffId != null) {
+      query['staff_id'] = '$staffId';
+    }
+
     return _request(
       path: '/client/appointment-slots',
       token: token,
-      query: {
-        'establishment_id': '$establishmentId',
-        'service_id': '$serviceId',
-        'date': date,
-      },
+      query: query,
     );
   }
 
@@ -664,18 +691,25 @@ class FlowApi {
     required int establishmentId,
     required int serviceId,
     required String appointmentAt,
+    int? staffId,
     String? comment,
   }) {
+    final body = <String, dynamic>{
+      'establishment_id': establishmentId,
+      'service_id': serviceId,
+      'appointment_at': appointmentAt,
+      'comment': comment ?? '',
+    };
+
+    if (staffId != null) {
+      body['staff_id'] = staffId;
+    }
+
     return _request(
       path: '/client/appointments',
       method: 'POST',
       token: token,
-      body: {
-        'establishment_id': establishmentId,
-        'service_id': serviceId,
-        'appointment_at': appointmentAt,
-        'comment': comment ?? '',
-      },
+      body: body,
     );
   }
 
@@ -15107,11 +15141,14 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
   List<Map<String, dynamic>> _active = [];
 
   List<Map<String, dynamic>> _appointmentServices = [];
+  List<Map<String, dynamic>> _appointmentStaff = [];
   List<Map<String, dynamic>> _appointmentSlots = [];
   Map<String, dynamic>? _selectedAppointmentService;
+  Map<String, dynamic>? _selectedAppointmentStaff;
   Map<String, dynamic>? _selectedAppointmentSlot;
   DateTime _appointmentDate = DateTime.now();
   bool _loadingAppointmentServices = false;
+  bool _loadingAppointmentStaff = false;
   bool _loadingAppointmentSlots = false;
 
   String _pickupType = 'in_minutes';
@@ -15205,6 +15242,20 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
   int? _appointmentServiceId(Map<String, dynamic>? service) {
     if (service == null) return null;
     return intOrNull(service['id']);
+  }
+
+  int? _appointmentStaffId(Map<String, dynamic>? staff) {
+    if (staff == null) return null;
+    return intOrNull(staff['id']);
+  }
+
+  int? get _selectedAppointmentStaffId =>
+      _appointmentStaffId(_selectedAppointmentStaff);
+
+  String get _selectedAppointmentStaffName {
+    final staff = _selectedAppointmentStaff;
+    if (staff == null) return 'Любой специалист';
+    return nonEmpty(staff['name']) ?? 'Специалист';
   }
 
   String get _appointmentSlotTime {
@@ -15334,7 +15385,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
       });
 
       if (selected != null) {
-        await _loadAppointmentSlots(silent: true);
+        await _loadAppointmentStaff(silent: true);
       }
     } on ApiError catch (e) {
       if (!mounted) return;
@@ -15348,6 +15399,81 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
         _error = 'Не удалось загрузить услуги для записи';
         _loadingAppointmentServices = false;
       });
+    }
+  }
+
+  Future<void> _loadAppointmentStaff({bool silent = false}) async {
+    final serviceId = _appointmentServiceId(_selectedAppointmentService);
+
+    if (serviceId == null) {
+      if (!mounted) return;
+      setState(() {
+        _appointmentStaff = [];
+        _selectedAppointmentStaff = null;
+        _appointmentSlots = [];
+        _selectedAppointmentSlot = null;
+      });
+      return;
+    }
+
+    if (!silent && mounted) {
+      setState(() {
+        _loadingAppointmentStaff = true;
+        _error = null;
+      });
+    } else if (mounted) {
+      setState(() {
+        _loadingAppointmentStaff = true;
+      });
+    }
+
+    try {
+      final res = await widget.api.appointmentStaff(
+        widget.token,
+        widget.establishmentId,
+        serviceId: serviceId,
+      );
+
+      final staffItems = mapList(res['items']);
+
+      Map<String, dynamic>? selected = _selectedAppointmentStaff;
+      final selectedId = _appointmentStaffId(selected);
+
+      if (selectedId != null &&
+          !staffItems.any((item) => intOrNull(item['id']) == selectedId)) {
+        selected = null;
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        _appointmentStaff = staffItems;
+        _selectedAppointmentStaff = selected;
+        _loadingAppointmentStaff = false;
+        _appointmentSlots = [];
+        _selectedAppointmentSlot = null;
+      });
+
+      await _loadAppointmentSlots(silent: true);
+    } on ApiError catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.message;
+        _appointmentStaff = [];
+        _selectedAppointmentStaff = null;
+        _loadingAppointmentStaff = false;
+      });
+
+      await _loadAppointmentSlots(silent: true);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _appointmentStaff = [];
+        _selectedAppointmentStaff = null;
+        _loadingAppointmentStaff = false;
+      });
+
+      await _loadAppointmentSlots(silent: true);
     }
   }
 
@@ -15379,6 +15505,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
         establishmentId: widget.establishmentId,
         serviceId: serviceId,
         date: _dateApi(_appointmentDate),
+        staffId: _selectedAppointmentStaffId,
       );
 
       final slots = mapList(res['items'])
@@ -15449,6 +15576,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
         establishmentId: widget.establishmentId,
         serviceId: serviceId,
         appointmentAt: appointmentAt,
+        staffId: _selectedAppointmentStaffId,
         comment: _orderController.text.trim(),
       );
 
@@ -16050,6 +16178,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
             _selectorTitle('Услуга', Icons.content_cut_rounded),
             const SizedBox(height: 10),
             _appointmentServicePicker(),
+            _appointmentStaffSection(),
             const SizedBox(height: 18),
             _selectorTitle('Дата', Icons.calendar_month_rounded),
             const SizedBox(height: 10),
@@ -16217,10 +16346,12 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
       onTap: () async {
         setState(() {
           _selectedAppointmentService = service;
+          _selectedAppointmentStaff = null;
           _selectedAppointmentSlot = null;
+          _appointmentStaff = [];
           _appointmentSlots = [];
         });
-        await _loadAppointmentSlots();
+        await _loadAppointmentStaff();
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 220),
@@ -16297,6 +16428,191 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                 color: Colors.white,
                 size: 22,
               ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _appointmentStaffSection() {
+    if (_loadingAppointmentStaff) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _selectorTitle('Специалист', Icons.person_search_rounded),
+            const SizedBox(height: 10),
+            _surface(
+              color: FlowColors.aqua.withOpacity(0.08),
+              radius: 22,
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: const [
+                  SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2.4),
+                  ),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Загружаем специалистов',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: FlowColors.ink2,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_appointmentStaff.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _selectorTitle('Специалист', Icons.person_search_rounded),
+          const SizedBox(height: 10),
+          _appointmentStaffTile(null),
+          const SizedBox(height: 10),
+          for (final staff in _appointmentStaff)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _appointmentStaffTile(staff),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _appointmentStaffTile(Map<String, dynamic>? staff) {
+    final selected = staff == null
+        ? _selectedAppointmentStaff == null
+        : _appointmentStaffId(staff) == _selectedAppointmentStaffId;
+
+    final title = staff == null
+        ? 'Любой специалист'
+        : (nonEmpty(staff['name']) ?? 'Специалист');
+
+    final subtitle = staff == null
+        ? 'Подберём свободного сотрудника'
+        : 'Показать свободное время этого специалиста';
+
+    return GestureDetector(
+      onTap: () async {
+        setState(() {
+          _selectedAppointmentStaff = staff;
+          _selectedAppointmentSlot = null;
+          _appointmentSlots = [];
+        });
+
+        await _loadAppointmentSlots();
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: selected
+              ? FlowColors.aqua.withOpacity(0.16)
+              : Colors.white.withOpacity(0.92),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(
+            color: selected
+                ? FlowColors.aqua.withOpacity(0.72)
+                : FlowColors.aqua.withOpacity(0.18),
+            width: selected ? 1.7 : 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: FlowColors.ink2.withOpacity(selected ? 0.10 : 0.05),
+              blurRadius: selected ? 18 : 10,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: selected
+                    ? const LinearGradient(
+                        colors: [FlowColors.aqua, FlowColors.blue],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      )
+                    : null,
+                color: selected ? null : FlowColors.aqua.withOpacity(0.10),
+              ),
+              child: Icon(
+                staff == null ? Icons.groups_rounded : Icons.person_rounded,
+                color: selected ? Colors.white : FlowColors.ink2,
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 13),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: FlowColors.ink2,
+                      fontSize: 15.5,
+                      fontWeight: selected ? FontWeight.w900 : FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: FlowColors.ink2.withOpacity(0.58),
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      height: 1.2,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: selected
+                    ? FlowColors.aqua.withOpacity(0.18)
+                    : FlowColors.ink2.withOpacity(0.06),
+              ),
+              child: Icon(
+                selected ? Icons.check_rounded : Icons.chevron_right_rounded,
+                color: selected
+                    ? FlowColors.aqua
+                    : FlowColors.ink2.withOpacity(0.45),
+                size: 20,
+              ),
+            ),
           ],
         ),
       ),
