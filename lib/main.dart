@@ -713,6 +713,22 @@ class FlowApi {
     );
   }
 
+  Future<Map<String, dynamic>> appointments(
+    String token,
+    int establishmentId, {
+    bool includePast = true,
+    int limit = 50,
+  }) =>
+      _request(
+        path: '/client/appointments',
+        token: token,
+        query: {
+          'establishment_id': '$establishmentId',
+          'include_past': includePast ? 'true' : 'false',
+          'limit': '$limit',
+        },
+      );
+
   Future<Map<String, dynamic>> createPreorder(
     String token, {
     required int establishmentId,
@@ -15143,6 +15159,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
   List<Map<String, dynamic>> _appointmentServices = [];
   List<Map<String, dynamic>> _appointmentStaff = [];
   List<Map<String, dynamic>> _appointmentSlots = [];
+  List<Map<String, dynamic>> _appointmentItems = [];
   Map<String, dynamic>? _selectedAppointmentService;
   Map<String, dynamic>? _selectedAppointmentStaff;
   Map<String, dynamic>? _selectedAppointmentSlot;
@@ -15150,6 +15167,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
   bool _loadingAppointmentServices = false;
   bool _loadingAppointmentStaff = false;
   bool _loadingAppointmentSlots = false;
+  bool _loadingAppointments = false;
 
   String _pickupType = 'in_minutes';
   int _pickupMinutes = 15;
@@ -15334,6 +15352,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
       });
 
       if ((settings['feature_type'] ?? 'order').toString() == 'appointment') {
+        await _loadMyAppointments(silent: true);
         await _loadAppointmentServices(silent: true);
       }
     } on ApiError catch (e) {
@@ -15347,6 +15366,48 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
       setState(() {
         _error = 'Не удалось загрузить заказы';
         _loading = false;
+      });
+    }
+  }
+
+  Future<void> _loadMyAppointments({bool silent = false}) async {
+    if (!_isAppointment) return;
+
+    if (!silent && mounted) {
+      setState(() {
+        _loadingAppointments = true;
+        _error = null;
+      });
+    } else if (mounted) {
+      setState(() {
+        _loadingAppointments = true;
+      });
+    }
+
+    try {
+      final res = await widget.api.appointments(
+        widget.token,
+        widget.establishmentId,
+        includePast: true,
+        limit: 50,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _appointmentItems = mapList(res['items']);
+        _loadingAppointments = false;
+      });
+    } on ApiError catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.message;
+        _loadingAppointments = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loadingAppointments = false;
       });
     }
   }
@@ -16157,6 +16218,331 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
               fontWeight: FontWeight.w800,
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  String _appointmentStatusLabel(String status) {
+    switch (status.trim()) {
+      case 'new':
+        return 'Ожидает подтверждения';
+      case 'confirmed':
+        return 'Подтверждена';
+      case 'completed':
+        return 'Завершена';
+      case 'cancelled':
+        return 'Отменена';
+      case 'no_show':
+        return 'Неявка';
+      default:
+        return 'Статус обновлён';
+    }
+  }
+
+  Color _appointmentStatusColor(String status) {
+    switch (status.trim()) {
+      case 'confirmed':
+        return FlowColors.green;
+      case 'completed':
+        return FlowColors.aqua;
+      case 'cancelled':
+        return const Color(0xFFFF7A7A);
+      case 'no_show':
+        return const Color(0xFFFFB86B);
+      default:
+        return FlowColors.acid;
+    }
+  }
+
+  String _appointmentDateTimeLabel(dynamic raw) {
+    final value = (raw ?? '').toString().trim();
+    if (value.isEmpty) return 'Время уточняется';
+
+    try {
+      final dt = DateTime.parse(value).toLocal();
+      final d = dt.day.toString().padLeft(2, '0');
+      final m = dt.month.toString().padLeft(2, '0');
+      final hh = dt.hour.toString().padLeft(2, '0');
+      final mm = dt.minute.toString().padLeft(2, '0');
+      return '$d.$m в $hh:$mm';
+    } catch (_) {
+      return value;
+    }
+  }
+
+  String _appointmentMoneyLabel(dynamic raw) {
+    final value = (raw ?? '').toString().trim();
+    if (value.isEmpty || value == 'null') return '';
+    final parsed = double.tryParse(value.replaceAll(',', '.'));
+    if (parsed == null || parsed <= 0) return '';
+    return '${parsed.round()} ₽';
+  }
+
+  String _rub(dynamic raw) {
+    final value = (raw ?? '').toString().trim();
+    if (value.isEmpty || value == 'null') return '';
+    final parsed = double.tryParse(value.replaceAll(',', '.'));
+    if (parsed == null || parsed <= 0) return '';
+    return '${parsed.round()} ₽';
+  }
+
+  bool _isActualAppointment(Map<String, dynamic> item) {
+    final status = (item['status'] ?? '').toString().trim();
+
+    if (status == 'completed' || status == 'cancelled' || status == 'no_show') {
+      return false;
+    }
+
+    final raw = (item['appointment_at'] ?? '').toString().trim();
+    if (raw.isEmpty) return status == 'new' || status == 'confirmed';
+
+    try {
+      final dt = DateTime.parse(raw).toLocal();
+      return dt.isAfter(DateTime.now().subtract(const Duration(minutes: 30)));
+    } catch (_) {
+      return status == 'new' || status == 'confirmed';
+    }
+  }
+
+  Widget _appointmentCompactRow(Map<String, dynamic> item) {
+    final status = (item['status'] ?? '').toString();
+    final color = _appointmentStatusColor(status);
+    final service = nonEmpty(item['service_title']) ?? 'Услуга';
+    final bonus = _rub(item['bonus_accrued']);
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.62),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: FlowColors.ink.withOpacity(0.07)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.14),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(Icons.event_note_rounded, color: color, size: 18),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _appointmentDateTimeLabel(item['appointment_at']),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: FlowColors.ink,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  service,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: FlowColors.ink.withOpacity(0.58),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            bonus.isNotEmpty ? '+$bonus' : _appointmentStatusLabel(status),
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _appointmentBigCard(Map<String, dynamic> item) {
+    final status = (item['status'] ?? '').toString();
+    final color = _appointmentStatusColor(status);
+    final service = nonEmpty(item['service_title']) ?? 'Услуга';
+    final staff = nonEmpty(item['staff_name']) ?? 'Любой специалист';
+    final amount = _rub(item['amount_total']);
+    final bonus = _rub(item['bonus_accrued']);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFFE7FFF4),
+            const Color(0xFFD7FFF8),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: FlowColors.green.withOpacity(0.24)),
+        boxShadow: [
+          BoxShadow(
+            color: FlowColors.green.withOpacity(0.13),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: FlowColors.green.withOpacity(0.16),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: const Icon(
+                  Icons.event_available_rounded,
+                  color: FlowColors.green,
+                  size: 23,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  _appointmentDateTimeLabel(item['appointment_at']),
+                  style: const TextStyle(
+                    color: FlowColors.ink,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            service,
+            style: TextStyle(
+              color: FlowColors.ink.withOpacity(0.72),
+              fontSize: 14,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _chip(Icons.verified_rounded, _appointmentStatusLabel(status)),
+              _chip(Icons.person_rounded, staff),
+              if (amount.isNotEmpty) _chip(Icons.receipt_long_rounded, amount),
+              if (bonus.isNotEmpty)
+                _chip(Icons.stars_rounded, '+$bonus бонусов'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _myAppointmentsCard() {
+    if (!_isAppointment) return const SizedBox.shrink();
+
+    final actual = _appointmentItems.where(_isActualAppointment).toList();
+    final history = _appointmentItems
+        .where((item) => !_isActualAppointment(item))
+        .take(3)
+        .toList();
+
+    final nearest = actual.isNotEmpty ? actual.first : null;
+    final otherActual = actual.skip(1).take(2).toList();
+
+    return _surface(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _appointmentMark(),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  nearest == null ? 'Мои записи' : 'Ближайшая запись',
+                  style: const TextStyle(
+                    color: FlowColors.ink,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              if (_loadingAppointments)
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: FlowColors.ink2,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (nearest == null && history.isEmpty)
+            Text(
+              _loadingAppointments
+                  ? 'Загружаем записи...'
+                  : 'Пока записей нет. Выберите услугу и свободное время ниже.',
+              style: TextStyle(
+                color: FlowColors.ink.withOpacity(0.62),
+                fontSize: 13,
+                height: 1.35,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          if (nearest != null) ...[
+            _appointmentBigCard(nearest),
+            if (otherActual.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Ещё активные',
+                style: TextStyle(
+                  color: FlowColors.ink.withOpacity(0.62),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              ...otherActual.map(_appointmentCompactRow),
+            ],
+          ],
+          if (history.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Text(
+              'История записей',
+              style: TextStyle(
+                color: FlowColors.ink.withOpacity(0.58),
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            ...history.map(_appointmentCompactRow),
+          ],
         ],
       ),
     );
@@ -17566,7 +17952,19 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                         Expanded(
                           child: SingleChildScrollView(
                             physics: const BouncingScrollPhysics(),
-                            child: !_allowed ? _locked(message) : _formCard(),
+                            child: !_allowed
+                                ? _locked(message)
+                                : Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      if (_isAppointment) ...[
+                                        _myAppointmentsCard(),
+                                        const SizedBox(height: 14),
+                                      ],
+                                      _formCard(),
+                                    ],
+                                  ),
                           ),
                         ),
                       ],
