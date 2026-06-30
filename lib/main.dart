@@ -7250,14 +7250,22 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
     final hours = nonEmpty(contacts['working_hours']) ??
         nonEmpty(liveEst['working_hours']) ??
         '';
-    final yandexUrl = nonEmpty(ratings['yandex_url']) ??
+    final yandexRatingMap = map(ratings['yandex']);
+    final twoGisRatingMap = map(ratings['two_gis']);
+
+    final yandexUrl = nonEmpty(yandexRatingMap['url']) ??
+        nonEmpty(ratings['yandex_url']) ??
         nonEmpty(contacts['yandex_url']) ??
         '';
-    final twoGisUrl = nonEmpty(ratings['two_gis_url']) ??
+    final twoGisUrl = nonEmpty(twoGisRatingMap['url']) ??
+        nonEmpty(ratings['two_gis_url']) ??
         nonEmpty(contacts['two_gis_url']) ??
         '';
-    final yandexRatingText = nonEmpty(ratings['yandex_rating']) ?? '';
-    final twoGisRatingText = nonEmpty(ratings['two_gis_rating']) ?? '';
+    // MAP_LINKS_ONLY_20260629
+    // Рейтинги в клиентском приложении не показываем.
+    // Оставляем только прямые ссылки на карты.
+    final yandexRatingText = '';
+    final twoGisRatingText = '';
 
     final pages = <Widget>[
       _establishmentBenefits(name, points, promoItems),
@@ -8766,10 +8774,10 @@ class EstablishmentInfoPanel extends StatelessWidget {
                   ]),
             ),
           ),
-          if (hasRatings) ...[
-            const SizedBox(height: 16),
+          if (yandexUrl != null || twoGisUrl != null) ...[
+            const SizedBox(height: 14),
             const Center(
-                child: Text('Оценки на картах',
+                child: Text('Карты',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                         color: kLoginInk,
@@ -8779,33 +8787,28 @@ class EstablishmentInfoPanel extends StatelessWidget {
             const SizedBox(height: 9),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14),
-              child: Row(children: [
-                Expanded(
-                    child: _RatingLinkTile(
-                        title: 'Яндекс',
-                        value: yandexRatingText,
-                        subtitle: yandexUrl == null
-                            ? 'Ссылка не указана'
-                            : 'Открыть карту',
-                        icon: Icons.star_rounded,
-                        color: const Color(0xFFFFB020),
-                        onTap: yandexUrl == null
-                            ? null
-                            : () => openExternalUrl(context, yandexUrl))),
-                const SizedBox(width: 10),
-                Expanded(
-                    child: _RatingLinkTile(
-                        title: '2ГИС',
-                        value: twoGisRatingText,
-                        subtitle: twoGisUrl == null
-                            ? 'Ссылка не указана'
-                            : 'Открыть карту',
-                        icon: Icons.map_rounded,
-                        color: const Color(0xFF16A34A),
-                        onTap: twoGisUrl == null
-                            ? null
-                            : () => openExternalUrl(context, twoGisUrl))),
-              ]),
+              child: Column(
+                children: [
+                  if (yandexUrl != null)
+                    _MapOnlyLinkRow(
+                      title: 'Яндекс Карты',
+                      subtitle: 'Открыть карточку заведения',
+                      icon: Icons.star_rounded,
+                      color: const Color(0xFFFFB020),
+                      onTap: () => openExternalUrl(context, yandexUrl),
+                    ),
+                  if (yandexUrl != null && twoGisUrl != null)
+                    const SizedBox(height: 8),
+                  if (twoGisUrl != null)
+                    _MapOnlyLinkRow(
+                      title: '2ГИС',
+                      subtitle: 'Открыть карточку заведения',
+                      icon: Icons.map_rounded,
+                      color: const Color(0xFF16A34A),
+                      onTap: () => openExternalUrl(context, twoGisUrl),
+                    ),
+                ],
+              ),
             ),
           ],
           if (hasSocial) ...[
@@ -8835,6 +8838,111 @@ class EstablishmentInfoPanel extends StatelessWidget {
         ]),
       ),
     ]);
+  }
+}
+
+class _MapOnlyLinkRow extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _MapOnlyLinkRow({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Ink(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.66),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withOpacity(0.70)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.18),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(icon, color: color, size: 21),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: FlowColors.ink,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: FlowColors.ink.withOpacity(0.58),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.13),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Открыть',
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    Icon(
+                      Icons.open_in_new_rounded,
+                      color: color.withOpacity(0.85),
+                      size: 15,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -12765,7 +12873,8 @@ class LiveEstablishmentProfileCard extends StatelessWidget {
     final twoGis = map(ratings['two_gis']);
     final social = map(contacts['social_media']);
     final yandexRating = toDouble(yandex['rating']);
-    final twoGisRating = toDouble(twoGis['rating']);
+    // 2GIS_RATING_DISABLED_20260629
+    final twoGisRating = 0.0;
     final hasAny = address.trim().isNotEmpty ||
         phone.trim().isNotEmpty ||
         workingHours.trim().isNotEmpty ||
@@ -16561,7 +16670,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
             const SizedBox(height: 16),
             _appointmentInfoNotice(),
             const SizedBox(height: 18),
-            _selectorTitle('Услуга', Icons.content_cut_rounded),
+            _selectorTitle('Услуга', Icons.event_available_rounded),
             const SizedBox(height: 10),
             _appointmentServicePicker(),
             _appointmentStaffSection(),
@@ -16703,7 +16812,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
 
     if (_appointmentServices.isEmpty) {
       return _emptyAppointmentBox(
-        icon: Icons.content_cut_rounded,
+        icon: Icons.event_available_rounded,
         title: 'Услуги пока не добавлены',
         text: 'Заведение ещё не настроило услуги для записи.',
       );
@@ -16774,7 +16883,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Icon(
-                Icons.content_cut_rounded,
+                Icons.event_available_rounded,
                 color: selected ? Colors.white : FlowColors.aqua,
                 size: 21,
               ),
@@ -17068,7 +17177,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
   Widget _appointmentSlotPicker() {
     if (_selectedAppointmentService == null) {
       return _emptyAppointmentBox(
-        icon: Icons.content_cut_rounded,
+        icon: Icons.event_available_rounded,
         title: 'Сначала выберите услугу',
         text: 'После выбора услуги появятся доступные интервалы времени.',
       );
