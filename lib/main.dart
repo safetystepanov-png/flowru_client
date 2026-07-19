@@ -565,6 +565,15 @@ class FlowApi {
             : {'establishment_id': '$establishmentId'});
   }
 
+  Future<Map<String, dynamic>> subscriptions(
+      String token, int establishmentId) {
+    return _request(
+      path: '/client/subscriptions',
+      token: token,
+      query: {'establishment_id': '$establishmentId'},
+    );
+  }
+
   Future<Map<String, dynamic>> clientQr(String token) =>
       _request(path: '/client/qr', token: token);
 
@@ -2652,17 +2661,25 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
   Map<String, dynamic> establishmentProfile = {};
   List<Map<String, dynamic>> history = [];
   List<Map<String, dynamic>> establishments = [];
+  List<Map<String, dynamic>> subscriptions = [];
   int? selectedEstablishmentId;
 
   Map<int, Map<String, dynamic>> homeByEstablishment = {};
   Map<int, Map<String, dynamic>> offersByEstablishment = {};
   Map<int, Map<String, dynamic>> profileByEstablishment = {};
   Map<int, List<Map<String, dynamic>>> historyByEstablishment = {};
+  Map<int, List<Map<String, dynamic>>> subscriptionsByEstablishment = {};
+
+  bool subscriptionsRefreshInFlight = false;
+  bool subscriptionsRefreshFailed = false;
+  String subscriptionsRefreshMessage = '';
+  DateTime? subscriptionsLastRefreshedAt;
 
   String flowruQrPayload = '';
   DateTime? flowruQrExpiresAt;
   bool flowruQrLoading = false;
   Timer? flowruQrTimer;
+  Timer? subscriptionsRefreshTimer;
 
   List<Map<String, dynamic>> get combinedHistory {
     final all = <Map<String, dynamic>>[];
@@ -2681,6 +2698,75 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
         .compareTo(
             (a['created_at'] ?? a['date'] ?? a['timestamp'] ?? '').toString()));
     return all;
+  }
+
+  List<Map<String, dynamic>> get combinedSubscriptions {
+    final result = <Map<String, dynamic>>[];
+
+    subscriptionsByEstablishment.forEach((establishmentId, items) {
+      final establishmentName = establishmentNameById(establishmentId);
+
+      for (final item in items) {
+        result.add({
+          ...item,
+          'establishment_id': establishmentId,
+          'establishment_name': establishmentName,
+        });
+      }
+    });
+
+    if (result.isEmpty) {
+      return subscriptions;
+    }
+
+    int statusPriority(Map<String, dynamic> item) {
+      final status = (item['status'] ?? '').toString();
+      final canUse = item['can_use'] == true;
+      final remaining = num.tryParse(
+        (item['remaining'] ?? '').toString(),
+      );
+
+      if (status == 'active' && canUse) return 0;
+      if (status == 'active' && remaining != null && remaining > 0) {
+        return 1;
+      }
+      if (status == 'active') return 2;
+      if (status == 'paused') return 3;
+      if (status == 'pending') return 4;
+      if (status == 'expired') return 5;
+      if (status == 'cancelled') return 6;
+      return 7;
+    }
+
+    DateTime endDate(Map<String, dynamic> item) {
+      return DateTime.tryParse(
+            (item['ends_at'] ?? '').toString(),
+          ) ??
+          DateTime(9999);
+    }
+
+    result.sort((a, b) {
+      final byStatus = statusPriority(a).compareTo(statusPriority(b));
+
+      if (byStatus != 0) return byStatus;
+
+      final byEnd = endDate(a).compareTo(endDate(b));
+
+      if (byEnd != 0) return byEnd;
+
+      final byEstablishment =
+          (a['establishment_name'] ?? '').toString().compareTo(
+                (b['establishment_name'] ?? '').toString(),
+              );
+
+      if (byEstablishment != 0) return byEstablishment;
+
+      return (a['plan_name'] ?? '')
+          .toString()
+          .compareTo((b['plan_name'] ?? '').toString());
+    });
+
+    return result;
   }
 
   String establishmentNameById(int id) {
@@ -3049,6 +3135,8 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
       const Duration(seconds: 95),
       (_) => refreshClientQr(silent: true),
     );
+
+    startSubscriptionsRefreshTimer();
   }
 
   @override
@@ -3058,6 +3146,12 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       retryPendingInviteToken(source: 'app_resumed');
       consumePendingReferralLink();
+      startSubscriptionsRefreshTimer();
+      unawaited(refreshSubscriptions(force: true));
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.detached) {
+      stopSubscriptionsRefreshTimer();
     }
   }
 
@@ -3118,6 +3212,129 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
     }
   }
 
+  void startSubscriptionsRefreshTimer() {
+    subscriptionsRefreshTimer?.cancel();
+
+    subscriptionsRefreshTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) {
+        if (!mounted) return;
+        unawaited(refreshSubscriptions());
+      },
+    );
+  }
+
+  void stopSubscriptionsRefreshTimer() {
+    subscriptionsRefreshTimer?.cancel();
+    subscriptionsRefreshTimer = null;
+  }
+
+  Future<void> refreshSubscriptions({
+    bool force = false,
+  }) async {
+    if (subscriptionsRefreshInFlight) return;
+
+    final now = DateTime.now();
+    final lastRefresh = subscriptionsLastRefreshedAt;
+
+    if (!force &&
+        lastRefresh != null &&
+        now.difference(lastRefresh) < const Duration(seconds: 12)) {
+      return;
+    }
+
+    subscriptionsRefreshInFlight = true;
+
+    try {
+      final token = await getFreshAccessToken();
+
+      if (token == null || token.isEmpty) {
+        return;
+      }
+
+      final establishmentIds = <int>{
+        ...establishments
+            .map((item) => intOrNull(item['establishment_id']))
+            .whereType<int>(),
+        if (selectedEstablishmentId != null) selectedEstablishmentId!,
+      };
+
+      if (establishmentIds.isEmpty) {
+        return;
+      }
+
+      final refreshed = <int, List<Map<String, dynamic>>>{};
+      var failedRequests = 0;
+
+      for (final establishmentId in establishmentIds) {
+        try {
+          final response = await api.subscriptions(
+            token,
+            establishmentId,
+          );
+
+          refreshed[establishmentId] = mapList(
+            response['items'],
+          );
+        } on ApiError catch (error) {
+          if (error.status == 401) {
+            final newToken = await refreshAccessToken();
+
+            if (newToken == null || newToken.isEmpty) {
+              return;
+            }
+
+            final response = await api.subscriptions(
+              newToken,
+              establishmentId,
+            );
+
+            refreshed[establishmentId] = mapList(
+              response['items'],
+            );
+          } else {
+            failedRequests += 1;
+          }
+        } catch (_) {
+          failedRequests += 1;
+          // Не скрываем уже загруженные карточки при временной ошибке API.
+        }
+      }
+
+      if (!mounted) return;
+
+      if (refreshed.isEmpty && failedRequests > 0) {
+        setState(() {
+          subscriptionsRefreshFailed = true;
+          subscriptionsRefreshMessage =
+              'Не удалось обновить абонементы. Показаны последние данные.';
+        });
+        return;
+      }
+
+      setState(() {
+        subscriptionsByEstablishment = {
+          ...subscriptionsByEstablishment,
+          ...refreshed,
+        };
+
+        final selectedId = selectedEstablishmentId;
+
+        if (selectedId != null && refreshed.containsKey(selectedId)) {
+          subscriptions = refreshed[selectedId]!;
+        }
+
+        subscriptionsRefreshFailed = failedRequests > 0;
+        subscriptionsRefreshMessage = failedRequests > 0
+            ? 'Часть абонементов временно не обновилась.'
+            : '';
+        subscriptionsLastRefreshedAt = DateTime.now();
+      });
+    } finally {
+      subscriptionsRefreshInFlight = false;
+    }
+  }
+
   Future<void> loadAll() async {
     setState(() {
       loading = true;
@@ -3149,6 +3366,7 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
       final nextOffersByEst = <int, Map<String, dynamic>>{};
       final nextProfilesByEst = <int, Map<String, dynamic>>{};
       final nextHistoryByEst = <int, List<Map<String, dynamic>>>{};
+      final nextSubscriptionsByEst = <int, List<Map<String, dynamic>>>{};
 
       for (final est in ests) {
         final id = intOrNull(est['establishment_id']);
@@ -3178,6 +3396,13 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
         } catch (_) {
           nextHistoryByEst[id] = [];
         }
+
+        try {
+          final res = await api.subscriptions(token, id);
+          nextSubscriptionsByEst[id] = mapList(res['items']);
+        } catch (_) {
+          nextSubscriptionsByEst[id] = [];
+        }
       }
 
       Map<String, dynamic> selectedHome =
@@ -3191,6 +3416,9 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
       List<Map<String, dynamic>> selectedHistory = activeId == null
           ? <Map<String, dynamic>>[]
           : (nextHistoryByEst[activeId] ?? <Map<String, dynamic>>[]);
+      List<Map<String, dynamic>> selectedSubscriptions = activeId == null
+          ? <Map<String, dynamic>>[]
+          : (nextSubscriptionsByEst[activeId] ?? <Map<String, dynamic>>[]);
 
       if (!mounted) return;
       setState(() {
@@ -3200,10 +3428,15 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
         establishments = ests;
         selectedEstablishmentId = activeId;
         history = selectedHistory;
+        subscriptions = selectedSubscriptions;
         homeByEstablishment = nextHomeByEst;
         offersByEstablishment = nextOffersByEst;
         profileByEstablishment = nextProfilesByEst;
         historyByEstablishment = nextHistoryByEst;
+        subscriptionsByEstablishment = nextSubscriptionsByEst;
+        subscriptionsRefreshFailed = false;
+        subscriptionsRefreshMessage = '';
+        subscriptionsLastRefreshedAt = DateTime.now();
         loading = false;
       });
 
@@ -3289,8 +3522,15 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
       if (token == null || token.isEmpty) return logout();
       final h = await api.home(token, establishmentId: id);
       final res = await api.history(token, id);
+      Map<String, dynamic> subscriptionResponse = {};
       Map<String, dynamic> off = {};
       Map<String, dynamic> prof = {};
+
+      try {
+        subscriptionResponse = await api.subscriptions(token, id);
+      } catch (_) {
+        subscriptionResponse = {};
+      }
       try {
         off = await api.offers(token, id);
       } catch (_) {
@@ -3308,6 +3548,9 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
         establishmentProfile = prof;
         establishments = dedupeEstablishments(mapList(h['establishments']));
         history = visibleClientHistory(mapList(res['items']));
+        subscriptions = mapList(subscriptionResponse['items']);
+        subscriptionsByEstablishment[id] = subscriptions;
+        subscriptionsLastRefreshedAt = DateTime.now();
         loading = false;
       });
     } on ApiError catch (e) {
@@ -3794,6 +4037,24 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
             onOpen: () => showQrSheet(context),
           ),
           const SizedBox(height: 18),
+          if (combinedSubscriptions.isNotEmpty) ...[
+            const SectionTitle(
+              title: 'Мои абонементы',
+              subtitle: 'Остаток, срок и доступность следующего списания',
+            ),
+            const SizedBox(height: 10),
+            if (subscriptionsRefreshFailed) ...[
+              SubscriptionRefreshNotice(
+                message: subscriptionsRefreshMessage,
+                onRetry: () => refreshSubscriptions(force: true),
+              ),
+              const SizedBox(height: 10),
+            ],
+            ClientSubscriptionCarousel(
+              items: combinedSubscriptions,
+            ),
+            const SizedBox(height: 18),
+          ],
           if (flowruTodayItems.isNotEmpty) ...[
             const SectionTitle(
                 title: 'Лента Flowru',
@@ -8236,6 +8497,1310 @@ class EstablishmentTabSwitch extends StatelessWidget {
           ),
         );
       }),
+    );
+  }
+}
+
+class SubscriptionRefreshNotice extends StatelessWidget {
+  final String message;
+  final Future<void> Function() onRetry;
+
+  const SubscriptionRefreshNotice({
+    super.key,
+    required this.message,
+    required this.onRetry,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 360),
+      curve: Curves.easeOutBack,
+      builder: (context, value, child) {
+        return Transform.translate(
+          offset: Offset(0, 12 * (1 - value)),
+          child: Opacity(
+            opacity: value.clamp(0.0, 1.0),
+            child: child,
+          ),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(13, 11, 8, 11),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF4D8),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: const Color(0xFFF0D892),
+          ),
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.cloud_off_rounded,
+              color: Color(0xFF795B12),
+              size: 20,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message.isEmpty ? 'Не удалось обновить абонементы' : message,
+                style: const TextStyle(
+                  color: Color(0xFF674D10),
+                  fontSize: 11.5,
+                  height: 1.2,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  onRetry();
+                },
+                borderRadius: BorderRadius.circular(12),
+                child: const Padding(
+                  padding: EdgeInsets.all(8),
+                  child: Icon(
+                    Icons.refresh_rounded,
+                    color: Color(0xFF674D10),
+                    size: 20,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class ClientSubscriptionCarousel extends StatelessWidget {
+  final List<Map<String, dynamic>> items;
+
+  const ClientSubscriptionCarousel({
+    super.key,
+    required this.items,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: List.generate(items.length, (index) {
+        return TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0, end: 1),
+          duration: Duration(
+            milliseconds: 420 + index * 85,
+          ),
+          curve: Curves.easeOutBack,
+          builder: (context, value, child) {
+            return Transform.translate(
+              offset: Offset(0, 20 * (1 - value)),
+              child: Transform.scale(
+                scale: 0.96 + value * 0.04,
+                child: Opacity(
+                  opacity: value.clamp(0.0, 1.0),
+                  child: child,
+                ),
+              ),
+            );
+          },
+          child: Padding(
+            padding: EdgeInsets.only(
+              bottom: index == items.length - 1 ? 0 : 12,
+            ),
+            child: ClientSubscriptionCard(
+              data: items[index],
+            ),
+          ),
+        );
+      }),
+    );
+  }
+}
+
+class _SubscriptionVisualState {
+  final String label;
+  final String detail;
+  final IconData icon;
+  final List<Color> colors;
+  final Color accent;
+  final bool active;
+  final bool available;
+
+  const _SubscriptionVisualState({
+    required this.label,
+    required this.detail,
+    required this.icon,
+    required this.colors,
+    required this.accent,
+    required this.active,
+    required this.available,
+  });
+}
+
+class ClientSubscriptionCard extends StatefulWidget {
+  final Map<String, dynamic> data;
+
+  const ClientSubscriptionCard({
+    super.key,
+    required this.data,
+  });
+
+  @override
+  State<ClientSubscriptionCard> createState() => _ClientSubscriptionCardState();
+}
+
+class _ClientSubscriptionCardState extends State<ClientSubscriptionCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController shineController;
+  bool showLiveUpdate = false;
+  String liveUpdateText = '';
+  int liveUpdateSerial = 0;
+
+  @override
+  void initState() {
+    super.initState();
+
+    shineController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 4200),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    shineController.dispose();
+    super.dispose();
+  }
+
+  double? _number(dynamic value) {
+    if (value is num) return value.toDouble();
+
+    return double.tryParse((value ?? '').toString());
+  }
+
+  String _compact(dynamic value) {
+    final number = _number(value);
+
+    if (number == null) return '—';
+
+    if (number == number.roundToDouble()) {
+      return number.toInt().toString();
+    }
+
+    return number.toStringAsFixed(1);
+  }
+
+  String _date(dynamic raw) {
+    final date = DateTime.tryParse((raw ?? '').toString())?.toLocal();
+
+    if (date == null) return 'Без срока';
+
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+
+    return '$day.$month.${date.year}';
+  }
+
+  int? _daysUntil(dynamic raw) {
+    final date = DateTime.tryParse((raw ?? '').toString())?.toLocal();
+
+    if (date == null) return null;
+
+    final today = DateTime.now();
+    final startToday = DateTime(today.year, today.month, today.day);
+    final endDay = DateTime(date.year, date.month, date.day);
+
+    return endDay.difference(startToday).inDays;
+  }
+
+  _SubscriptionVisualState _visualState() {
+    final status = (widget.data['status'] ?? '').toString();
+    final canUse = widget.data['can_use'] == true;
+    final remaining = _number(widget.data['remaining']);
+    final unlimited = widget.data['is_unlimited'] == true;
+
+    if (status == 'cancelled') {
+      return const _SubscriptionVisualState(
+        label: 'Отменён',
+        detail: 'Абонемент больше не действует',
+        icon: Icons.block_rounded,
+        colors: [
+          Color(0xFF59616C),
+          Color(0xFF707984),
+          Color(0xFF454D56),
+        ],
+        accent: Color(0xFFE5E7EB),
+        active: false,
+        available: false,
+      );
+    }
+
+    if (status == 'expired') {
+      return const _SubscriptionVisualState(
+        label: 'Завершён',
+        detail: 'Срок действия закончился',
+        icon: Icons.event_busy_rounded,
+        colors: [
+          Color(0xFF575B68),
+          Color(0xFF737584),
+          Color(0xFF4D5360),
+        ],
+        accent: Color(0xFFE5E7EB),
+        active: false,
+        available: false,
+      );
+    }
+
+    if (status == 'paused') {
+      return const _SubscriptionVisualState(
+        label: 'На паузе',
+        detail: 'Использование временно приостановлено',
+        icon: Icons.pause_rounded,
+        colors: [
+          Color(0xFFF59E0B),
+          Color(0xFFF97316),
+          Color(0xFFDC5A18),
+        ],
+        accent: Color(0xFFFFF1C2),
+        active: true,
+        available: false,
+      );
+    }
+
+    if (status == 'pending') {
+      return const _SubscriptionVisualState(
+        label: 'Скоро начнётся',
+        detail: 'Абонемент ещё не активирован',
+        icon: Icons.hourglass_top_rounded,
+        colors: [
+          Color(0xFF3B82F6),
+          Color(0xFF6366F1),
+          Color(0xFF7C3AED),
+        ],
+        accent: Color(0xFFDDE7FF),
+        active: true,
+        available: false,
+      );
+    }
+
+    if (!unlimited && remaining != null && remaining <= 0) {
+      return const _SubscriptionVisualState(
+        label: 'Лимит исчерпан',
+        detail: 'Ждём начало следующего периода',
+        icon: Icons.timelapse_rounded,
+        colors: [
+          Color(0xFF6D5DFB),
+          Color(0xFF8B5CF6),
+          Color(0xFF5B7CF5),
+        ],
+        accent: Color(0xFFE5DDFF),
+        active: true,
+        available: false,
+      );
+    }
+
+    if (canUse) {
+      return const _SubscriptionVisualState(
+        label: 'Доступен',
+        detail: 'Можно использовать сейчас',
+        icon: Icons.bolt_rounded,
+        colors: [
+          Color(0xFF6547F5),
+          Color(0xFF8258FF),
+          Color(0xFF18B5B5),
+        ],
+        accent: Color(0xFFC8FFF6),
+        active: true,
+        available: true,
+      );
+    }
+
+    return const _SubscriptionVisualState(
+      label: 'Активен',
+      detail: 'Следующее использование по расписанию',
+      icon: Icons.schedule_rounded,
+      colors: [
+        Color(0xFF6547F5),
+        Color(0xFF8258FF),
+        Color(0xFF18B5B5),
+      ],
+      accent: Color(0xFFE2DEFF),
+      active: true,
+      available: false,
+    );
+  }
+
+  @override
+  void didUpdateWidget(
+    covariant ClientSubscriptionCard oldWidget,
+  ) {
+    super.didUpdateWidget(oldWidget);
+
+    final oldRemaining = _number(oldWidget.data['remaining']);
+    final newRemaining = _number(widget.data['remaining']);
+
+    final oldAvailability =
+        (oldWidget.data['next_available_label'] ?? '').toString();
+    final newAvailability =
+        (widget.data['next_available_label'] ?? '').toString();
+
+    final usageChanged = oldRemaining != null &&
+        newRemaining != null &&
+        newRemaining < oldRemaining;
+
+    final availabilityChanged = oldAvailability.isNotEmpty &&
+        newAvailability.isNotEmpty &&
+        oldAvailability != newAvailability;
+
+    if (!usageChanged && !availabilityChanged) return;
+
+    final message = usageChanged
+        ? 'Использование обновлено · Осталось ${_compact(newRemaining)}'
+        : newAvailability;
+
+    final serial = ++liveUpdateSerial;
+
+    setState(() {
+      liveUpdateText = message;
+      showLiveUpdate = true;
+    });
+
+    HapticFeedback.mediumImpact();
+
+    Future<void>.delayed(
+      const Duration(milliseconds: 2400),
+      () {
+        if (!mounted || serial != liveUpdateSerial) {
+          return;
+        }
+
+        setState(() {
+          showLiveUpdate = false;
+        });
+      },
+    );
+  }
+
+  Future<void> _openSubscription() async {
+    HapticFeedback.mediumImpact();
+
+    await showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Абонемент',
+      barrierColor: Colors.black.withOpacity(0.72),
+      transitionDuration: const Duration(milliseconds: 520),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return ClientSubscriptionOverlay(
+          data: widget.data,
+        );
+      },
+      transitionBuilder: (
+        context,
+        animation,
+        secondaryAnimation,
+        child,
+      ) {
+        final openCurve = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutBack,
+          reverseCurve: Curves.easeInCubic,
+        );
+
+        final fadeCurve = CurvedAnimation(
+          parent: animation,
+          curve: const Interval(
+            0,
+            0.75,
+            curve: Curves.easeOut,
+          ),
+          reverseCurve: Curves.easeIn,
+        );
+
+        return FadeTransition(
+          opacity: fadeCurve,
+          child: ScaleTransition(
+            scale: Tween<double>(
+              begin: 0.76,
+              end: 1,
+            ).animate(openCurve),
+            child: RotationTransition(
+              turns: Tween<double>(
+                begin: -0.012,
+                end: 0,
+              ).animate(openCurve),
+              child: child,
+            ),
+          ),
+        );
+      },
+    );
+
+    HapticFeedback.selectionClick();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final data = widget.data;
+    final visual = _visualState();
+
+    final title = nonEmpty(data['plan_name']) ?? 'Абонемент';
+    final establishment = nonEmpty(data['establishment_name']) ?? 'Заведение';
+    final availability =
+        nonEmpty(data['next_available_label']) ?? visual.detail;
+
+    final unlimited = data['is_unlimited'] == true;
+    final remaining = _number(data['remaining']) ?? 0;
+    final limit = _number(data['usage_limit']) ?? 0;
+
+    final progress = unlimited
+        ? 1.0
+        : (limit <= 0 ? 0.0 : (remaining / limit).clamp(0.0, 1.0));
+
+    final daysLeft = _daysUntil(data['ends_at']);
+    final endingSoon =
+        visual.active && daysLeft != null && daysLeft >= 0 && daysLeft <= 7;
+
+    return AnimatedBuilder(
+      animation: shineController,
+      builder: (context, child) {
+        final t = shineController.value;
+
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 420),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: [
+              BoxShadow(
+                color: visual.colors[1].withOpacity(
+                  visual.active ? 0.30 : 0.14,
+                ),
+                blurRadius: visual.active ? 30 : 18,
+                spreadRadius: visual.active ? 1 : 0,
+                offset: const Offset(0, 14),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(28),
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: visual.colors,
+                        begin: Alignment(
+                          -1 + t * 0.35,
+                          -1,
+                        ),
+                        end: Alignment(
+                          1,
+                          1 - t * 0.25,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: -52,
+                  right: -34,
+                  child: Transform.rotate(
+                    angle: t * 0.45,
+                    child: Container(
+                      width: 142,
+                      height: 142,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(42),
+                        color: Colors.white.withOpacity(0.08),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.08),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: Transform.translate(
+                      offset: Offset(
+                        -260 + t * 720,
+                        0,
+                      ),
+                      child: Transform.rotate(
+                        angle: -0.26,
+                        child: Container(
+                          width: 92,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.transparent,
+                                Colors.white.withOpacity(0.12),
+                                Colors.transparent,
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  left: 14,
+                  right: 14,
+                  top: 14,
+                  child: IgnorePointer(
+                    child: AnimatedSlide(
+                      duration: const Duration(milliseconds: 360),
+                      curve: Curves.easeOutBack,
+                      offset:
+                          showLiveUpdate ? Offset.zero : const Offset(0, -1.1),
+                      child: AnimatedOpacity(
+                        duration: const Duration(milliseconds: 240),
+                        opacity: showLiveUpdate ? 1 : 0,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 13,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.96),
+                            borderRadius: BorderRadius.circular(17),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.14),
+                                blurRadius: 22,
+                                offset: const Offset(0, 9),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 30,
+                                height: 30,
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: visual.colors,
+                                  ),
+                                  borderRadius: BorderRadius.circular(
+                                    10,
+                                  ),
+                                ),
+                                child: const Icon(
+                                  Icons.check_rounded,
+                                  color: Colors.white,
+                                  size: 18,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  liveUpdateText,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: FlowColors.ink,
+                                    fontSize: 12,
+                                    height: 1.15,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: _openSubscription,
+                    child: Padding(
+                      padding: const EdgeInsets.all(21),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                width: 46,
+                                height: 46,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.16),
+                                  borderRadius: BorderRadius.circular(
+                                    16,
+                                  ),
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.22),
+                                  ),
+                                ),
+                                child: Icon(
+                                  visual.icon,
+                                  color: Colors.white,
+                                  size: 24,
+                                ),
+                              ),
+                              const SizedBox(width: 13),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      title,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 20,
+                                        height: 1.05,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: -0.40,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 5),
+                                    Text(
+                                      establishment,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: Colors.white.withOpacity(0.78),
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 7,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.14),
+                                  borderRadius: BorderRadius.circular(
+                                    999,
+                                  ),
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.18),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      visual.icon,
+                                      color: visual.accent,
+                                      size: 14,
+                                    ),
+                                    const SizedBox(width: 5),
+                                    Text(
+                                      visual.label,
+                                      style: TextStyle(
+                                        color: visual.accent,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (endingSoon) ...[
+                            const SizedBox(height: 13),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 11,
+                                vertical: 7,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.14),
+                                borderRadius: BorderRadius.circular(
+                                  13,
+                                ),
+                              ),
+                              child: Text(
+                                daysLeft == 0
+                                    ? 'Последний день действия'
+                                    : 'До завершения: $daysLeft дн.',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 20),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      unlimited ? 'Доступно' : 'Осталось',
+                                      style: TextStyle(
+                                        color: Colors.white.withOpacity(0.72),
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      unlimited ? '∞' : _compact(remaining),
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 31,
+                                        height: 1,
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Text(
+                                _date(data['ends_at']),
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.78),
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 13),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(100),
+                            child: Container(
+                              height: 7,
+                              color: Colors.white.withOpacity(0.16),
+                              child: TweenAnimationBuilder<double>(
+                                tween: Tween(
+                                  begin: 0,
+                                  end: progress,
+                                ),
+                                duration: const Duration(
+                                  milliseconds: 850,
+                                ),
+                                curve: Curves.easeOutCubic,
+                                builder: (
+                                  context,
+                                  value,
+                                  child,
+                                ) {
+                                  return FractionallySizedBox(
+                                    alignment: Alignment.centerLeft,
+                                    widthFactor: value.clamp(0, 1),
+                                    child: Container(
+                                      color: Colors.white,
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 13),
+                          Row(
+                            children: [
+                              Icon(
+                                visual.icon,
+                                color: visual.accent,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 7),
+                              Expanded(
+                                child: Text(
+                                  availability,
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.88),
+                                    fontSize: 11.5,
+                                    height: 1.15,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                              const Icon(
+                                Icons.open_in_full_rounded,
+                                color: Colors.white,
+                                size: 18,
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class ClientSubscriptionOverlay extends StatelessWidget {
+  final Map<String, dynamic> data;
+
+  const ClientSubscriptionOverlay({
+    super.key,
+    required this.data,
+  });
+
+  String _date(dynamic raw) {
+    final date = DateTime.tryParse((raw ?? '').toString())?.toLocal();
+
+    if (date == null) return 'Без срока';
+
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+
+    return '$day.$month.${date.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final title = nonEmpty(data['plan_name']) ?? 'Абонемент';
+    final description = nonEmpty(data['description']);
+    final establishment = nonEmpty(data['establishment_name']) ?? 'Заведение';
+    final availability =
+        nonEmpty(data['next_available_label']) ?? 'Статус не указан';
+    final items = mapList(data['items']);
+
+    final unlimited = data['is_unlimited'] == true;
+    final remaining = data['remaining'];
+
+    final remainingText =
+        unlimited ? 'Без лимита' : '${remaining ?? '—'} осталось';
+
+    return SafeArea(
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => Navigator.of(context).pop(),
+              child: const SizedBox.expand(),
+            ),
+          ),
+          Center(
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                width: 450,
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.90,
+                ),
+                margin: const EdgeInsets.symmetric(
+                  horizontal: 15,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8F9FE),
+                  borderRadius: BorderRadius.circular(34),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.26),
+                      blurRadius: 46,
+                      offset: const Offset(0, 20),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(34),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(
+                      18,
+                      16,
+                      18,
+                      24,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: IconButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            icon: const Icon(
+                              Icons.close_rounded,
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.all(22),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(30),
+                            gradient: const LinearGradient(
+                              colors: [
+                                Color(0xFF6547F5),
+                                Color(0xFF8258FF),
+                                Color(0xFF18B5B5),
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(
+                                  0xFF7452FA,
+                                ).withOpacity(0.28),
+                                blurRadius: 30,
+                                offset: const Offset(0, 14),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    width: 48,
+                                    height: 48,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.16),
+                                      borderRadius: BorderRadius.circular(17),
+                                    ),
+                                    child: const Icon(
+                                      Icons.layers_rounded,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 13),
+                                  Expanded(
+                                    child: Text(
+                                      establishment,
+                                      style: TextStyle(
+                                        color: Colors.white.withOpacity(
+                                          0.78,
+                                        ),
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 22),
+                              Text(
+                                title,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 28,
+                                  height: 1,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: -0.7,
+                                ),
+                              ),
+                              if (description != null) ...[
+                                const SizedBox(height: 10),
+                                Text(
+                                  description,
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.76),
+                                    height: 1.3,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(height: 22),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _ClientSubscriptionFact(
+                                      label: 'Остаток',
+                                      value: remainingText,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: _ClientSubscriptionFact(
+                                      label: 'Действует до',
+                                      value: _date(
+                                        data['ends_at'],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 15),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 15,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE9FFF9),
+                            borderRadius: BorderRadius.circular(22),
+                            border: Border.all(
+                              color: const Color(
+                                0xFFB9EEE2,
+                              ),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.bolt_rounded,
+                                color: Color(
+                                  0xFF0D6667,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  availability,
+                                  style: const TextStyle(
+                                    color: Color(
+                                      0xFF123B44,
+                                    ),
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 22),
+                        const Text(
+                          'Что входит',
+                          style: TextStyle(
+                            color: FlowColors.ink,
+                            fontSize: 21,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -0.4,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Доступные позиции абонемента',
+                          style: TextStyle(
+                            color: FlowColors.muted,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        if (items.isEmpty)
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: const Text(
+                              'Состав пока не указан',
+                              style: TextStyle(
+                                color: FlowColors.ink,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          )
+                        else
+                          ...items.asMap().entries.map(
+                            (entry) {
+                              final item = entry.value;
+
+                              return TweenAnimationBuilder<double>(
+                                tween: Tween(
+                                  begin: 0,
+                                  end: 1,
+                                ),
+                                duration: Duration(
+                                  milliseconds: 430 + entry.key * 90,
+                                ),
+                                curve: Curves.easeOutBack,
+                                builder: (
+                                  context,
+                                  value,
+                                  child,
+                                ) {
+                                  return Transform.translate(
+                                    offset: Offset(
+                                      0,
+                                      24 * (1 - value),
+                                    ),
+                                    child: Transform.scale(
+                                      scale: 0.94 + value * 0.06,
+                                      child: Opacity(
+                                        opacity: value.clamp(0, 1),
+                                        child: child,
+                                      ),
+                                    ),
+                                  );
+                                },
+                                child: Container(
+                                  margin: const EdgeInsets.only(
+                                    bottom: 10,
+                                  ),
+                                  padding: const EdgeInsets.all(
+                                    14,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(21),
+                                    border: Border.all(
+                                      color: FlowColors.ink.withOpacity(
+                                        0.06,
+                                      ),
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: FlowColors.ink.withOpacity(
+                                          0.06,
+                                        ),
+                                        blurRadius: 16,
+                                        offset: const Offset(
+                                          0,
+                                          7,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: 46,
+                                        height: 46,
+                                        decoration: BoxDecoration(
+                                          gradient: const LinearGradient(
+                                            colors: [
+                                              Color(
+                                                0xFF7653F8,
+                                              ),
+                                              Color(
+                                                0xFF18B5B5,
+                                              ),
+                                            ],
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
+                                        ),
+                                        child: const Icon(
+                                          Icons.check_rounded,
+                                          color: Colors.white,
+                                          size: 22,
+                                        ),
+                                      ),
+                                      const SizedBox(
+                                        width: 12,
+                                      ),
+                                      Expanded(
+                                        child: Text(
+                                          nonEmpty(
+                                                item['name'],
+                                              ) ??
+                                              'Позиция',
+                                          style: const TextStyle(
+                                            color: FlowColors.ink,
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w900,
+                                          ),
+                                        ),
+                                      ),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 7,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: const Color(
+                                            0xFFF1EEFF,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            99,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          '× ${item['quantity_per_use'] ?? 1}',
+                                          style: const TextStyle(
+                                            color: Color(
+                                              0xFF6547F5,
+                                            ),
+                                            fontWeight: FontWeight.w900,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ClientSubscriptionFact extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _ClientSubscriptionFact({
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.13),
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.15),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.64),
+              fontSize: 10.5,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            value,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
