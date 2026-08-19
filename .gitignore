@@ -63,3 +63,15 @@ ios_backup_*.zip
 *.mobileprovision
 *.pbxproj.bak_*
 *.bak_*
+
+# Android release signing
+android/key.properties
+android/upload-keystore.jks
+*.jks
+*.keystore
+
+# Local development backups / patches
+backups/
+lib/main.before_*.dart
+patch_*.py
+install_version_notice.py
