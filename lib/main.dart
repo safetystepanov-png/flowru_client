@@ -1,3 +1,5 @@
+// FLOWRU_COMPACT_MODIFIER_UI_V2_20260819
+// FLOWRU_MULTISELECT_WORKING_V1_20260819
 // Flowru Client V3 Concept
 // Полностью новый визуальный подход: мобильный командный центр клиента.
 // Логика API/авторизации/токенов сохранена, UI-слой пересобран в другом сценарии.
@@ -17131,11 +17133,25 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
       final required = map['is_required'] == true ||
           (_catalogPrice(map['min_selected']) > 0);
 
+      final selectionType =
+          (map['selection_type'] ?? 'single').toString().trim().toLowerCase();
+
+      final minSelected = _catalogPrice(map['min_selected']);
+
+      final rawMaxSelected = map['max_selected'];
+
+      final int? maxSelected =
+          rawMaxSelected == null ? null : _catalogPrice(rawMaxSelected);
+
       result.add(
         _PreorderModifierGroup(
           id: 'modifier_group:${map['id']}',
           title: (map['name'] ?? '').toString(),
           isRequired: required,
+          selectionType: selectionType,
+          minSelected: minSelected,
+          maxSelected:
+              maxSelected != null && maxSelected > 0 ? maxSelected : null,
           options: options,
         ),
       );
@@ -19502,7 +19518,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
       return;
     }
 
-    final selected = <String, _PreorderModifier>{};
+    final selected = <String, List<_PreorderModifier>>{};
 
     await showModalBottomSheet<void>(
       context: context,
@@ -19516,19 +19532,34 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
             setSheetState,
           ) {
             for (final group in product.groups) {
-              if (group.isRequired &&
-                  selected[group.id] == null &&
-                  group.options.isNotEmpty) {
-                selected[group.id] = group.options.first;
+              final current = selected.putIfAbsent(
+                group.id,
+                () => <_PreorderModifier>[],
+              );
+
+              final minimum = group.minSelected > 0
+                  ? group.minSelected
+                  : (group.isRequired ? 1 : 0);
+
+              if (current.length < minimum && group.options.isNotEmpty) {
+                for (final option in group.options) {
+                  if (current.length >= minimum) {
+                    break;
+                  }
+
+                  if (!current.any(
+                    (item) => item.id == option.id,
+                  )) {
+                    current.add(option);
+                  }
+                }
               }
             }
 
-            final selectedModifiers = product.groups
-                .map(
-                  (group) => selected[group.id],
-                )
-                .whereType<_PreorderModifier>()
-                .toList();
+            final selectedModifiers = <_PreorderModifier>[
+              for (final group in product.groups)
+                ...(selected[group.id] ?? const <_PreorderModifier>[]),
+            ];
 
             final total = product.basePrice +
                 selectedModifiers.fold<int>(
@@ -19539,6 +19570,64 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                   ) =>
                       sum + modifier.priceDelta,
                 );
+
+            bool isOptionSelected(
+              _PreorderModifierGroup group,
+              _PreorderModifier option,
+            ) {
+              return (selected[group.id] ?? const <_PreorderModifier>[]).any(
+                (item) => item.id == option.id,
+              );
+            }
+
+            void toggleOption(
+              _PreorderModifierGroup group,
+              _PreorderModifier option,
+            ) {
+              final current = selected.putIfAbsent(
+                group.id,
+                () => <_PreorderModifier>[],
+              );
+
+              final exists = current.any(
+                (item) => item.id == option.id,
+              );
+
+              final minimum = group.minSelected > 0
+                  ? group.minSelected
+                  : (group.isRequired ? 1 : 0);
+
+              if (!group.allowsMultiple) {
+                if (exists) {
+                  if (minimum == 0) {
+                    current.clear();
+                  }
+                  return;
+                }
+
+                current
+                  ..clear()
+                  ..add(option);
+
+                return;
+              }
+
+              if (exists) {
+                if (current.length > minimum) {
+                  current.removeWhere(
+                    (item) => item.id == option.id,
+                  );
+                }
+                return;
+              }
+
+              if (group.maxSelected != null &&
+                  current.length >= group.maxSelected!) {
+                return;
+              }
+
+              current.add(option);
+            }
 
             return SafeArea(
               top: false,
@@ -19730,149 +19819,352 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                                         const SizedBox(
                                           height: 11,
                                         ),
-                                        for (int i = 0;
-                                            i < group.options.length;
-                                            i++) ...[
-                                          Builder(
-                                            builder: (context) {
-                                              final option = group.options[i];
+                                        LayoutBuilder(
+                                          builder: (
+                                            context,
+                                            constraints,
+                                          ) {
+                                            const optionGap = 8.0;
 
-                                              final isSelected =
-                                                  selected[group.id]?.id ==
-                                                      option.id;
+                                            final optionWidth = isVariant
+                                                ? constraints.maxWidth
+                                                : (constraints.maxWidth -
+                                                        optionGap) /
+                                                    2;
 
-                                              final displayPrice = isVariant
-                                                  ? '${product.basePrice + option.priceDelta} ₽'
-                                                  : option.priceDelta > 0
-                                                      ? '+${option.priceDelta} ₽'
-                                                      : 'Без доплаты';
+                                            return Wrap(
+                                              spacing: optionGap,
+                                              runSpacing: 8,
+                                              children: [
+                                                for (int i = 0;
+                                                    i < group.options.length;
+                                                    i++) ...[
+                                                  SizedBox(
+                                                    width: optionWidth,
+                                                    child: Builder(
+                                                      builder: (context) {
+                                                        final option =
+                                                            group.options[i];
 
-                                              return GestureDetector(
-                                                onTap: () {
-                                                  setSheetState(
-                                                    () {
-                                                      selected[group.id] =
-                                                          option;
-                                                    },
-                                                  );
-                                                },
-                                                child: AnimatedContainer(
-                                                  duration: const Duration(
-                                                      milliseconds: 180),
-                                                  width: double.infinity,
-                                                  padding:
-                                                      const EdgeInsets.fromLTRB(
-                                                    12,
-                                                    12,
-                                                    12,
-                                                    12,
-                                                  ),
-                                                  decoration: BoxDecoration(
-                                                    color: isSelected
-                                                        ? const Color(
-                                                            0xFFEAF9F9)
-                                                        : const Color(
-                                                            0xFFF8FAFB),
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                            16),
-                                                    border: Border.all(
-                                                      color: isSelected
-                                                          ? const Color(
-                                                              0xFF13AEB8)
-                                                          : FlowColors.ink
-                                                              .withOpacity(
-                                                                  0.055),
-                                                      width:
-                                                          isSelected ? 1.4 : 1,
+                                                        final isSelected =
+                                                            isOptionSelected(
+                                                          group,
+                                                          option,
+                                                        );
+
+                                                        final displayPrice = isVariant
+                                                            ? '${product.basePrice + option.priceDelta} ₽'
+                                                            : option.priceDelta > 0
+                                                                ? '+${option.priceDelta} ₽'
+                                                                : 'Без доплаты';
+
+                                                        return GestureDetector(
+                                                          behavior:
+                                                              HitTestBehavior
+                                                                  .opaque,
+                                                          onTap: () {
+                                                            setSheetState(
+                                                              () {
+                                                                toggleOption(
+                                                                  group,
+                                                                  option,
+                                                                );
+                                                              },
+                                                            );
+                                                          },
+                                                          child: AnimatedScale(
+                                                            scale: isSelected &&
+                                                                    !isVariant
+                                                                ? 0.985
+                                                                : 1.0,
+                                                            duration:
+                                                                const Duration(
+                                                              milliseconds: 140,
+                                                            ),
+                                                            curve: Curves
+                                                                .easeOutBack,
+                                                            child:
+                                                                AnimatedContainer(
+                                                              duration:
+                                                                  const Duration(
+                                                                milliseconds:
+                                                                    210,
+                                                              ),
+                                                              curve: Curves
+                                                                  .easeOutCubic,
+                                                              width: double
+                                                                  .infinity,
+                                                              constraints:
+                                                                  BoxConstraints(
+                                                                minHeight:
+                                                                    isVariant
+                                                                        ? 56
+                                                                        : 68,
+                                                              ),
+                                                              padding: isVariant
+                                                                  ? const EdgeInsets
+                                                                      .fromLTRB(
+                                                                      12,
+                                                                      12,
+                                                                      12,
+                                                                      12,
+                                                                    )
+                                                                  : const EdgeInsets
+                                                                      .fromLTRB(
+                                                                      11,
+                                                                      10,
+                                                                      9,
+                                                                      9,
+                                                                    ),
+                                                              decoration:
+                                                                  BoxDecoration(
+                                                                color: isSelected
+                                                                    ? const Color(
+                                                                        0xFFEAF9F9,
+                                                                      )
+                                                                    : const Color(
+                                                                        0xFFF8FAFB,
+                                                                      ),
+                                                                borderRadius:
+                                                                    BorderRadius
+                                                                        .circular(
+                                                                  isVariant
+                                                                      ? 16
+                                                                      : 15,
+                                                                ),
+                                                                border:
+                                                                    Border.all(
+                                                                  color: isSelected
+                                                                      ? const Color(
+                                                                          0xFF13AEB8,
+                                                                        )
+                                                                      : FlowColors.ink.withOpacity(
+                                                                          0.055,
+                                                                        ),
+                                                                  width:
+                                                                      isSelected
+                                                                          ? 1.4
+                                                                          : 1,
+                                                                ),
+                                                                boxShadow:
+                                                                    isSelected &&
+                                                                            !isVariant
+                                                                        ? [
+                                                                            BoxShadow(
+                                                                              color: const Color(
+                                                                                0xFF13AEB8,
+                                                                              ).withOpacity(
+                                                                                0.14,
+                                                                              ),
+                                                                              blurRadius: 13,
+                                                                              offset: const Offset(
+                                                                                0,
+                                                                                4,
+                                                                              ),
+                                                                            ),
+                                                                          ]
+                                                                        : const [],
+                                                              ),
+                                                              child: isVariant
+                                                                  ? Row(
+                                                                      children: [
+                                                                        AnimatedContainer(
+                                                                          duration:
+                                                                              const Duration(
+                                                                            milliseconds:
+                                                                                180,
+                                                                          ),
+                                                                          width:
+                                                                              20,
+                                                                          height:
+                                                                              20,
+                                                                          decoration:
+                                                                              BoxDecoration(
+                                                                            shape:
+                                                                                BoxShape.circle,
+                                                                            color: isSelected
+                                                                                ? const Color(
+                                                                                    0xFF0B8995,
+                                                                                  )
+                                                                                : Colors.white,
+                                                                            border:
+                                                                                Border.all(
+                                                                              color: isSelected
+                                                                                  ? const Color(
+                                                                                      0xFF0B8995,
+                                                                                    )
+                                                                                  : FlowColors.ink.withOpacity(
+                                                                                      0.18,
+                                                                                    ),
+                                                                            ),
+                                                                          ),
+                                                                          child: isSelected
+                                                                              ? const Icon(
+                                                                                  Icons.check_rounded,
+                                                                                  size: 14,
+                                                                                  color: Colors.white,
+                                                                                )
+                                                                              : null,
+                                                                        ),
+                                                                        const SizedBox(
+                                                                          width:
+                                                                              11,
+                                                                        ),
+                                                                        Expanded(
+                                                                          child:
+                                                                              Text(
+                                                                            option.title,
+                                                                            style:
+                                                                                TextStyle(
+                                                                              color: FlowColors.ink,
+                                                                              fontSize: 13,
+                                                                              fontWeight: isSelected ? FontWeight.w900 : FontWeight.w800,
+                                                                            ),
+                                                                          ),
+                                                                        ),
+                                                                        const SizedBox(
+                                                                          width:
+                                                                              8,
+                                                                        ),
+                                                                        Text(
+                                                                          displayPrice,
+                                                                          style:
+                                                                              const TextStyle(
+                                                                            color:
+                                                                                Color(
+                                                                              0xFF096C78,
+                                                                            ),
+                                                                            fontSize:
+                                                                                12,
+                                                                            fontWeight:
+                                                                                FontWeight.w900,
+                                                                          ),
+                                                                        ),
+                                                                      ],
+                                                                    )
+                                                                  : Stack(
+                                                                      children: [
+                                                                        Padding(
+                                                                          padding:
+                                                                              const EdgeInsets.only(
+                                                                            right:
+                                                                                27,
+                                                                          ),
+                                                                          child:
+                                                                              Column(
+                                                                            mainAxisAlignment:
+                                                                                MainAxisAlignment.center,
+                                                                            crossAxisAlignment:
+                                                                                CrossAxisAlignment.start,
+                                                                            children: [
+                                                                              Text(
+                                                                                option.title,
+                                                                                maxLines: 2,
+                                                                                overflow: TextOverflow.ellipsis,
+                                                                                style: TextStyle(
+                                                                                  color: FlowColors.ink,
+                                                                                  fontSize: 12.5,
+                                                                                  height: 1.12,
+                                                                                  fontWeight: isSelected ? FontWeight.w900 : FontWeight.w800,
+                                                                                ),
+                                                                              ),
+                                                                              const SizedBox(
+                                                                                height: 6,
+                                                                              ),
+                                                                              Text(
+                                                                                displayPrice,
+                                                                                style: TextStyle(
+                                                                                  color: option.priceDelta > 0
+                                                                                      ? const Color(
+                                                                                          0xFF7758D8,
+                                                                                        )
+                                                                                      : FlowColors.muted,
+                                                                                  fontSize: 11.5,
+                                                                                  fontWeight: FontWeight.w900,
+                                                                                ),
+                                                                              ),
+                                                                            ],
+                                                                          ),
+                                                                        ),
+                                                                        Positioned(
+                                                                          right:
+                                                                              0,
+                                                                          top:
+                                                                              0,
+                                                                          child:
+                                                                              AnimatedSwitcher(
+                                                                            duration:
+                                                                                const Duration(
+                                                                              milliseconds: 180,
+                                                                            ),
+                                                                            transitionBuilder:
+                                                                                (
+                                                                              child,
+                                                                              animation,
+                                                                            ) {
+                                                                              return ScaleTransition(
+                                                                                scale: animation,
+                                                                                child: FadeTransition(
+                                                                                  opacity: animation,
+                                                                                  child: child,
+                                                                                ),
+                                                                              );
+                                                                            },
+                                                                            child: isSelected
+                                                                                ? Container(
+                                                                                    key: ValueKey(
+                                                                                      'modifier-on-${option.id}',
+                                                                                    ),
+                                                                                    width: 23,
+                                                                                    height: 23,
+                                                                                    decoration: const BoxDecoration(
+                                                                                      color: Color(
+                                                                                        0xFF0B8995,
+                                                                                      ),
+                                                                                      shape: BoxShape.circle,
+                                                                                    ),
+                                                                                    child: const Icon(
+                                                                                      Icons.check_rounded,
+                                                                                      size: 15,
+                                                                                      color: Colors.white,
+                                                                                    ),
+                                                                                  )
+                                                                                : Container(
+                                                                                    key: ValueKey(
+                                                                                      'modifier-off-${option.id}',
+                                                                                    ),
+                                                                                    width: 23,
+                                                                                    height: 23,
+                                                                                    decoration: BoxDecoration(
+                                                                                      color: Colors.white,
+                                                                                      shape: BoxShape.circle,
+                                                                                      border: Border.all(
+                                                                                        color: FlowColors.ink.withOpacity(
+                                                                                          0.12,
+                                                                                        ),
+                                                                                      ),
+                                                                                    ),
+                                                                                    child: const Icon(
+                                                                                      Icons.add_rounded,
+                                                                                      size: 15,
+                                                                                      color: FlowColors.muted,
+                                                                                    ),
+                                                                                  ),
+                                                                          ),
+                                                                        ),
+                                                                      ],
+                                                                    ),
+                                                            ),
+                                                          ),
+                                                        );
+                                                      },
                                                     ),
                                                   ),
-                                                  child: Row(
-                                                    children: [
-                                                      AnimatedContainer(
-                                                        duration:
-                                                            const Duration(
-                                                                milliseconds:
-                                                                    180),
-                                                        width: 20,
-                                                        height: 20,
-                                                        decoration:
-                                                            BoxDecoration(
-                                                          shape:
-                                                              BoxShape.circle,
-                                                          color: isSelected
-                                                              ? const Color(
-                                                                  0xFF0B8995)
-                                                              : Colors.white,
-                                                          border: Border.all(
-                                                            color: isSelected
-                                                                ? const Color(
-                                                                    0xFF0B8995)
-                                                                : FlowColors.ink
-                                                                    .withOpacity(
-                                                                        0.18),
-                                                          ),
-                                                        ),
-                                                        child: isSelected
-                                                            ? const Icon(
-                                                                Icons
-                                                                    .check_rounded,
-                                                                size: 14,
-                                                                color: Colors
-                                                                    .white,
-                                                              )
-                                                            : null,
-                                                      ),
-                                                      const SizedBox(
-                                                        width: 11,
-                                                      ),
-                                                      Expanded(
-                                                        child: Text(
-                                                          option.title,
-                                                          style: TextStyle(
-                                                            color:
-                                                                FlowColors.ink,
-                                                            fontSize: 13,
-                                                            fontWeight:
-                                                                isSelected
-                                                                    ? FontWeight
-                                                                        .w900
-                                                                    : FontWeight
-                                                                        .w800,
-                                                          ),
-                                                        ),
-                                                      ),
-                                                      const SizedBox(
-                                                        width: 8,
-                                                      ),
-                                                      Text(
-                                                        displayPrice,
-                                                        style: TextStyle(
-                                                          color: isVariant
-                                                              ? const Color(
-                                                                  0xFF096C78)
-                                                              : option.priceDelta >
-                                                                      0
-                                                                  ? const Color(
-                                                                      0xFF7758D8)
-                                                                  : FlowColors
-                                                                      .muted,
-                                                          fontSize: 12,
-                                                          fontWeight:
-                                                              FontWeight.w900,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              );
-                                            },
-                                          ),
-                                          if (i != group.options.length - 1)
-                                            const SizedBox(
-                                              height: 7,
-                                            ),
-                                        ],
+                                                ],
+                                              ],
+                                            );
+                                          },
+                                        ),
                                       ],
                                     ),
                                   );
@@ -21415,13 +21707,22 @@ class _PreorderModifierGroup {
   final String id;
   final String title;
   final bool isRequired;
+  final String selectionType;
+  final int minSelected;
+  final int? maxSelected;
   final List<_PreorderModifier> options;
+
   const _PreorderModifierGroup({
     required this.id,
     required this.title,
     this.isRequired = false,
+    this.selectionType = 'single',
+    this.minSelected = 0,
+    this.maxSelected,
     required this.options,
   });
+
+  bool get allowsMultiple => selectionType.toLowerCase() == 'multiple';
 }
 
 class _PreorderProduct {
