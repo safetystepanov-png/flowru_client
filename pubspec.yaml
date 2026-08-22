@@ -1,8 +1,8 @@
-name: flowru_client
+﻿name: flowru_client
 description: Flowru client loyalty app
 publish_to: "none"
 
-version: 1.0.11+93
+version: 1.0.11+94
 environment:
   sdk: ">=3.3.0 <4.0.0"
 
@@ -43,4 +43,5 @@ flutter_launcher_icons:
   ios: true
   image_path: "assets/images/app_icon.png"
   remove_alpha_ios: true
+
 
