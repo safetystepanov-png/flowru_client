@@ -2,7 +2,7 @@
 description: Flowru client loyalty app
 publish_to: "none"
 
-version: 1.0.12+95
+version: 1.0.13+96
 environment:
   sdk: ">=3.3.0 <4.0.0"
 
@@ -10,6 +10,8 @@ dependencies:
   firebase_core: ^3.15.2
   firebase_messaging: ^15.2.10
   flutter:
+    sdk: flutter
+  flutter_localizations:
     sdk: flutter
 
   http: ^1.2.2

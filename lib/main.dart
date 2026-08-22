@@ -15,6 +15,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
@@ -256,6 +257,16 @@ class FlowruClientApp extends StatelessWidget {
     return MaterialApp(
       title: 'Flowru',
       debugShowCheckedModeBanner: false,
+      locale: const Locale('ru'),
+      supportedLocales: const [
+        Locale('ru'),
+        Locale('en'),
+      ],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       theme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.light,
@@ -17070,6 +17081,10 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
   // FLOWRU_PREORDER_UX_V16_20260818
   final TextEditingController _orderController = TextEditingController();
 
+  // FLOWRU_PREORDER_UI_TIME_COMMENT_V2
+  final TextEditingController _commentController = TextEditingController();
+  DateTime? _scheduledPickupAt;
+
   // FLOWRU_REAL_CATALOG_STATE_V1_20260819
   String _catalogCategory = '';
   final List<_PreorderCartLine> _catalogCart = [];
@@ -17914,6 +17929,21 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
       return;
     }
 
+    if (_pickupType == 'at_time' &&
+        (_scheduledPickupAt == null ||
+            !_scheduledPickupAt!.isAfter(DateTime.now()))) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            '\u0412\u044b\u0431\u0435\u0440\u0438\u0442\u0435 \u0430\u043a\u0442\u0443\u0430\u043b\u044c\u043d\u043e\u0435 \u0432\u0440\u0435\u043c\u044f \u043f\u043e\u043b\u0443\u0447\u0435\u043d\u0438\u044f',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final comment = _commentController.text.trim();
+
     setState(() {
       _sending = true;
       _error = null;
@@ -17923,14 +17953,21 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
       await widget.api.createPreorder(
         widget.token,
         establishmentId: widget.establishmentId,
-        orderText: text,
+        orderText: comment.isEmpty
+            ? text
+            : '$text\n\u041a\u043e\u043c\u043c\u0435\u043d\u0442\u0430\u0440\u0438\u0439: $comment',
         pickupType: _pickupType,
         pickupMinutes: _pickupType == 'asap' ? 0 : _pickupMinutes,
+        pickupAt: _pickupType == 'at_time'
+            ? _scheduledPickupAt?.toIso8601String()
+            : null,
         paymentMethod: _paymentMethod,
       );
 
       _orderController.clear();
+      _commentController.clear();
       _catalogCart.clear();
+      _scheduledPickupAt = null;
 
       if (!mounted) return;
 
@@ -20739,22 +20776,11 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
           child: Container(
             key: ValueKey(_catalogCategory),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFFFFFFFF), Color(0xFFF7FBFC)],
-              ),
+              color: Colors.white.withOpacity(0.34),
               borderRadius: BorderRadius.circular(26),
               border: Border.all(
-                color: const Color(0xFF0D6E78).withOpacity(0.055),
+                color: const Color(0xFF0D6E78).withOpacity(0.045),
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF0A5661).withOpacity(0.055),
-                  blurRadius: 26,
-                  offset: const Offset(0, 12),
-                ),
-              ],
             ),
             child: Column(
               children: [
@@ -21098,7 +21124,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
 
     return _reveal(
       _surface(
-        color: const Color(0xFFF7FCFC).withOpacity(0.96),
+        color: Colors.white.withOpacity(0.50),
         radius: 32,
         padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
         child: Stack(
@@ -21345,6 +21371,125 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
     );
   }
 
+  String get _scheduledPickupLabel {
+    final value = _scheduledPickupAt;
+
+    if (value == null) {
+      return '\u041a\u043e \u0432\u0440\u0435\u043c\u0435\u043d\u0438';
+    }
+
+    final hour = value.hour.toString().padLeft(2, '0');
+    final minute = value.minute.toString().padLeft(2, '0');
+
+    return '\u041a $hour:$minute';
+  }
+
+  Future<void> _pickScheduledTime() async {
+    final now = DateTime.now();
+
+    final suggested =
+        _scheduledPickupAt ?? now.add(const Duration(minutes: 15));
+
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(
+        hour: suggested.hour,
+        minute: suggested.minute,
+      ),
+      helpText:
+          '\u0412\u044b\u0431\u0435\u0440\u0438\u0442\u0435 \u0432\u0440\u0435\u043c\u044f',
+      cancelText: '\u041e\u0442\u043c\u0435\u043d\u0430',
+      confirmText: '\u0413\u043e\u0442\u043e\u0432\u043e',
+      hourLabelText: '\u0427\u0430\u0441',
+      minuteLabelText: '\u041c\u0438\u043d',
+      builder: (context, child) {
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            alwaysUse24HourFormat: true,
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked == null || !mounted) return;
+
+    final candidate = DateTime(
+      now.year,
+      now.month,
+      now.day,
+      picked.hour,
+      picked.minute,
+    );
+
+    if (!candidate.isAfter(DateTime.now())) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            '\u0412\u044b\u0431\u0435\u0440\u0438\u0442\u0435 \u0432\u0440\u0435\u043c\u044f \u043f\u043e\u0437\u0436\u0435 \u0442\u0435\u043a\u0443\u0449\u0435\u0433\u043e',
+          ),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _pickupType = 'at_time';
+      _pickupMinutes = 0;
+      _scheduledPickupAt = candidate;
+    });
+  }
+
+  Widget _commentField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _label(
+          '\u041a\u043e\u043c\u043c\u0435\u043d\u0442\u0430\u0440\u0438\u0439 \u043a \u0437\u0430\u043a\u0430\u0437\u0443',
+        ),
+        const SizedBox(height: 9),
+        TextField(
+          controller: _commentController,
+          minLines: 2,
+          maxLines: 3,
+          maxLength: 300,
+          textCapitalization: TextCapitalization.sentences,
+          style: const TextStyle(
+            color: FlowColors.ink,
+            fontSize: 13.2,
+            fontWeight: FontWeight.w700,
+          ),
+          decoration: InputDecoration(
+            counterText: '',
+            hintText:
+                '\u041d\u0430\u043f\u0440\u0438\u043c\u0435\u0440: \u0431\u0435\u0437 \u0442\u0440\u0443\u0431\u043e\u0447\u043a\u0438, \u043f\u043e\u0437\u0432\u043e\u043d\u0438\u0442\u044c \u043f\u043e \u0433\u043e\u0442\u043e\u0432\u043d\u043e\u0441\u0442\u0438',
+            filled: true,
+            fillColor: Colors.white.withOpacity(0.50),
+            hintStyle: TextStyle(
+              color: FlowColors.ink.withOpacity(0.45),
+              fontSize: 12.4,
+              fontWeight: FontWeight.w700,
+            ),
+            contentPadding: const EdgeInsets.fromLTRB(15, 13, 15, 13),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(18),
+              borderSide: BorderSide(
+                color: FlowColors.ink.withOpacity(0.07),
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(18),
+              borderSide: const BorderSide(
+                color: Color(0xFF0B6571),
+                width: 1.4,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _timeRow() {
     final children = <Widget>[];
 
@@ -21361,7 +21506,9 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
     if (_allowScheduledTime || _timeMode == 'scheduled') {
       children.add(
         _time(
-          _featureType == 'appointment' ? 'Согласовать' : 'Ко времени',
+          _featureType == 'appointment'
+              ? '\u0421\u043e\u0433\u043b\u0430\u0441\u043e\u0432\u0430\u0442\u044c'
+              : _scheduledPickupLabel,
           'at_time',
           0,
         ),
@@ -21390,10 +21537,19 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
     final selected = _pickupType == type && _pickupMinutes == minutes;
 
     return GestureDetector(
-      onTap: () {
+      onTap: () async {
+        if (type == 'at_time' && !_isAppointment) {
+          await _pickScheduledTime();
+          return;
+        }
+
         setState(() {
           _pickupType = type;
           _pickupMinutes = minutes;
+
+          if (type != 'at_time') {
+            _scheduledPickupAt = null;
+          }
         });
       },
       child: AnimatedContainer(
@@ -21699,9 +21855,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
     final message =
         nonEmpty(_settings['message']) ?? '$_actionLabel сейчас недоступно';
 
-    final bodyWidth = MediaQuery.of(context).size.width > 430
-        ? 430.0
-        : MediaQuery.of(context).size.width;
+    final bodyWidth = MediaQuery.of(context).size.width;
 
     return Scaffold(
       backgroundColor: FlowColors.bg,
@@ -21713,7 +21867,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
               child: SizedBox(
                 width: bodyWidth,
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(18, 4, 18, 18),
+                  padding: const EdgeInsets.fromLTRB(6, 4, 6, 18),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -21749,6 +21903,10 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                                         const SizedBox(height: 14),
                                       ],
                                       _formCard(),
+                                      if (!_isAppointment) ...[
+                                        const SizedBox(height: 16),
+                                        _commentField(),
+                                      ],
                                     ],
                                   ),
                           ),
