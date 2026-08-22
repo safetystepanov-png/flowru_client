@@ -7017,6 +7017,11 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
       token: widget.token,
       establishmentId: id,
       establishmentName: _establishmentNameForPreorder,
+      points: toInt(
+        map(widget.home['loyalty'])['points'] ??
+            map(widget.home['loyalty'])['bonus_balance'] ??
+            map(widget.home['stats'])['points'],
+      ),
       menuPhotoUrls: _resolveMenuPhotoUrls(
         map(widget.home['establishment']),
         widget.home,
@@ -17038,6 +17043,10 @@ class ClientPreorderScreen extends StatefulWidget {
   final String token;
   final int establishmentId;
   final String establishmentName;
+
+  // FLOWRU_PREORDER_LOYALTY_BALANCE_V2
+  final int points;
+
   final List<String> menuPhotoUrls;
 
   const ClientPreorderScreen({
@@ -17046,6 +17055,7 @@ class ClientPreorderScreen extends StatefulWidget {
     required this.token,
     required this.establishmentId,
     required this.establishmentName,
+    required this.points,
     this.menuPhotoUrls = const [],
   });
 
@@ -20469,6 +20479,72 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                         },
                       ),
                     ),
+                    const SizedBox(height: 12),
+
+                    // FLOWRU_PREORDER_LOYALTY_BALANCE_V2
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEAF7F6),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(
+                          color: const Color(0xFF0B6571).withOpacity(0.10),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0B6571).withOpacity(0.10),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: const Icon(
+                              Icons.stars_rounded,
+                              color: Color(0xFF0B6571),
+                              size: 21,
+                            ),
+                          ),
+                          const SizedBox(width: 11),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '\u041d\u0430\u043a\u043e\u043f\u043b\u0435\u043d\u043e \u0431\u0430\u043b\u043b\u043e\u0432',
+                                  style: TextStyle(
+                                    color: FlowColors.ink,
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  '\u0411\u0430\u043b\u043b\u044b \u043c\u043e\u0436\u043d\u043e \u0441\u043f\u0438\u0441\u0430\u0442\u044c \u043f\u0440\u0438 \u043f\u043e\u043b\u0443\u0447\u0435\u043d\u0438\u0438 \u0437\u0430\u043a\u0430\u0437\u0430',
+                                  style: TextStyle(
+                                    color: FlowColors.muted,
+                                    fontSize: 10.8,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${formatMoney(widget.points)} \u0431\u0430\u043b\u043b\u043e\u0432',
+                            style: const TextStyle(
+                              color: Color(0xFF0B6571),
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
                     const SizedBox(height: 12),
                     SizedBox(
                       width: double.infinity,
