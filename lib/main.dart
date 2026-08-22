@@ -17089,6 +17089,13 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
   String _catalogCategory = '';
   final List<_PreorderCartLine> _catalogCart = [];
 
+  // FLOWRU_CATALOG_ADD_FEEDBACK_V1
+  final Set<String> _catalogAddedFeedback = <String>{};
+
+  // FLOWRU_CATALOG_EDGE_FADE_V2
+  bool _catalogFadeLeft = false;
+  bool _catalogFadeRight = true;
+
   List<_PreorderProduct> _catalogProducts = [];
   bool _catalogLoading = false;
   String? _catalogError;
@@ -19562,6 +19569,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
         product,
         const [],
       );
+      _showCatalogAddedFeedback(product.id);
       return;
     }
 
@@ -19772,30 +19780,9 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                                 builder: (context) {
                                   final isVariant = group.id == 'variant';
 
-                                  return Container(
-                                    width: double.infinity,
-                                    margin: const EdgeInsets.only(
-                                      bottom: 13,
-                                    ),
-                                    padding: const EdgeInsets.all(14),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(22),
-                                      border: Border.all(
-                                        color:
-                                            FlowColors.ink.withOpacity(0.055),
-                                      ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color:
-                                              FlowColors.ink.withOpacity(0.035),
-                                          blurRadius: 18,
-                                          offset: const Offset(
-                                            0,
-                                            7,
-                                          ),
-                                        ),
-                                      ],
+                                  return Padding(
+                                    padding: const EdgeInsets.only(
+                                      bottom: 17,
                                     ),
                                     child: Column(
                                       crossAxisAlignment:
@@ -20252,6 +20239,8 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                             Navigator.of(
                               sheetContext,
                             ).pop();
+
+                            _showCatalogAddedFeedback(product.id);
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: FlowColors.ink2,
@@ -20301,6 +20290,27 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
       }
       _syncCatalogOrderText();
     });
+  }
+
+  void _showCatalogAddedFeedback(String productId) {
+    if (!mounted) return;
+
+    setState(() {
+      _catalogAddedFeedback.add(productId);
+    });
+
+    Future<void>.delayed(
+      const Duration(milliseconds: 900),
+      () {
+        if (!mounted || !_catalogAddedFeedback.contains(productId)) {
+          return;
+        }
+
+        setState(() {
+          _catalogAddedFeedback.remove(productId);
+        });
+      },
+    );
   }
 
   void _changeCatalogQuantity(_PreorderCartLine line, int delta) {
@@ -20519,50 +20529,37 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                     const SizedBox(height: 12),
 
                     // FLOWRU_PREORDER_LOYALTY_BALANCE_V2
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFEAF7F6),
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(
-                          color: const Color(0xFF0B6571).withOpacity(0.10),
-                        ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 2,
+                        vertical: 3,
                       ),
                       child: Row(
                         children: [
-                          Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF0B6571).withOpacity(0.10),
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: const Icon(
-                              Icons.stars_rounded,
-                              color: Color(0xFF0B6571),
-                              size: 21,
-                            ),
+                          const Icon(
+                            Icons.stars_rounded,
+                            color: Color(0xFF0B6571),
+                            size: 21,
                           ),
-                          const SizedBox(width: 11),
+                          const SizedBox(width: 9),
                           const Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  '\u041d\u0430\u043a\u043e\u043f\u043b\u0435\u043d\u043e \u0431\u0430\u043b\u043b\u043e\u0432',
+                                  '\u0411\u0430\u043b\u043b\u044b',
                                   style: TextStyle(
                                     color: FlowColors.ink,
-                                    fontSize: 13.5,
+                                    fontSize: 12.8,
                                     fontWeight: FontWeight.w900,
                                   ),
                                 ),
-                                SizedBox(height: 2),
+                                SizedBox(height: 1),
                                 Text(
-                                  '\u0411\u0430\u043b\u043b\u044b \u043c\u043e\u0436\u043d\u043e \u0441\u043f\u0438\u0441\u0430\u0442\u044c \u043f\u0440\u0438 \u043f\u043e\u043b\u0443\u0447\u0435\u043d\u0438\u0438 \u0437\u0430\u043a\u0430\u0437\u0430',
+                                  '\u041c\u043e\u0436\u043d\u043e \u0441\u043f\u0438\u0441\u0430\u0442\u044c \u043f\u0440\u0438 \u043f\u043e\u043b\u0443\u0447\u0435\u043d\u0438\u0438',
                                   style: TextStyle(
                                     color: FlowColors.muted,
-                                    fontSize: 10.8,
+                                    fontSize: 10.4,
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),
@@ -20571,7 +20568,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            '${formatMoney(widget.points)} \u0431\u0430\u043b\u043b\u043e\u0432',
+                            '${formatMoney(widget.points)} \u0431.',
                             style: const TextStyle(
                               color: Color(0xFF0B6571),
                               fontSize: 14.5,
@@ -20754,19 +20751,99 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
           ],
         ),
         const SizedBox(height: 16),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          clipBehavior: Clip.none,
-          physics: const BouncingScrollPhysics(),
-          child: Row(
-            children: [
-              for (int i = 0; i < _catalogCategories.length; i++) ...[
-                _catalogCategoryChip(_catalogCategories[i]),
-                if (i != _catalogCategories.length - 1)
-                  const SizedBox(width: 8),
-              ],
-            ],
-          ),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final fullWidth = constraints.maxWidth + 36;
+
+            return SizedBox(
+              height: 48,
+              child: OverflowBox(
+                alignment: Alignment.center,
+                minWidth: fullWidth,
+                maxWidth: fullWidth,
+                minHeight: 48,
+                maxHeight: 48,
+                child: SizedBox(
+                  width: fullWidth,
+                  height: 48,
+                  child: StatefulBuilder(
+                    builder: (context, setFadeState) {
+                      void updateFade(ScrollMetrics metrics) {
+                        final nextLeft = metrics.pixels > 1;
+                        final nextRight =
+                            metrics.pixels < metrics.maxScrollExtent - 1;
+
+                        if (nextLeft == _catalogFadeLeft &&
+                            nextRight == _catalogFadeRight) {
+                          return;
+                        }
+
+                        _catalogFadeLeft = nextLeft;
+                        _catalogFadeRight = nextRight;
+
+                        setFadeState(() {});
+                      }
+
+                      return ShaderMask(
+                        blendMode: BlendMode.dstIn,
+                        shaderCallback: (bounds) {
+                          final fadeStop = 30.0 / bounds.width;
+
+                          return LinearGradient(
+                            begin: Alignment.centerLeft,
+                            end: Alignment.centerRight,
+                            colors: [
+                              _catalogFadeLeft
+                                  ? Colors.transparent
+                                  : Colors.black,
+                              Colors.black,
+                              Colors.black,
+                              _catalogFadeRight
+                                  ? Colors.transparent
+                                  : Colors.black,
+                            ],
+                            stops: [
+                              0.0,
+                              fadeStop,
+                              1.0 - fadeStop,
+                              1.0,
+                            ],
+                          ).createShader(bounds);
+                        },
+                        child: NotificationListener<ScrollNotification>(
+                          onNotification: (notification) {
+                            updateFade(notification.metrics);
+                            return false;
+                          },
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            clipBehavior: Clip.hardEdge,
+                            physics: const BouncingScrollPhysics(),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 18,
+                            ),
+                            child: Row(
+                              children: [
+                                for (int i = 0;
+                                    i < _catalogCategories.length;
+                                    i++) ...[
+                                  _catalogCategoryChip(
+                                    _catalogCategories[i],
+                                  ),
+                                  if (i != _catalogCategories.length - 1)
+                                    const SizedBox(width: 8),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            );
+          },
         ),
         const SizedBox(height: 15),
         AnimatedSwitcher(
@@ -20775,12 +20852,8 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
           switchOutCurve: Curves.easeInCubic,
           child: Container(
             key: ValueKey(_catalogCategory),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.34),
-              borderRadius: BorderRadius.circular(26),
-              border: Border.all(
-                color: const Color(0xFF0D6E78).withOpacity(0.045),
-              ),
+            decoration: const BoxDecoration(
+              color: Colors.transparent,
             ),
             child: Column(
               children: [
@@ -21071,7 +21144,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                   ),
                   const SizedBox(height: 7),
                   Text(
-                    '${product.groups.isNotEmpty ? 'от ' : ''}${product.basePrice} ₽',
+                    '${product.groups.isNotEmpty ? '\u043e\u0442 ' : ''}${product.basePrice} \u20bd',
                     style: const TextStyle(
                       color: Color(0xFF086B76),
                       fontSize: 14.2,
@@ -21082,34 +21155,149 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
               ),
             ),
             const SizedBox(width: 12),
-            Container(
-              width: 46,
-              height: 46,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(17),
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFF23C8B8),
-                    Color(0xFF2CAFE1),
-                    Color(0xFF418DEB),
-                  ],
-                ),
-                border: Border.all(color: Colors.white.withOpacity(0.72)),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF159DB3).withOpacity(0.25),
-                    blurRadius: 18,
-                    offset: const Offset(0, 9),
+            Builder(
+              builder: (context) {
+                // FLOWRU_PREORDER_DESIGN_CLEANUP_V3
+                final added = _catalogAddedFeedback.contains(product.id);
+
+                final quantity = _catalogCart
+                    .where(
+                      (line) => line.product.id == product.id,
+                    )
+                    .fold<int>(
+                      0,
+                      (sum, line) => sum + line.quantity,
+                    );
+
+                return AnimatedScale(
+                  scale: added ? 0.97 : 1.0,
+                  duration: const Duration(milliseconds: 160),
+                  curve: Curves.easeOutBack,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 260),
+                    curve: Curves.easeOutCubic,
+                    width: added ? 112 : 46,
+                    height: 46,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: added ? 8 : 0,
+                    ),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(17),
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: added
+                            ? const [
+                                Color(0xFF0CA78F),
+                                Color(0xFF14BFA6),
+                              ]
+                            : const [
+                                Color(0xFF23C8B8),
+                                Color(0xFF2CAFE1),
+                                Color(0xFF418DEB),
+                              ],
+                      ),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.72),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: (added
+                                  ? const Color(0xFF0CA78F)
+                                  : const Color(0xFF159DB3))
+                              .withOpacity(0.25),
+                          blurRadius: 18,
+                          offset: const Offset(0, 9),
+                        ),
+                      ],
+                    ),
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 180),
+                      switchInCurve: Curves.easeOutBack,
+                      switchOutCurve: Curves.easeInCubic,
+                      transitionBuilder: (child, animation) {
+                        return FadeTransition(
+                          opacity: animation,
+                          child: ScaleTransition(
+                            scale: animation,
+                            child: child,
+                          ),
+                        );
+                      },
+                      child: added
+                          ? const Row(
+                              key: ValueKey('catalog-added'),
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.check_rounded,
+                                  color: Colors.white,
+                                  size: 19,
+                                ),
+                                SizedBox(width: 5),
+                                Text(
+                                  '\u0414\u043e\u0431\u0430\u0432\u043b\u0435\u043d\u043e',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11.2,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ],
+                            )
+                          : SizedBox(
+                              key: ValueKey('catalog-add-$quantity'),
+                              width: double.infinity,
+                              height: double.infinity,
+                              child: Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  const Icon(
+                                    Icons.add_rounded,
+                                    color: Colors.white,
+                                    size: 26,
+                                  ),
+                                  if (quantity > 0)
+                                    Positioned(
+                                      right: 0,
+                                      top: 0,
+                                      child: Container(
+                                        constraints: const BoxConstraints(
+                                          minWidth: 18,
+                                          minHeight: 18,
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 4,
+                                        ),
+                                        alignment: Alignment.center,
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFFFD36D),
+                                          borderRadius:
+                                              BorderRadius.circular(99),
+                                          border: Border.all(
+                                            color: Colors.white,
+                                            width: 1.2,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          quantity > 99 ? '99+' : '$quantity',
+                                          style: const TextStyle(
+                                            color: Color(0xFF684200),
+                                            fontSize: 9,
+                                            height: 1,
+                                            fontWeight: FontWeight.w900,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                    ),
                   ),
-                ],
-              ),
-              child: const Icon(
-                Icons.add_rounded,
-                color: Colors.white,
-                size: 26,
-              ),
+                );
+              },
             ),
           ],
         ),
