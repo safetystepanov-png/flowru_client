@@ -20,6 +20,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:local_auth/local_auth.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
@@ -214,6 +215,15 @@ class FlowInviteDeepLinks {
 }
 
 String firebaseInitStatus = 'firebase-init-not-started-1.0.15+99';
+
+Future<String> _flowruInstalledAppVersion() async {
+  try {
+    final info = await PackageInfo.fromPlatform();
+    return '${info.version}+${info.buildNumber}';
+  } catch (_) {
+    return '0.0.0+0';
+  }
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -539,7 +549,7 @@ class FlowApi {
     String token, {
     required String pushToken,
     String platform = 'unknown',
-    String appVersion = '1.0.15+100',
+    String appVersion = 'unknown',
   }) {
     return _request(
       path: '/client/device/register',
@@ -1126,7 +1136,7 @@ class FlowClientPush {
           accessToken,
           pushToken: pushToken.trim(),
           platform: defaultTargetPlatform.name,
-          appVersion: '1.0.15+100',
+          appVersion: await _flowruInstalledAppVersion(),
         );
       }
 
@@ -1144,7 +1154,7 @@ class FlowClientPush {
               freshAccessToken.trim(),
               pushToken: newPushToken.trim(),
               platform: defaultTargetPlatform.name,
-              appVersion: '1.0.15+100',
+              appVersion: await _flowruInstalledAppVersion(),
             );
           } catch (_) {
             // Не блокируем приложение из-за ошибки регистрации push-токена.
@@ -1170,8 +1180,7 @@ class BootstrapScreen extends StatefulWidget {
 }
 
 class _BootstrapScreenState extends State<BootstrapScreen> {
-  // FLOWRU_APP_VERSION_NOTICE_V3_20260908
-  static const String _currentAppVersion = '1.0.15+100';
+  // FLOWRU_APP_VERSION_NOTICE_V4_20260909
 
   bool _isNewerAppVersion(
     String latest,
@@ -1217,10 +1226,25 @@ class _BootstrapScreenState extends State<BootstrapScreen> {
 
   Future<void> _checkAppVersionNotice() async {
     try {
+      final String? platform;
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        platform = 'ios';
+      } else if (defaultTargetPlatform == TargetPlatform.android) {
+        platform = 'android';
+      } else {
+        platform = null;
+      }
+
+      if (platform == null) {
+        return;
+      }
+
+      final installedVersion = await _flowruInstalledAppVersion();
+
       final response = await http
           .get(
             Uri.parse(
-              'https://mapi.flowru.ru/api/v1/app/version?platform=android',
+              'https://mapi.flowru.ru/api/v1/app/version?platform=$platform',
             ),
           )
           .timeout(
@@ -1245,17 +1269,19 @@ class _BootstrapScreenState extends State<BootstrapScreen> {
 
       final message = (data['message'] ?? '').toString().trim();
 
-      final downloadUrl = (data['download_url'] ??
-              'https://mapi.flowru.ru/downloads/flowru-client.apk')
-          .toString()
-          .trim();
+      final fallbackDownloadUrl = platform == 'ios'
+          ? 'https://apps.apple.com/ru/app/flowru/id6765469553'
+          : 'https://mapi.flowru.ru/downloads/flowru-client.apk';
+
+      final downloadUrl =
+          (data['download_url'] ?? fallbackDownloadUrl).toString().trim();
 
       final forceUpdate = data['force_update'] == true;
 
       if (latest.isEmpty ||
           !_isNewerAppVersion(
             latest,
-            _currentAppVersion,
+            installedVersion,
           ) ||
           !mounted) {
         return;
