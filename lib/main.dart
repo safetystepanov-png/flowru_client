@@ -213,27 +213,33 @@ class FlowInviteDeepLinks {
   static Stream<Uri> get stream => _appLinks.uriLinkStream;
 }
 
-String firebaseInitStatus = 'firebase-init-not-started-1.0.3+49';
+String firebaseInitStatus = 'firebase-init-not-started-1.0.15+99';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
-    await Firebase.initializeApp(
-      options: const FirebaseOptions(
-        apiKey: 'AIzaSyDA3U9idkt-yQaDaxpuU_1SYLXMNb_Uw18',
-        appId: '1:992660960797:ios:1373d717d4618882ddf8f4',
-        messagingSenderId: '992660960797',
-        projectId: 'flowru-mobile-a05b7',
-        storageBucket: 'flowru-mobile-a05b7.firebasestorage.app',
-        iosBundleId: 'ru.flowru.client',
-      ),
-    );
-    firebaseInitStatus = 'firebase-init-ok-1.0.3+49';
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      // Android configuration is generated from android/app/google-services.json.
+      await Firebase.initializeApp();
+    } else {
+      // Preserve the existing iOS Firebase configuration.
+      await Firebase.initializeApp(
+        options: const FirebaseOptions(
+          apiKey: 'AIzaSyDA3U9idkt-yQaDaxpuU_1SYLXMNb_Uw18',
+          appId: '1:992660960797:ios:1373d717d4618882ddf8f4',
+          messagingSenderId: '992660960797',
+          projectId: 'flowru-mobile-a05b7',
+          storageBucket: 'flowru-mobile-a05b7.firebasestorage.app',
+          iosBundleId: 'ru.flowru.client',
+        ),
+      );
+    }
+    firebaseInitStatus = 'firebase-init-ok-1.0.15+99';
   } catch (e) {
     final raw = e.toString();
     final safeRaw = raw.replaceAll(RegExp(r'[^a-zA-Z0-9_\\-]+'), '_');
     final safe = safeRaw.length > 80 ? safeRaw.substring(0, 80) : safeRaw;
-    firebaseInitStatus = 'firebase-init-error-$safe-1.0.3+49';
+    firebaseInitStatus = 'firebase-init-error-$safe-1.0.15+99';
   }
   await FlowInviteDeepLinks.restorePendingInviteToken();
   await FlowInviteDeepLinks.initInitialLink();
@@ -533,7 +539,7 @@ class FlowApi {
     String token, {
     required String pushToken,
     String platform = 'unknown',
-    String appVersion = '1.0.3+31',
+    String appVersion = '1.0.15+100',
   }) {
     return _request(
       path: '/client/device/register',
@@ -1037,15 +1043,12 @@ class FlowClientPush {
   static final FlowApi _api = FlowApi();
   static bool _tokenRefreshListenerStarted = false;
 
-  static Future<void> _mark(String accessToken, String code) async {
-    try {
-      await _api.registerClientDevice(
-        accessToken,
-        pushToken: code,
-        platform: defaultTargetPlatform.name,
-        appVersion: code,
-      );
-    } catch (_) {}
+  static Future<void> _mark(String accessToken, String code) {
+    // Diagnostic markers are local-only and must never be stored as push tokens.
+    if (kDebugMode && accessToken.isNotEmpty) {
+      debugPrint('FlowClientPush: $code');
+    }
+    return Future<void>.value();
   }
 
   static Future<void> registerSavedToken() async {
@@ -1058,12 +1061,12 @@ class FlowClientPush {
     if (kIsWeb) return;
 
     try {
-      await _mark(accessToken, 'debug-01-start-1.0.3+49');
+      await _mark(accessToken, 'debug-01-start-1.0.15+99');
       await _mark(accessToken, firebaseInitStatus);
 
       final messaging = FirebaseMessaging.instance;
 
-      await _mark(accessToken, 'debug-02-before-permission-1.0.3+49');
+      await _mark(accessToken, 'debug-02-before-permission-1.0.15+99');
 
       final settings = await messaging.requestPermission(
         alert: true,
@@ -1073,55 +1076,57 @@ class FlowClientPush {
 
       await _mark(
         accessToken,
-        'debug-03-permission-${settings.authorizationStatus.name}-1.0.3+49',
+        'debug-03-permission-${settings.authorizationStatus.name}-1.0.15+99',
       );
 
-      final nativeRegisterStatus =
-          await FlowNativePushBridge.registerForRemoteNotifications();
-      await _mark(
-        accessToken,
-        'debug-native-register-$nativeRegisterStatus-1.0.3+49',
-      );
-
-      String nativeStatus = 'native-status-not-read';
-      String? apnsToken;
-
-      for (var i = 0; i < 15; i++) {
-        nativeStatus = await FlowNativePushBridge.getApnsStatus();
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        final nativeRegisterStatus =
+            await FlowNativePushBridge.registerForRemoteNotifications();
         await _mark(
           accessToken,
-          'debug-native-status-$nativeStatus-1.0.3+49',
+          'debug-native-register-$nativeRegisterStatus-1.0.15+99',
         );
 
-        apnsToken = await messaging.getAPNSToken();
-        if (apnsToken != null && apnsToken.trim().isNotEmpty) {
-          break;
+        String nativeStatus = 'native-status-not-read';
+        String? apnsToken;
+
+        for (var i = 0; i < 15; i++) {
+          nativeStatus = await FlowNativePushBridge.getApnsStatus();
+          await _mark(
+            accessToken,
+            'debug-native-status-$nativeStatus-1.0.15+99',
+          );
+
+          apnsToken = await messaging.getAPNSToken();
+          if (apnsToken != null && apnsToken.trim().isNotEmpty) {
+            break;
+          }
+
+          await Future.delayed(const Duration(seconds: 1));
         }
 
-        await Future.delayed(const Duration(seconds: 1));
-      }
+        if (apnsToken == null || apnsToken.trim().isEmpty) {
+          await _mark(
+            accessToken,
+            'debug-04-apns-empty-native-$nativeStatus-1.0.15+99',
+          );
+          return;
+        }
 
-      if (apnsToken == null || apnsToken.trim().isEmpty) {
-        await _mark(
-          accessToken,
-          'debug-04-apns-empty-native-$nativeStatus-1.0.3+49',
-        );
-        return;
-      } else {
-        await _mark(accessToken, 'debug-04-apns-ok-1.0.3+49');
+        await _mark(accessToken, 'debug-04-apns-ok-1.0.15+99');
       }
 
       final pushToken = await messaging.getToken();
       if (pushToken == null || pushToken.trim().isEmpty) {
-        await _mark(accessToken, 'debug-05-fcm-empty-1.0.3+49');
+        await _mark(accessToken, 'debug-05-fcm-empty-1.0.15+99');
       } else {
-        await _mark(accessToken, 'debug-05-fcm-ok-1.0.3+49');
+        await _mark(accessToken, 'debug-05-fcm-ok-1.0.15+99');
 
         await _api.registerClientDevice(
           accessToken,
           pushToken: pushToken.trim(),
           platform: defaultTargetPlatform.name,
-          appVersion: '1.0.3+49',
+          appVersion: '1.0.15+100',
         );
       }
 
@@ -1139,7 +1144,7 @@ class FlowClientPush {
               freshAccessToken.trim(),
               pushToken: newPushToken.trim(),
               platform: defaultTargetPlatform.name,
-              appVersion: '1.0.3+49',
+              appVersion: '1.0.15+100',
             );
           } catch (_) {
             // Не блокируем приложение из-за ошибки регистрации push-токена.
@@ -1152,7 +1157,7 @@ class FlowClientPush {
           .replaceAll(RegExp(r'[^a-zA-Z0-9_\-]+'), '_')
           .substring(0, raw.length > 80 ? 80 : raw.length);
 
-      await _mark(accessToken, 'debug-99-error-$safe-1.0.3+49');
+      await _mark(accessToken, 'debug-99-error-$safe-1.0.15+99');
       // Не блокируем вход/запуск приложения из-за push.
     }
   }
@@ -1165,46 +1170,49 @@ class BootstrapScreen extends StatefulWidget {
 }
 
 class _BootstrapScreenState extends State<BootstrapScreen> {
-  // FLOWRU_APP_VERSION_NOTICE_V2_20260819
-  static const String _currentAppVersion = '1.0.10';
+  // FLOWRU_APP_VERSION_NOTICE_V3_20260908
+  static const String _currentAppVersion = '1.0.15+100';
 
   bool _isNewerAppVersion(
     String latest,
     String current,
   ) {
-    List<int> parse(String value) {
-      final clean = value.split('+').first.split('-').first.trim();
+    ({List<int> version, int build}) parse(String value) {
+      final normalized = value.trim().split('-').first;
 
-      return clean
+      final plusParts = normalized.split('+');
+      final versionText = plusParts.first.trim();
+
+      final build =
+          plusParts.length > 1 ? int.tryParse(plusParts[1].trim()) ?? 0 : 0;
+
+      final version = versionText
           .split('.')
-          .map(
-            (part) => int.tryParse(part) ?? 0,
-          )
+          .map((part) => int.tryParse(part) ?? 0)
           .toList();
+
+      return (version: version, build: build);
     }
 
-    final latestParts = parse(latest);
-    final currentParts = parse(current);
+    final latestParsed = parse(latest);
+    final currentParsed = parse(current);
 
-    final maxLength = latestParts.length > currentParts.length
-        ? latestParts.length
-        : currentParts.length;
+    final maxLength = latestParsed.version.length > currentParsed.version.length
+        ? latestParsed.version.length
+        : currentParsed.version.length;
 
     for (var i = 0; i < maxLength; i++) {
-      final latestValue = i < latestParts.length ? latestParts[i] : 0;
+      final latestValue =
+          i < latestParsed.version.length ? latestParsed.version[i] : 0;
 
-      final currentValue = i < currentParts.length ? currentParts[i] : 0;
+      final currentValue =
+          i < currentParsed.version.length ? currentParsed.version[i] : 0;
 
-      if (latestValue > currentValue) {
-        return true;
-      }
-
-      if (latestValue < currentValue) {
-        return false;
-      }
+      if (latestValue > currentValue) return true;
+      if (latestValue < currentValue) return false;
     }
 
-    return false;
+    return latestParsed.build > currentParsed.build;
   }
 
   Future<void> _checkAppVersionNotice() async {
@@ -1212,7 +1220,7 @@ class _BootstrapScreenState extends State<BootstrapScreen> {
       final response = await http
           .get(
             Uri.parse(
-              'https://mapi.flowru.ru/api/v1/app/version',
+              'https://mapi.flowru.ru/api/v1/app/version?platform=android',
             ),
           )
           .timeout(
@@ -1237,6 +1245,13 @@ class _BootstrapScreenState extends State<BootstrapScreen> {
 
       final message = (data['message'] ?? '').toString().trim();
 
+      final downloadUrl = (data['download_url'] ??
+              'https://mapi.flowru.ru/downloads/flowru-client.apk')
+          .toString()
+          .trim();
+
+      final forceUpdate = data['force_update'] == true;
+
       if (latest.isEmpty ||
           !_isNewerAppVersion(
             latest,
@@ -1248,47 +1263,65 @@ class _BootstrapScreenState extends State<BootstrapScreen> {
 
       await showDialog<void>(
         context: context,
-        barrierDismissible: true,
+        barrierDismissible: !forceUpdate,
         builder: (dialogContext) {
-          return AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(24),
-            ),
-            title: const Text(
-              '\u0414\u043e\u0441\u0442\u0443\u043f\u043d\u043e '
-              '\u043e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u0438\u0435',
-              style: TextStyle(
-                fontWeight: FontWeight.w900,
-                color: FlowColors.ink,
+          return PopScope(
+            canPop: !forceUpdate,
+            child: AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
               ),
-            ),
-            content: Text(
-              message.isEmpty
-                  ? '\u0412\u044b\u0448\u043b\u0430 '
-                      '\u043d\u043e\u0432\u0430\u044f '
-                      '\u0432\u0435\u0440\u0441\u0438\u044f '
-                      'Flowru.'
-                  : message,
-              style: const TextStyle(
-                color: FlowColors.muted,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(
-                  dialogContext,
-                ).pop(),
-                child: const Text(
-                  '\u0417\u0430\u043a\u0440\u044b\u0442\u044c',
+              title: Text(
+                forceUpdate
+                    ? '\u0422\u0440\u0435\u0431\u0443\u0435\u0442\u0441\u044f \u043e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u0438\u0435'
+                    : '\u0414\u043e\u0441\u0442\u0443\u043f\u043d\u043e \u043e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u0438\u0435',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  color: FlowColors.ink,
                 ),
               ),
-            ],
+              content: Text(
+                message.isEmpty
+                    ? '\u0414\u043e\u0441\u0442\u0443\u043f\u043d\u0430 \u043d\u043e\u0432\u0430\u044f \u0432\u0435\u0440\u0441\u0438\u044f Flowru $latest.'
+                    : message,
+                style: const TextStyle(
+                  color: FlowColors.muted,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              actions: [
+                if (!forceUpdate)
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    child: const Text('\u041f\u043e\u0437\u0436\u0435'),
+                  ),
+                FilledButton(
+                  onPressed: () async {
+                    final uri = Uri.tryParse(downloadUrl);
+
+                    if (uri == null) {
+                      return;
+                    }
+
+                    await launchUrl(
+                      uri,
+                      mode: LaunchMode.externalApplication,
+                    );
+
+                    if (!forceUpdate && dialogContext.mounted) {
+                      Navigator.of(dialogContext).pop();
+                    }
+                  },
+                  child: const Text(
+                      '\u041e\u0431\u043d\u043e\u0432\u0438\u0442\u044c'),
+                ),
+              ],
+            ),
           );
         },
       );
     } catch (_) {
-      // Version check must never block application startup.
+      // ???????? ?????????? ?? ?????? ?????? ?????? ??????????.
     }
   }
 
@@ -3348,21 +3381,69 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
   }
 
   Future<void> refreshClientQr({bool silent = false}) async {
-    if (!silent && mounted) setState(() => flowruQrLoading = true);
-    try {
-      final token = await getFreshAccessToken();
-      if (token == null || token.isEmpty) return;
-      final res = await api.clientQr(token);
-      if (!mounted) return;
+    if (mounted) {
       setState(() {
-        flowruQrPayload =
-            (res['qr_payload'] ?? res['qr_token'] ?? '').toString();
+        if (!silent) flowruQrLoading = true;
+      });
+    }
+
+    try {
+      var token = await getFreshAccessToken();
+
+      if (token == null || token.isEmpty) {
+        if (mounted) {
+          setState(() {
+            flowruQrPayload = '';
+            flowruQrExpiresAt = null;
+          });
+        }
+        return;
+      }
+
+      Map<String, dynamic> res;
+
+      try {
+        res = await api.clientQr(token);
+      } on ApiError catch (e) {
+        if (e.status != 401) rethrow;
+
+        final refreshed = await refreshAccessToken();
+
+        if (refreshed == null || refreshed.isEmpty) {
+          if (mounted) {
+            setState(() {
+              flowruQrPayload = '';
+              flowruQrExpiresAt = null;
+            });
+          }
+          return;
+        }
+
+        token = refreshed;
+        res = await api.clientQr(token);
+      }
+
+      final payload =
+          (res['qr_payload'] ?? res['qr_token'] ?? '').toString().trim();
+
+      if (!mounted) return;
+
+      setState(() {
+        flowruQrPayload = payload;
         flowruQrExpiresAt =
             DateTime.tryParse((res['expires_at'] ?? '').toString());
-        flowruQrLoading = false;
       });
     } catch (_) {
-      if (!silent && mounted) setState(() => flowruQrLoading = false);
+      if (!mounted) return;
+
+      setState(() {
+        flowruQrPayload = '';
+        flowruQrExpiresAt = null;
+      });
+    } finally {
+      if (mounted) {
+        setState(() => flowruQrLoading = false);
+      }
     }
   }
 
@@ -4183,9 +4264,7 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
           FlowruClientQrPanel(
             name: clientName,
             phone: phone,
-            payload: flowruQrPayload.isNotEmpty
-                ? flowruQrPayload
-                : (phone.isNotEmpty ? phone : code),
+            payload: flowruQrPayload,
             loading: flowruQrLoading,
             onRefresh: () => refreshClientQr(),
             onOpen: () => showQrSheet(context),
@@ -4807,13 +4886,26 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
     );
   }
 
-  void showQrSheet(BuildContext context) {
-    final qr = flowruQrPayload.trim().isNotEmpty
-        ? flowruQrPayload.trim()
-        : code.trim();
+  Future<void> showQrSheet(BuildContext context) async {
+    if (flowruQrPayload.trim().isEmpty) {
+      await refreshClientQr();
+    }
+
+    if (!mounted) return;
+
+    final qr = flowruQrPayload.trim();
+
+    if (qr.isEmpty) {
+      ScaffoldMessenger.of(this.context).showSnackBar(
+        const SnackBar(
+          content: Text('?? ??????? ???????? QR-???. ?????????? ??? ???.'),
+        ),
+      );
+      return;
+    }
 
     showModalBottomSheet(
-      context: context,
+      context: this.context,
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
@@ -4824,10 +4916,6 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
         points: points,
       ),
     );
-
-    if (flowruQrPayload.trim().isEmpty) {
-      refreshClientQr(silent: true);
-    }
   }
 
   Future<void> showBirthDateSheet(BuildContext context) async {
@@ -6280,7 +6368,7 @@ class FlowruClientQrPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final qr = payload.trim().isNotEmpty ? payload.trim() : 'flowru-client';
+    final qr = payload.trim();
 
     return LayoutBuilder(builder: (context, constraints) {
       final qrSize =
@@ -6352,19 +6440,52 @@ class FlowruClientQrPanel extends StatelessWidget {
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(22),
-                  child: QrImageView(
-                    data: qr,
-                    size: qrSize,
-                    backgroundColor: Colors.white,
-                    eyeStyle: const QrEyeStyle(
-                      eyeShape: QrEyeShape.square,
-                      color: FlowColors.ink,
-                    ),
-                    dataModuleStyle: const QrDataModuleStyle(
-                      dataModuleShape: QrDataModuleShape.square,
-                      color: FlowColors.ink,
-                    ),
-                  ),
+                  child: qr.isNotEmpty
+                      ? QrImageView(
+                          data: qr,
+                          size: qrSize,
+                          backgroundColor: Colors.white,
+                          eyeStyle: const QrEyeStyle(
+                            eyeShape: QrEyeShape.square,
+                            color: FlowColors.ink,
+                          ),
+                          dataModuleStyle: const QrDataModuleStyle(
+                            dataModuleShape: QrDataModuleShape.square,
+                            color: FlowColors.ink,
+                          ),
+                        )
+                      : SizedBox(
+                          width: qrSize,
+                          height: qrSize,
+                          child: Center(
+                            child: loading
+                                ? const CircularProgressIndicator()
+                                : Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(
+                                        Icons.qr_code_2_rounded,
+                                        size: 54,
+                                        color: FlowColors.ink2,
+                                      ),
+                                      const SizedBox(height: 10),
+                                      const Text(
+                                        'QR-??? ???? ??????????',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          color: FlowColors.ink,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      TextButton(
+                                        onPressed: onRefresh,
+                                        child: const Text('????????'),
+                                      ),
+                                    ],
+                                  ),
+                          ),
+                        ),
                 ),
               ),
             ),
@@ -17218,6 +17339,10 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
         if (rawItem is! Map) continue;
 
         final item = Map<String, dynamic>.from(rawItem);
+
+        // FLOWRU_CLIENT_STOPLIST_V1_20260909
+        // ?????, ??????????? ??????????? ? Business, ?? ?????????? ???????.
+        if (item['is_available'] == false) continue;
 
         final itemId = item['id'];
         if (itemId == null) continue;
