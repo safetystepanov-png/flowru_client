@@ -12028,6 +12028,7 @@ class OfferTicker extends StatelessWidget {
       icon: item.icon,
       color: item.color,
       establishmentName: estName,
+      imageUrl: item.imageUrl,
       onOpenEstablishment: estId != null && onOpenEstablishment != null
           ? () async {
               Navigator.of(context).maybePop();
@@ -16344,6 +16345,7 @@ class BenefitEntry {
   const BenefitEntry(this.title, this.subtitle, this.icon, this.color);
 }
 
+// FLOWRU_PROMO_CENTER_VIEWER_V3_20260910
 void showPromoDetailsSheet(
   BuildContext context, {
   required String title,
@@ -16351,106 +16353,234 @@ void showPromoDetailsSheet(
   required IconData icon,
   required Color color,
   String? establishmentName,
+  String? imageUrl,
   Future<void> Function()? onOpenEstablishment,
 }) {
-  showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    useSafeArea: true,
-    backgroundColor: Colors.transparent,
-    builder: (_) => Container(
-      margin: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: FlowColors.paper,
-        borderRadius: BorderRadius.circular(34),
-      ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(18, 12, 18, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+  final resolvedImage = (imageUrl ?? '').trim();
+
+  if (resolvedImage.isEmpty) {
+    showBenefitSheet(
+      context,
+      title: title,
+      subtitle: subtitle,
+      icon: icon,
+      color: color,
+    );
+    return;
+  }
+
+  Navigator.of(context, rootNavigator: true).push<void>(
+    PageRouteBuilder<void>(
+      opaque: false,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withOpacity(0.56),
+      barrierLabel: '???????',
+      transitionDuration: const Duration(milliseconds: 420),
+      reverseTransitionDuration: const Duration(milliseconds: 280),
+      pageBuilder: (viewerContext, animation, secondaryAnimation) {
+        final screen = MediaQuery.of(viewerContext).size;
+        final cardWidth = math.min(screen.width - 28.0, 520.0);
+        final imageHeight = math.min(screen.height * 0.62, 620.0);
+
+        return Material(
+          color: Colors.transparent,
+          child: Stack(
             children: [
-              Center(
-                child: Container(
-                  width: 44,
-                  height: 5,
-                  decoration: BoxDecoration(
-                    color: FlowColors.line,
-                    borderRadius: BorderRadius.circular(999),
+              Positioned.fill(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => Navigator.of(viewerContext).pop(),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(
+                      sigmaX: 12,
+                      sigmaY: 12,
+                    ),
+                    child: Container(
+                      color: Colors.black.withOpacity(0.08),
+                    ),
                   ),
                 ),
               ),
-              const SizedBox(height: 18),
-              Row(
-                children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: color.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: Icon(icon, color: color),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if ((establishmentName ?? '').trim().isNotEmpty)
-                          Text(
-                            establishmentName!.trim(),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: FlowColors.gold,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w900,
+              SafeArea(
+                child: Center(
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(14, 18, 14, 24),
+                    child: SizedBox(
+                      width: cardWidth,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Stack(
+                            children: [
+                              Container(
+                                width: double.infinity,
+                                constraints: BoxConstraints(
+                                  maxHeight: imageHeight,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF071B2D),
+                                  borderRadius: BorderRadius.circular(28),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.32),
+                                      blurRadius: 40,
+                                      offset: const Offset(0, 18),
+                                    ),
+                                  ],
+                                ),
+                                clipBehavior: Clip.antiAlias,
+                                child: Image.network(
+                                  resolvedImage,
+                                  fit: BoxFit.contain,
+                                  filterQuality: FilterQuality.high,
+                                  errorBuilder: (_, __, ___) => const SizedBox(
+                                    height: 320,
+                                    child: Center(
+                                      child: Icon(
+                                        Icons.broken_image_outlined,
+                                        color: Colors.white70,
+                                        size: 46,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              Positioned(
+                                top: 12,
+                                right: 12,
+                                child: Material(
+                                  color: Colors.black.withOpacity(0.72),
+                                  shape: const CircleBorder(),
+                                  child: InkWell(
+                                    customBorder: const CircleBorder(),
+                                    onTap: () =>
+                                        Navigator.of(viewerContext).pop(),
+                                    child: Container(
+                                      width: 44,
+                                      height: 44,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: Colors.white.withOpacity(0.30),
+                                        ),
+                                      ),
+                                      child: const Icon(
+                                        Icons.close_rounded,
+                                        color: Colors.white,
+                                        size: 25,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (title.trim().isNotEmpty ||
+                              subtitle.trim().isNotEmpty ||
+                              (establishmentName ?? '').trim().isNotEmpty ||
+                              onOpenEstablishment != null) ...[
+                            const SizedBox(height: 12),
+                            Container(
+                              width: double.infinity,
+                              padding:
+                                  const EdgeInsets.fromLTRB(18, 17, 18, 18),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.97),
+                                borderRadius: BorderRadius.circular(26),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.90),
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.18),
+                                    blurRadius: 28,
+                                    offset: const Offset(0, 12),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if ((establishmentName ?? '')
+                                      .trim()
+                                      .isNotEmpty) ...[
+                                    Text(
+                                      establishmentName!.trim(),
+                                      style: const TextStyle(
+                                        color: FlowColors.gold,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 7),
+                                  ],
+                                  if (title.trim().isNotEmpty)
+                                    Text(
+                                      title.trim(),
+                                      style: const TextStyle(
+                                        color: FlowColors.ink,
+                                        fontSize: 22,
+                                        height: 1.08,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: -0.5,
+                                      ),
+                                    ),
+                                  if (subtitle.trim().isNotEmpty) ...[
+                                    const SizedBox(height: 10),
+                                    Text(
+                                      subtitle.trim(),
+                                      style: const TextStyle(
+                                        color: FlowColors.muted,
+                                        fontSize: 15,
+                                        height: 1.42,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
+                                  if (onOpenEstablishment != null) ...[
+                                    const SizedBox(height: 16),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      child: PrimaryButton(
+                                        text: '??????? ? ?????????',
+                                        icon: Icons.arrow_forward_rounded,
+                                        onTap: onOpenEstablishment,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
                             ),
-                          ),
-                        Text(
-                          title,
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: FlowColors.ink,
-                            fontSize: 22,
-                            height: 1.05,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -0.5,
-                          ),
-                        ),
-                      ],
+                          ],
+                        ],
+                      ),
                     ),
                   ),
-                ],
+                ),
               ),
-              if (subtitle.trim().isNotEmpty) ...[
-                const SizedBox(height: 14),
-                Text(
-                  subtitle.trim(),
-                  style: const TextStyle(
-                    color: FlowColors.muted,
-                    height: 1.35,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-              if (onOpenEstablishment != null) ...[
-                const SizedBox(height: 18),
-                PrimaryButton(
-                  text: 'Перейти в заведение',
-                  icon: Icons.arrow_forward_rounded,
-                  onTap: () {
-                    onOpenEstablishment();
-                  },
-                ),
-              ],
             ],
           ),
-        ),
-      ),
+        );
+      },
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutBack,
+          reverseCurve: Curves.easeInCubic,
+        );
+
+        return FadeTransition(
+          opacity: animation,
+          child: ScaleTransition(
+            scale: Tween<double>(
+              begin: 0.76,
+              end: 1.0,
+            ).animate(curved),
+            child: child,
+          ),
+        );
+      },
     ),
   );
 }
