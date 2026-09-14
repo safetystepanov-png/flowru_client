@@ -783,6 +783,7 @@ class FlowApi {
     int? pickupMinutes,
     String? pickupAt,
     String paymentMethod = 'card',
+    double? amountTotal,
   }) {
     final body = <String, dynamic>{
       'establishment_id': establishmentId,
@@ -794,6 +795,10 @@ class FlowApi {
 
     if (pickupAt != null && pickupAt.trim().isNotEmpty) {
       body['pickup_at'] = pickupAt.trim();
+    }
+
+    if (amountTotal != null && amountTotal > 0) {
+      body['amount_total'] = amountTotal;
     }
 
     return _request(
@@ -17353,6 +17358,7 @@ class ClientPreorderScreen extends StatefulWidget {
 
 class _ClientPreorderScreenState extends State<ClientPreorderScreen>
     with SingleTickerProviderStateMixin {
+  // FLOWRU_PREORDER_CREATE_AMOUNT_V1_20260914
   // FLOWRU_CLIENT_PREORDER_AUTOPOLL_V1_20260818
   // FLOWRU_CLIENT_PREORDER_TRACKER_V1_20260818
   // FLOWRU_PREORDER_UX_V16_20260818
@@ -18250,6 +18256,8 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
             ? _scheduledPickupAt?.toIso8601String()
             : null,
         paymentMethod: _paymentMethod,
+        amountTotal:
+            _catalogCart.isNotEmpty ? _catalogCartTotal.toDouble() : null,
       );
 
       _orderController.clear();
