@@ -21396,9 +21396,12 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
 
             final imageUrl = _fidelityProductImageUrl(product);
 
+            // FLOWRU_PREORDER_V34_TALL_PRODUCT_PREVIEW_20260919
+            // The preview is deliberately tall: catalogue photos are a visual
+            // showcase, not a small banner. It uses one sharp full-bleed image.
             Widget heroImage() {
               return SizedBox(
-                height: 248,
+                height: 362,
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
@@ -21406,6 +21409,8 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                       Image.network(
                         imageUrl,
                         fit: BoxFit.cover,
+                        alignment: Alignment.center,
+                        filterQuality: FilterQuality.high,
                         errorBuilder: (_, __, ___) => DecoratedBox(
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
