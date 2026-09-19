@@ -21796,8 +21796,8 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
             }
 
             final groupedHeight = math.min(
-              MediaQuery.of(dialogContext).size.height * 0.74,
-              610.0,
+              MediaQuery.of(dialogContext).size.height * 0.90,
+              650.0,
             );
 
             return SafeArea(
@@ -21845,58 +21845,77 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                                       Positioned.fill(
                                         child: backgroundDecor(),
                                       ),
+                                      // FLOWRU_PREORDER_V36_FIX_MODIFIER_LAYOUT_20260919
+                                      // FLOWRU_PREORDER_V35_MODIFIER_FOCUS_20260919
+                                      // Opening a modifier is a separate state:
+                                      // compact the photo and put choices in the
+                                      // normal column flow. Nothing can overlap
+                                      // or block the other modifier cards.
                                       Column(
                                         children: [
-                                          heroImage(),
-                                          modifierDeck(),
-                                          const Expanded(
-                                            child: SizedBox(),
+                                          AnimatedSize(
+                                            duration: const Duration(
+                                              milliseconds: 310,
+                                            ),
+                                            curve: Curves.easeOutCubic,
+                                            child: activeGroup == null
+                                                ? heroImage()
+                                                : SizedBox(
+                                                    height: 164,
+                                                    child: ClipRect(
+                                                      child: Align(
+                                                        alignment:
+                                                            Alignment.topCenter,
+                                                        heightFactor: 0.46,
+                                                        child: heroImage(),
+                                                      ),
+                                                    ),
+                                                  ),
                                           ),
+                                          modifierDeck(),
+                                          if (activeGroup != null)
+                                            TweenAnimationBuilder<double>(
+                                              key: ValueKey(activeGroup.id),
+                                              tween: Tween<double>(
+                                                begin: 0,
+                                                end: 1,
+                                              ),
+                                              duration: const Duration(
+                                                milliseconds: 300,
+                                              ),
+                                              curve: Curves.easeOutCubic,
+                                              builder: (context, value, child) {
+                                                return Opacity(
+                                                  opacity: value,
+                                                  child: Transform.translate(
+                                                    offset: Offset(
+                                                      0,
+                                                      16 * (1 - value),
+                                                    ),
+                                                    child: child,
+                                                  ),
+                                                );
+                                              },
+                                              child: Padding(
+                                                padding:
+                                                    const EdgeInsets.fromLTRB(
+                                                  12,
+                                                  5,
+                                                  12,
+                                                  4,
+                                                ),
+                                                child: optionDeckOverlay(
+                                                  activeGroup,
+                                                ),
+                                              ),
+                                            )
+                                          else
+                                            const Expanded(
+                                              child: SizedBox(),
+                                            ),
                                           footer(),
                                         ],
                                       ),
-                                      if (activeGroup != null) ...[
-                                        Positioned(
-                                          left: 12,
-                                          right: 12,
-                                          top: 340,
-                                          child: TweenAnimationBuilder<double>(
-                                            key: ValueKey(
-                                              activeGroup.id,
-                                            ),
-                                            tween: Tween<double>(
-                                              begin: 0,
-                                              end: 1,
-                                            ),
-                                            duration: const Duration(
-                                              milliseconds: 390,
-                                            ),
-                                            curve: Curves.easeOutCubic,
-                                            builder: (
-                                              context,
-                                              value,
-                                              child,
-                                            ) {
-                                              return Opacity(
-                                                opacity: value,
-                                                child: Transform.translate(
-                                                  offset: Offset(
-                                                    0,
-                                                    (1 - value) * -26,
-                                                  ),
-                                                  child: Transform.scale(
-                                                    scale: 0.96 + value * 0.04,
-                                                    child: child,
-                                                  ),
-                                                ),
-                                              );
-                                            },
-                                            child: optionDeckOverlay(
-                                              activeGroup,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
                                     ],
                                   ),
                                 ),
