@@ -17395,6 +17395,11 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
   // FLOWRU_PREORDER_V25_SOFT_PORTALS_ACTIVE_ORDER_20260919
   // FLOWRU_PREORDER_V26_PREMIUM_ACTIVE_ORDER_20260919
   // FLOWRU_PREORDER_V27_ORBIT_ACTIVE_ORDER_20260919
+  // FLOWRU_PREORDER_V28_SHARP_WEB_PRODUCT_PORTAL_20260919
+  // FLOWRU_PREORDER_V29_SEAMLESS_SURFACES_20260919
+  // FLOWRU_PREORDER_V30_TRUE_SEAMLESS_PORTALS_20260919
+  // FLOWRU_PREORDER_V31_NO_VISIBLE_IMAGE_EDGES_20260919
+  // FLOWRU_PREORDER_V32_ALPHA_ONLY_HERO_LARGE_PORTAL_20260919
   // FLOWRU_PREORDER_V17_EXACT_CONCEPT_20260917
   // FLOWRU_PREORDER_V17_FULL_EDITORIAL_REWRITE_20260916
   // FLOWRU_PREORDER_V17_REFERENCE_REWRITE_20260916
@@ -17740,11 +17745,18 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
       return null;
     }
 
+    final productsWithImages = _catalogProducts.where((product) {
+      final value = product.imageUrl.trim();
+      return value.startsWith('https://') || value.startsWith('http://');
+    }).toList();
+    final recommendationPool =
+        productsWithImages.isNotEmpty ? productsWithImages : _catalogProducts;
+
     final indexed = <MapEntry<int, _PreorderProduct>>[
-      for (var i = 0; i < _catalogProducts.length; i++)
+      for (var i = 0; i < recommendationPool.length; i++)
         MapEntry(
           i,
-          _catalogProducts[i],
+          recommendationPool[i],
         ),
     ];
 
@@ -19382,62 +19394,10 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
     double scale = 1.12,
     double edge = 0.19,
   }) {
-    Widget maskedLayer({
-      required double layerOpacity,
-      required double layerBlur,
-      required double layerScale,
-      required double layerEdge,
-    }) {
-      final safeEdge = layerEdge.clamp(0.08, 0.34).toDouble();
-      final stops = <double>[0, safeEdge, 1 - safeEdge, 1];
-
-      return ShaderMask(
-        blendMode: BlendMode.dstIn,
-        shaderCallback: (rect) => LinearGradient(
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-          colors: const [
-            Colors.transparent,
-            Colors.white,
-            Colors.white,
-            Colors.transparent,
-          ],
-          stops: stops,
-        ).createShader(rect),
-        child: ShaderMask(
-          blendMode: BlendMode.dstIn,
-          shaderCallback: (rect) => LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: const [
-              Colors.transparent,
-              Colors.white,
-              Colors.white,
-              Colors.transparent,
-            ],
-            stops: stops,
-          ).createShader(rect),
-          child: ImageFiltered(
-            imageFilter: ImageFilter.blur(
-              sigmaX: layerBlur,
-              sigmaY: layerBlur,
-            ),
-            child: Transform.scale(
-              scale: layerScale,
-              child: Opacity(
-                opacity: layerOpacity,
-                child: Image.network(
-                  imageUrl,
-                  fit: fit,
-                  alignment: alignment,
-                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
-    }
+    // This is intentionally an alpha-only portal. Hero pixels must stay sharp:
+    // their opacity changes from 0 to 1, but they are never blurred.
+    final safeEdge = edge.clamp(0.18, 0.49).toDouble();
+    final stops = <double>[0, safeEdge, 1 - safeEdge, 1];
 
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: 1),
@@ -19449,23 +19409,47 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
           child: Stack(
             fit: StackFit.expand,
             children: [
-              maskedLayer(
-                layerOpacity: opacity * 0.28,
-                layerBlur: blur + 22,
-                layerScale: scale + 0.15,
-                layerEdge: edge + 0.07,
-              ),
-              maskedLayer(
-                layerOpacity: opacity * 0.70,
-                layerBlur: blur + 7,
-                layerScale: scale + 0.06,
-                layerEdge: edge + 0.03,
-              ),
-              maskedLayer(
-                layerOpacity: opacity,
-                layerBlur: blur,
-                layerScale: scale,
-                layerEdge: edge,
+              ShaderMask(
+                blendMode: BlendMode.dstIn,
+                shaderCallback: (rect) => LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  colors: const [
+                    Colors.transparent,
+                    Colors.white,
+                    Colors.white,
+                    Colors.transparent,
+                  ],
+                  stops: stops,
+                ).createShader(rect),
+                child: ShaderMask(
+                  blendMode: BlendMode.dstIn,
+                  shaderCallback: (rect) => LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: const [
+                      Colors.transparent,
+                      Colors.white,
+                      Colors.white,
+                      Colors.transparent,
+                    ],
+                    stops: stops,
+                  ).createShader(rect),
+                  child: Transform.scale(
+                    scale: scale,
+                    child: Opacity(
+                      opacity: opacity,
+                      child: Image.network(
+                        imageUrl,
+                        fit: fit,
+                        alignment: alignment,
+                        filterQuality: FilterQuality.high,
+                        gaplessPlayback: true,
+                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ],
           ),
@@ -19684,7 +19668,9 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
       child: Stack(
         fit: StackFit.expand,
         children: [
-          ColoredBox(color: _v22TimeBaseColor),
+          // Start in exactly the same paper tone as the active order area.
+          // The photo is then revealed into it, avoiding a horizontal seam.
+          const ColoredBox(color: _v6Cream),
           if (heroUrl.isNotEmpty)
             Positioned(
               left: -46,
@@ -19695,10 +19681,10 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                 child: _v25SoftPortalImage(
                   imageUrl: heroUrl,
                   fit: BoxFit.cover,
-                  opacity: 0.78,
-                  blur: 1.8,
-                  scale: 1.08,
-                  edge: 0.22,
+                  opacity: 0.96,
+                  blur: 0,
+                  scale: 1.035,
+                  edge: 0.46,
                 ),
               ),
             ),
@@ -19708,15 +19694,29 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  _v22TimeBaseColor.withOpacity(heroUrl.isEmpty ? 0.0 : 0.97),
-                  _v22TimeBaseColor.withOpacity(heroUrl.isEmpty ? 0.0 : 0.34),
-                  accent.withOpacity(0.055),
-                  _v22TimeBaseColor.withOpacity(0.04),
-                  _v22TimeBaseColor.withOpacity(0.55),
-                  _v22TimeBaseColor.withOpacity(0.96),
-                  _v22TimeBaseColor,
+                  _v6Cream.withOpacity(heroUrl.isEmpty ? 0.0 : 1.0),
+                  _v6Cream.withOpacity(heroUrl.isEmpty ? 0.0 : 0.86),
+                  _v6Cream.withOpacity(heroUrl.isEmpty ? 0.0 : 0.46),
+                  _v6Cream.withOpacity(heroUrl.isEmpty ? 0.0 : 0.12),
+                  accent.withOpacity(0.012),
+                  Colors.transparent,
+                  _v6Cream.withOpacity(0.16),
+                  _v6Cream.withOpacity(0.60),
+                  _v6Cream.withOpacity(0.93),
+                  _v6Cream,
                 ],
-                stops: const [0.0, 0.13, 0.29, 0.51, 0.67, 0.85, 1.0],
+                stops: const [
+                  0.0,
+                  0.045,
+                  0.12,
+                  0.22,
+                  0.31,
+                  0.46,
+                  0.62,
+                  0.78,
+                  0.91,
+                  1.0,
+                ],
               ),
             ),
           ),
@@ -19727,13 +19727,13 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                   begin: Alignment.centerLeft,
                   end: Alignment.centerRight,
                   colors: [
-                    _v22TimeBaseColor,
-                    _v22TimeBaseColor.withOpacity(0.48),
+                    _v6Cream.withOpacity(0.94),
+                    _v6Cream.withOpacity(0.16),
                     Colors.transparent,
-                    _v22TimeBaseColor.withOpacity(0.48),
-                    _v22TimeBaseColor,
+                    _v6Cream.withOpacity(0.16),
+                    _v6Cream.withOpacity(0.94),
                   ],
-                  stops: const [0, 0.13, 0.31, 0.87, 1],
+                  stops: const [0, 0.10, 0.26, 0.90, 1],
                 ),
               ),
             ),
@@ -19966,10 +19966,9 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
     if (product == null) return const SizedBox.shrink();
 
     final productImageUrl = _fidelityProductImageUrl(product);
-    // V20 preview fallback: show the establishment hero until a product image
-    // is assigned in the catalog.
-    final imageUrl =
-        productImageUrl.isNotEmpty ? productImageUrl : _fidelityHeroImageUrl;
+    // Recommendation artwork belongs only to the recommended catalog item.
+    // Never substitute the establishment hero here.
+    final imageUrl = productImageUrl;
     final added = _catalogAddedFeedback.contains(product.id);
 
     Future<void> orderNow(BuildContext sourceContext) async {
@@ -19985,15 +19984,15 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
     return Padding(
       padding: const EdgeInsets.fromLTRB(28, 0, 22, 0),
       child: SizedBox(
-        height: 258,
+        height: 238,
         child: Stack(
           clipBehavior: Clip.none,
           children: [
             Positioned(
-              right: -54,
-              top: -34,
-              width: 338,
-              height: 286,
+              right: -7,
+              top: 8,
+              width: 184,
+              height: 184,
               child: IgnorePointer(
                 child: AnimatedBuilder(
                   animation: _ambientMotion,
@@ -20003,38 +20002,155 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                     );
 
                     return Transform.translate(
-                      offset: Offset(breath * 2.4, breath * -1.8),
+                      offset: Offset(breath * 1.8, breath * -1.4),
                       child: Transform.scale(
-                        scale: 1 + breath * 0.012,
+                        scale: 1 + breath * 0.018,
                         child: Stack(
-                          fit: StackFit.expand,
+                          alignment: Alignment.center,
                           children: [
-                            if (imageUrl.isNotEmpty)
-                              _v25SoftPortalImage(
-                                imageUrl: imageUrl,
-                                fit: BoxFit.cover,
-                                alignment: Alignment.center,
-                                opacity: 0.74,
-                                blur: 2.6,
-                                scale: 1.11,
-                                edge: 0.25,
-                              ),
-                            DecoratedBox(
+                            Container(
+                              width: 178,
+                              height: 178,
                               decoration: BoxDecoration(
+                                shape: BoxShape.circle,
                                 gradient: RadialGradient(
-                                  center: const Alignment(0.02, -0.02),
-                                  radius: 0.92,
                                   colors: [
-                                    Colors.transparent,
-                                    _v22TimeBaseColor.withOpacity(0.03),
-                                    _v22TimeBaseColor.withOpacity(0.42),
-                                    _v22TimeBaseColor.withOpacity(0.94),
-                                    _v22TimeBaseColor,
+                                    _v6Terra.withOpacity(0.13),
+                                    _v6Cream.withOpacity(0.05),
+                                    _v6Cream.withOpacity(0),
                                   ],
-                                  stops: const [0.0, 0.48, 0.69, 0.88, 1.0],
+                                  stops: const [0, 0.58, 1],
                                 ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: _v6Terra.withOpacity(0.10),
+                                    blurRadius: 28,
+                                    spreadRadius: 6,
+                                  ),
+                                ],
                               ),
                             ),
+                            // The photo is always physically oval-clipped.
+                            // This prevents an HTML/web image background from
+                            // ever leaking as a square, even before masking.
+                            if (imageUrl.isNotEmpty) ...[
+                              SizedBox(
+                                width: 178,
+                                height: 178,
+                                child: ClipOval(
+                                  child: Opacity(
+                                    opacity: 0.10,
+                                    child: ImageFiltered(
+                                      imageFilter: ImageFilter.blur(
+                                        sigmaX: 18,
+                                        sigmaY: 18,
+                                      ),
+                                      child: Image.network(
+                                        imageUrl,
+                                        fit: BoxFit.cover,
+                                        alignment: Alignment.center,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              SizedBox(
+                                width: 164,
+                                height: 164,
+                                child: ClipOval(
+                                  child: Opacity(
+                                    opacity: 0.20,
+                                    child: ImageFiltered(
+                                      imageFilter: ImageFilter.blur(
+                                        sigmaX: 10,
+                                        sigmaY: 10,
+                                      ),
+                                      child: Image.network(
+                                        imageUrl,
+                                        fit: BoxFit.cover,
+                                        alignment: Alignment.center,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              SizedBox(
+                                width: 148,
+                                height: 148,
+                                child: ClipOval(
+                                  child: Opacity(
+                                    opacity: 0.38,
+                                    child: ImageFiltered(
+                                      imageFilter: ImageFilter.blur(
+                                        sigmaX: 4.5,
+                                        sigmaY: 4.5,
+                                      ),
+                                      child: Image.network(
+                                        imageUrl,
+                                        fit: BoxFit.cover,
+                                        alignment: Alignment.center,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              SizedBox(
+                                width: 136,
+                                height: 136,
+                                child: ClipOval(
+                                  child: Stack(
+                                    fit: StackFit.expand,
+                                    children: [
+                                      ShaderMask(
+                                        blendMode: BlendMode.dstIn,
+                                        shaderCallback: (rect) =>
+                                            const RadialGradient(
+                                          radius: 0.95,
+                                          colors: [
+                                            Colors.white,
+                                            Colors.white,
+                                            Color(0xE8FFFFFF),
+                                            Color(0x68FFFFFF),
+                                            Colors.transparent,
+                                          ],
+                                          stops: [0, 0.48, 0.66, 0.84, 1],
+                                        ).createShader(rect),
+                                        child: Image.network(
+                                          imageUrl,
+                                          fit: BoxFit.cover,
+                                          alignment: Alignment.center,
+                                          filterQuality: FilterQuality.high,
+                                          gaplessPlayback: true,
+                                          errorBuilder: (_, __, ___) =>
+                                              const SizedBox.shrink(),
+                                        ),
+                                      ),
+                                      DecoratedBox(
+                                        decoration: BoxDecoration(
+                                          gradient: RadialGradient(
+                                            radius: 0.96,
+                                            colors: [
+                                              Colors.transparent,
+                                              Colors.transparent,
+                                              _v6Cream.withOpacity(0.24),
+                                              _v6Cream.withOpacity(0.78),
+                                              _v6Cream,
+                                            ],
+                                            stops: const [
+                                              0,
+                                              0.44,
+                                              0.64,
+                                              0.83,
+                                              1
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -20046,7 +20162,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
             Positioned(
               left: 0,
               top: 22,
-              right: 176,
+              right: 190,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -20099,7 +20215,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
             ),
             Positioned(
               left: 0,
-              bottom: 24,
+              bottom: 18,
               child: Row(
                 children: [
                   Icon(
@@ -22210,30 +22326,6 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
     return _reveal(
       Container(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(26),
-          border: Border.all(color: Colors.white.withOpacity(0.86)),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Colors.white.withOpacity(0.84),
-              _v22TimeBaseColor.withOpacity(0.76),
-            ],
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: accent.withOpacity(0.085),
-              blurRadius: 26,
-              offset: const Offset(0, 12),
-            ),
-            BoxShadow(
-              color: _v6Ink.withOpacity(0.045),
-              blurRadius: 15,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -22376,6 +22468,16 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
         final t = _ambientMotion.value;
         final pulse = (math.sin(t * math.pi * 12) + 1) / 2;
         final angle = t * math.pi * 5;
+        final progress = 0.58 + (safeStep * 0.07);
+        // The orb marks the far end of the active arc, not its starting edge.
+        // Its centre sits directly on the progress line at every rotation.
+        final endAngle = (-math.pi / 2) + (math.pi * 2 * progress);
+        const ringCenter = 29.0;
+        const ringRadius = 27.2;
+        const orbRadius = 3.5;
+        final orbLeft =
+            ringCenter + math.cos(endAngle) * ringRadius - orbRadius;
+        final orbTop = ringCenter + math.sin(endAngle) * ringRadius - orbRadius;
 
         return SizedBox(
           width: 66,
@@ -22420,7 +22522,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                         width: 58,
                         height: 58,
                         child: CircularProgressIndicator(
-                          value: 0.58 + (safeStep * 0.07),
+                          value: progress,
                           strokeWidth: 1.65,
                           strokeCap: StrokeCap.round,
                           backgroundColor: accent.withOpacity(0.075),
@@ -22429,8 +22531,9 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                           ),
                         ),
                       ),
-                      Align(
-                        alignment: Alignment.topCenter,
+                      Positioned(
+                        left: orbLeft,
+                        top: orbTop,
                         child: Transform.scale(
                           scale: 0.88 + pulse * 0.18,
                           child: Container(
@@ -25277,8 +25380,8 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
             Positioned(
               left: 0,
               right: 0,
-              bottom: -2,
-              height: 126,
+              bottom: -4,
+              height: 184,
               child: IgnorePointer(
                 child: DecoratedBox(
                   decoration: BoxDecoration(
@@ -25287,14 +25390,16 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                       end: Alignment.bottomCenter,
                       colors: [
                         _v6Cream.withOpacity(0.00),
-                        _v6Cream.withOpacity(0.30),
-                        _v6Cream.withOpacity(0.82),
+                        _v6Cream.withOpacity(0.12),
+                        _v6Cream.withOpacity(0.55),
+                        _v6Cream.withOpacity(0.92),
                         _v6Cream,
                       ],
                       stops: const [
                         0.0,
-                        0.34,
-                        0.75,
+                        0.26,
+                        0.58,
+                        0.84,
                         1.0,
                       ],
                     ),
@@ -25305,7 +25410,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
           ],
         ),
         Transform.translate(
-          offset: const Offset(0, -18),
+          offset: const Offset(0, -38),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -26209,7 +26314,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                             20,
                             6,
                             20,
-                            8,
+                            0,
                           ),
                           child: Column(
                             children: [
