@@ -8871,7 +8871,7 @@ class SubscriptionRefreshNotice extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0, end: 1),
+      tween: Tween<double>(begin: 0, end: 1),
       duration: const Duration(milliseconds: 360),
       curve: Curves.easeOutBack,
       builder: (context, value, child) {
@@ -17390,7 +17390,11 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
   // FLOWRU_PREORDER_V19_IPHONE_POLISH_20260918
   // FLOWRU_PREORDER_V20_LIVING_UI_20260918
   // FLOWRU_PREORDER_V22_IMMERSIVE_PREORDER_20260918
+  // FLOWRU_PREORDER_V23_UNIVERSAL_CART_SOFT_FOCUS_20260918
   // FLOWRU_PREORDER_V24_CLEAN_CART_20260918
+  // FLOWRU_PREORDER_V25_SOFT_PORTALS_ACTIVE_ORDER_20260919
+  // FLOWRU_PREORDER_V26_PREMIUM_ACTIVE_ORDER_20260919
+  // FLOWRU_PREORDER_V27_ORBIT_ACTIVE_ORDER_20260919
   // FLOWRU_PREORDER_V17_EXACT_CONCEPT_20260917
   // FLOWRU_PREORDER_V17_FULL_EDITORIAL_REWRITE_20260916
   // FLOWRU_PREORDER_V17_REFERENCE_REWRITE_20260916
@@ -19354,6 +19358,8 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
 
   String get _fidelityHeroImageUrl {
     final candidates = <String>[
+      (_settings['hero_image_url'] ?? '').toString(),
+      (_settings['preorder_hero_url'] ?? '').toString(),
       widget.establishmentPhotoUrl,
       ...widget.menuPhotoUrls,
     ];
@@ -19365,6 +19371,107 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
       }
     }
     return '';
+  }
+
+  Widget _v25SoftPortalImage({
+    required String imageUrl,
+    required BoxFit fit,
+    Alignment alignment = Alignment.center,
+    double opacity = 1,
+    double blur = 0,
+    double scale = 1.12,
+    double edge = 0.19,
+  }) {
+    Widget maskedLayer({
+      required double layerOpacity,
+      required double layerBlur,
+      required double layerScale,
+      required double layerEdge,
+    }) {
+      final safeEdge = layerEdge.clamp(0.08, 0.34).toDouble();
+      final stops = <double>[0, safeEdge, 1 - safeEdge, 1];
+
+      return ShaderMask(
+        blendMode: BlendMode.dstIn,
+        shaderCallback: (rect) => LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: const [
+            Colors.transparent,
+            Colors.white,
+            Colors.white,
+            Colors.transparent,
+          ],
+          stops: stops,
+        ).createShader(rect),
+        child: ShaderMask(
+          blendMode: BlendMode.dstIn,
+          shaderCallback: (rect) => LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: const [
+              Colors.transparent,
+              Colors.white,
+              Colors.white,
+              Colors.transparent,
+            ],
+            stops: stops,
+          ).createShader(rect),
+          child: ImageFiltered(
+            imageFilter: ImageFilter.blur(
+              sigmaX: layerBlur,
+              sigmaY: layerBlur,
+            ),
+            child: Transform.scale(
+              scale: layerScale,
+              child: Opacity(
+                opacity: layerOpacity,
+                child: Image.network(
+                  imageUrl,
+                  fit: fit,
+                  alignment: alignment,
+                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 1250),
+      curve: Curves.easeOutCubic,
+      builder: (context, reveal, _) {
+        return Opacity(
+          opacity: reveal,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              maskedLayer(
+                layerOpacity: opacity * 0.28,
+                layerBlur: blur + 22,
+                layerScale: scale + 0.15,
+                layerEdge: edge + 0.07,
+              ),
+              maskedLayer(
+                layerOpacity: opacity * 0.70,
+                layerBlur: blur + 7,
+                layerScale: scale + 0.06,
+                layerEdge: edge + 0.03,
+              ),
+              maskedLayer(
+                layerOpacity: opacity,
+                layerBlur: blur,
+                layerScale: scale,
+                layerEdge: edge,
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   String _fidelityProductImageUrl(_PreorderProduct product) {
@@ -19579,54 +19686,19 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
         children: [
           ColoredBox(color: _v22TimeBaseColor),
           if (heroUrl.isNotEmpty)
-            ClipRect(
-              child: Transform.translate(
-                offset: Offset(0, parallax),
-                child: ImageFiltered(
-                  imageFilter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-                  child: Transform.scale(
-                    scale: 1.12,
-                    child: Opacity(
-                      opacity: 0.74,
-                      child: Image.network(
-                        heroUrl,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          if (heroUrl.isNotEmpty)
-            ClipRect(
-              child: Transform.translate(
-                offset: Offset(0, parallax * 0.72),
-                child: ShaderMask(
-                  blendMode: BlendMode.dstIn,
-                  shaderCallback: (rect) {
-                    return const LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.transparent,
-                        Color(0x99FFFFFF),
-                        Colors.white,
-                        Colors.white,
-                        Color(0x88FFFFFF),
-                        Colors.transparent,
-                      ],
-                      stops: [0.0, 0.14, 0.28, 0.62, 0.78, 1.0],
-                    ).createShader(rect);
-                  },
-                  child: Transform.scale(
-                    scale: 1.035,
-                    child: Image.network(
-                      heroUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                    ),
-                  ),
+            Positioned(
+              left: -46,
+              right: -46,
+              top: -34 + parallax,
+              bottom: -38 - parallax,
+              child: ClipRect(
+                child: _v25SoftPortalImage(
+                  imageUrl: heroUrl,
+                  fit: BoxFit.cover,
+                  opacity: 0.78,
+                  blur: 1.8,
+                  scale: 1.08,
+                  edge: 0.22,
                 ),
               ),
             ),
@@ -19638,16 +19710,33 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                 colors: [
                   _v22TimeBaseColor.withOpacity(heroUrl.isEmpty ? 0.0 : 0.97),
                   _v22TimeBaseColor.withOpacity(heroUrl.isEmpty ? 0.0 : 0.34),
-                  accent.withOpacity(0.035),
-                  Colors.transparent,
-                  _v22TimeBaseColor.withOpacity(0.42),
+                  accent.withOpacity(0.055),
+                  _v22TimeBaseColor.withOpacity(0.04),
+                  _v22TimeBaseColor.withOpacity(0.55),
                   _v22TimeBaseColor.withOpacity(0.96),
                   _v22TimeBaseColor,
                 ],
-                stops: const [0.0, 0.12, 0.28, 0.53, 0.68, 0.86, 1.0],
+                stops: const [0.0, 0.13, 0.29, 0.51, 0.67, 0.85, 1.0],
               ),
             ),
           ),
+          if (heroUrl.isNotEmpty)
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  colors: [
+                    _v22TimeBaseColor,
+                    _v22TimeBaseColor.withOpacity(0.48),
+                    Colors.transparent,
+                    _v22TimeBaseColor.withOpacity(0.48),
+                    _v22TimeBaseColor,
+                  ],
+                  stops: const [0, 0.13, 0.31, 0.87, 1],
+                ),
+              ),
+            ),
           Positioned(
             top: 19,
             right: 18,
@@ -19901,10 +19990,10 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
           clipBehavior: Clip.none,
           children: [
             Positioned(
-              right: -35,
-              top: -17,
-              width: 304,
-              height: 248,
+              right: -54,
+              top: -34,
+              width: 338,
+              height: 286,
               child: IgnorePointer(
                 child: AnimatedBuilder(
                   animation: _ambientMotion,
@@ -19914,112 +20003,35 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                     );
 
                     return Transform.translate(
-                      offset: Offset(breath * 3.5, breath * -2.5),
+                      offset: Offset(breath * 2.4, breath * -1.8),
                       child: Transform.scale(
-                        scale: 1 + breath * 0.018,
+                        scale: 1 + breath * 0.012,
                         child: Stack(
                           fit: StackFit.expand,
                           children: [
                             if (imageUrl.isNotEmpty)
-                              ShaderMask(
-                                blendMode: BlendMode.dstIn,
-                                shaderCallback: (rect) => const RadialGradient(
-                                  center: Alignment(0.06, -0.02),
-                                  radius: 0.98,
-                                  colors: [
-                                    Color(0xD9FFFFFF),
-                                    Color(0x73FFFFFF),
-                                    Colors.transparent,
-                                  ],
-                                  stops: [0.0, 0.48, 1.0],
-                                ).createShader(rect),
-                                child: ImageFiltered(
-                                  imageFilter: ImageFilter.blur(
-                                    sigmaX: 30,
-                                    sigmaY: 30,
-                                  ),
-                                  child: Transform.scale(
-                                    scale: 1.18,
-                                    child: Opacity(
-                                      opacity: 0.32,
-                                      child: Image.network(
-                                        imageUrl,
-                                        fit: BoxFit.contain,
-                                        errorBuilder: (_, __, ___) =>
-                                            const SizedBox.shrink(),
-                                      ),
-                                    ),
-                                  ),
-                                ),
+                              _v25SoftPortalImage(
+                                imageUrl: imageUrl,
+                                fit: BoxFit.cover,
+                                alignment: Alignment.center,
+                                opacity: 0.74,
+                                blur: 2.6,
+                                scale: 1.11,
+                                edge: 0.25,
                               ),
-                            if (imageUrl.isNotEmpty)
-                              ShaderMask(
-                                blendMode: BlendMode.dstIn,
-                                shaderCallback: (rect) => const RadialGradient(
-                                  center: Alignment(0.05, -0.03),
-                                  radius: 0.86,
-                                  colors: [
-                                    Colors.white,
-                                    Color(0xE6FFFFFF),
-                                    Color(0x70FFFFFF),
-                                    Colors.transparent,
-                                  ],
-                                  stops: [0.0, 0.42, 0.70, 1.0],
-                                ).createShader(rect),
-                                child: ImageFiltered(
-                                  imageFilter: ImageFilter.blur(
-                                    sigmaX: 8,
-                                    sigmaY: 8,
-                                  ),
-                                  child: Opacity(
-                                    opacity: 0.62,
-                                    child: Image.network(
-                                      imageUrl,
-                                      fit: BoxFit.contain,
-                                      errorBuilder: (_, __, ___) =>
-                                          const SizedBox.shrink(),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            if (imageUrl.isNotEmpty)
-                              ShaderMask(
-                                blendMode: BlendMode.dstIn,
-                                shaderCallback: (rect) => const RadialGradient(
-                                  center: Alignment(0.04, -0.04),
-                                  radius: 0.75,
-                                  colors: [
-                                    Colors.white,
-                                    Colors.white,
-                                    Color(0xD9FFFFFF),
-                                    Color(0x73FFFFFF),
-                                    Colors.transparent,
-                                  ],
-                                  stops: [0.0, 0.32, 0.53, 0.73, 1.0],
-                                ).createShader(rect),
-                                child: Transform.scale(
-                                  scale: 1.06,
-                                  child: Image.network(
-                                    imageUrl,
-                                    fit: BoxFit.contain,
-                                    errorBuilder: (_, __, ___) =>
-                                        const SizedBox.shrink(),
-                                  ),
-                                ),
-                              ),
-                            const DecoratedBox(
+                            DecoratedBox(
                               decoration: BoxDecoration(
                                 gradient: RadialGradient(
-                                  center: Alignment(0.05, -0.03),
-                                  radius: 0.88,
+                                  center: const Alignment(0.02, -0.02),
+                                  radius: 0.92,
                                   colors: [
                                     Colors.transparent,
-                                    Colors.transparent,
-                                    Color(0x0DF8F2EA),
-                                    Color(0x73F8F2EA),
-                                    Color(0xFFF8F2EA),
+                                    _v22TimeBaseColor.withOpacity(0.03),
+                                    _v22TimeBaseColor.withOpacity(0.42),
+                                    _v22TimeBaseColor.withOpacity(0.94),
+                                    _v22TimeBaseColor,
                                   ],
-                                  stops: [0.0, 0.53, 0.70, 0.88, 1.0],
+                                  stops: const [0.0, 0.48, 0.69, 0.88, 1.0],
                                 ),
                               ),
                             ),
@@ -20238,7 +20250,6 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
     }
 
     final scaleAnimation = _v6CartScale();
-    final progress = (_catalogCartCount / 5).clamp(0.12, 1.0).toDouble();
     final activeColor = _v22TimeAccentColor;
 
     return GestureDetector(
@@ -20260,148 +20271,242 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
             stops: const [0.0, 0.70, 1.0],
           ),
         ),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 380),
-          curve: Curves.easeOutCubic,
-          height: 78,
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.95),
-            borderRadius: BorderRadius.circular(28),
-            border: Border.all(color: Colors.white),
-            boxShadow: [
-              BoxShadow(
-                color: activeColor.withOpacity(0.17),
-                blurRadius: 34,
-                offset: const Offset(0, 16),
+        child: AnimatedBuilder(
+          animation: _ambientMotion,
+          builder: (context, _) {
+            final wave = (math.sin(_ambientMotion.value * math.pi * 2) + 1) / 2;
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 380),
+              curve: Curves.easeOutCubic,
+              height: 92,
+              decoration: BoxDecoration(
+                color: _v22TimeBaseColor.withOpacity(0.92),
+                borderRadius: BorderRadius.circular(32),
+                border: Border.all(color: Colors.white.withOpacity(0.78)),
+                boxShadow: [
+                  BoxShadow(
+                    color: activeColor.withOpacity(0.18 + wave * 0.08),
+                    blurRadius: 30 + wave * 10,
+                    spreadRadius: -4,
+                    offset: const Offset(0, 17),
+                  ),
+                  BoxShadow(
+                    color: Colors.white.withOpacity(0.70),
+                    blurRadius: 1,
+                    offset: const Offset(0, -1),
+                  ),
+                ],
               ),
-              BoxShadow(
-                color: _v6Ink.withOpacity(0.11),
-                blurRadius: 26,
-                offset: const Offset(0, 12),
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(28),
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: AnimatedFractionallySizedBox(
-                      duration: const Duration(milliseconds: 440),
-                      curve: Curves.easeOutCubic,
-                      widthFactor: progress,
-                      heightFactor: 1,
-                      child: DecoratedBox(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(32),
+                child: Stack(
+                  children: [
+                    Positioned(
+                      left: -24 + wave * 54,
+                      top: -48,
+                      child: Container(
+                        width: 180,
+                        height: 150,
                         decoration: BoxDecoration(
-                          gradient: LinearGradient(
+                          shape: BoxShape.circle,
+                          gradient: RadialGradient(
                             colors: [
-                              activeColor.withOpacity(0.13),
-                              activeColor.withOpacity(0.035),
+                              activeColor.withOpacity(0.17),
+                              Colors.transparent,
                             ],
                           ),
                         ),
                       ),
                     ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 11),
-                  child: Row(
-                    children: [
-                      AnimatedBuilder(
-                        animation: scaleAnimation,
-                        builder: (context, child) => Transform.scale(
-                          scale: scaleAnimation.value,
-                          child: child,
-                        ),
-                        child: Container(
-                          width: 50,
-                          height: 50,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [activeColor, const Color(0xFFE1B45D)],
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(13, 11, 12, 10),
+                      child: Row(
+                        children: [
+                          AnimatedBuilder(
+                            animation: scaleAnimation,
+                            builder: (context, child) => Transform.scale(
+                              scale: scaleAnimation.value,
+                              child: child,
                             ),
-                            borderRadius: BorderRadius.circular(17),
-                            boxShadow: [
-                              BoxShadow(
-                                color: activeColor.withOpacity(0.25),
-                                blurRadius: 15,
-                                offset: const Offset(0, 7),
+                            child: Container(
+                              width: 54,
+                              height: 54,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    activeColor,
+                                    const Color(0xFFE1B45D)
+                                  ],
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: activeColor.withOpacity(0.34),
+                                    blurRadius: 18,
+                                    spreadRadius: 1,
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
-                          child: AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 260),
-                            child: Text(
-                              '$_catalogCartCount',
-                              key: ValueKey(_catalogCartCount),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 17,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '$_catalogCartCount поз. · к оформлению',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: _v6Muted,
-                                fontSize: 9.2,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            AnimatedSwitcher(
-                              duration: const Duration(milliseconds: 260),
-                              child: Text(
-                                '$_catalogCartTotal ₽',
-                                key: ValueKey(_catalogCartTotal),
-                                style: const TextStyle(
-                                  color: _v6Ink,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w900,
+                              child: AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 260),
+                                child: Text(
+                                  '$_catalogCartCount',
+                                  key: ValueKey(_catalogCartCount),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w900,
+                                  ),
                                 ),
                               ),
                             ),
-                          ],
-                        ),
+                          ),
+                          const SizedBox(width: 13),
+                          Expanded(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Text(
+                                      'ВАШ ЗАКАЗ',
+                                      style: TextStyle(
+                                        color: _v6Muted,
+                                        fontSize: 8.5,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: 1.05,
+                                      ),
+                                    ),
+                                    const Spacer(),
+                                    Text(
+                                      '$_catalogCartCount поз.',
+                                      style: TextStyle(
+                                        color: activeColor,
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 3),
+                                AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 260),
+                                  child: Text(
+                                    '$_catalogCartTotal ₽',
+                                    key: ValueKey(_catalogCartTotal),
+                                    style: const TextStyle(
+                                      color: _v6Ink,
+                                      fontSize: 21,
+                                      height: 1,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 7),
+                                _v25MiniOrderTrack(activeColor, wave),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 11),
+                          Container(
+                            width: 45,
+                            height: 45,
+                            decoration: BoxDecoration(
+                              color: _v6Ink,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: _v6Ink.withOpacity(0.20),
+                                  blurRadius: 14,
+                                  offset: const Offset(0, 7),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.arrow_forward_rounded,
+                              color: Colors.white,
+                              size: 19,
+                            ),
+                          ),
+                        ],
                       ),
-                      Container(
-                        width: 46,
-                        height: 46,
-                        decoration: BoxDecoration(
-                          color: _v6Ink,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: const Icon(
-                          Icons.arrow_upward_rounded,
-                          color: Colors.white,
-                          size: 19,
-                        ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _v25MiniOrderTrack(Color color, double wave) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final travel = math.max(0.0, constraints.maxWidth - 10).toDouble();
+        return SizedBox(
+          height: 9,
+          child: Stack(
+            alignment: Alignment.centerLeft,
+            children: [
+              Positioned.fill(
+                top: 3.5,
+                bottom: 3.5,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(99),
+                    gradient: LinearGradient(
+                      colors: [
+                        color.withOpacity(0.72),
+                        color.withOpacity(0.20),
+                        _v6Ink.withOpacity(0.08),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              for (final x in const [0.0, 0.5, 1.0])
+                Positioned(
+                  left: travel * x,
+                  child: Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: x == 0 ? color : _v22TimeBaseColor,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: color.withOpacity(0.52)),
+                    ),
+                  ),
+                ),
+              Positioned(
+                left: travel * (0.08 + wave * 0.76),
+                top: wave < 0.15 ? 0.0 : 1.5,
+                child: Container(
+                  width: 7,
+                  height: 7,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: color, width: 1.5),
+                    boxShadow: [
+                      BoxShadow(
+                        color: color.withOpacity(0.52),
+                        blurRadius: 8,
+                        spreadRadius: 1,
                       ),
                     ],
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -22093,16 +22198,42 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
 
   Widget _activeCard(Map<String, dynamic> item) {
     final status = (item['status'] ?? '').toString();
-    final color = _statusColor(status);
+    final accent = status == 'cancelled'
+        ? const Color(0xFFA65E59)
+        : status == 'ready' || status == 'completed'
+            ? _v6Sage
+            : _v6TerraDeep;
     final pickupTime = _formatTime(item['pickup_at']);
     final createdTime = _formatTime(item['created_at']);
     final orderText = (item['order_text'] ?? '').toString().trim();
 
     return _reveal(
-      _surface(
-        color: Colors.white.withOpacity(0.52),
-        radius: 28,
-        padding: const EdgeInsets.all(16),
+      Container(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(26),
+          border: Border.all(color: Colors.white.withOpacity(0.86)),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.white.withOpacity(0.84),
+              _v22TimeBaseColor.withOpacity(0.76),
+            ],
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: accent.withOpacity(0.085),
+              blurRadius: 26,
+              offset: const Offset(0, 12),
+            ),
+            BoxShadow(
+              color: _v6Ink.withOpacity(0.045),
+              blurRadius: 15,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -22111,66 +22242,114 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                 AnimatedBuilder(
                   animation: _motion,
                   builder: (context, _) {
-                    final size = 11 + (_motion.value * 4);
-                    return Container(
-                      width: size,
-                      height: size,
-                      decoration: BoxDecoration(
-                        color: color,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: color.withOpacity(0.42),
-                            blurRadius: 18,
-                            spreadRadius: 3,
-                          )
-                        ],
+                    final pulse = Curves.easeInOut.transform(_motion.value);
+                    return Transform.scale(
+                      scale: 0.94 + pulse * 0.12,
+                      child: Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: accent,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: accent.withOpacity(0.22 + pulse * 0.18),
+                              blurRadius: 8 + pulse * 5,
+                              spreadRadius: pulse,
+                            ),
+                          ],
+                        ),
                       ),
                     );
                   },
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 9),
                 Expanded(
                   child: Text(
-                    _activeTitle,
+                    _activeTitle.toUpperCase(),
                     style: const TextStyle(
-                      color: FlowColors.ink,
-                      fontSize: 15,
+                      color: _v6Muted,
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.15,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: accent.withOpacity(0.085),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: accent.withOpacity(0.16)),
+                  ),
+                  child: Text(
+                    _statusText(status),
+                    style: TextStyle(
+                      color: accent,
+                      fontSize: 11.5,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
                 ),
-                Text(
-                  _statusText(status),
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
               ],
             ),
-            const SizedBox(height: 12),
-            _tracker(_statusStep(status)),
-            const SizedBox(height: 12),
-            Text(
-              orderText.isEmpty ? 'Заказ без описания' : orderText,
-              style: const TextStyle(
-                color: FlowColors.ink,
-                fontSize: 14.5,
-                height: 1.30,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
             const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                if (createdTime.isNotEmpty)
-                  _chip(Icons.access_time_rounded, 'Поступил $createdTime'),
-                if (pickupTime.isNotEmpty)
-                  _chip(Icons.schedule_rounded, 'Забрать $pickupTime'),
+                _tracker(_statusStep(status), accent),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        orderText.isEmpty ? 'Заказ без описания' : orderText,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: _v6Ink,
+                          fontSize: 17,
+                          height: 1.12,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                      if (createdTime.isNotEmpty || pickupTime.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.schedule_rounded,
+                              size: 13,
+                              color: accent.withOpacity(0.82),
+                            ),
+                            const SizedBox(width: 5),
+                            Flexible(
+                              child: Text(
+                                createdTime.isNotEmpty && pickupTime.isNotEmpty
+                                    ? '$createdTime  →  $pickupTime'
+                                    : createdTime.isNotEmpty
+                                        ? 'Поступил $createdTime'
+                                        : 'Забрать $pickupTime',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: _v6Muted,
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
               ],
             ),
           ],
@@ -22180,92 +22359,161 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
     );
   }
 
-  Widget _tracker(int step) {
+  Widget _tracker(int step, Color accent) {
+    const labels = ['Принят', 'Готовим', 'Готов', 'Выдан'];
+    final safeStep = step.clamp(1, 4).toInt();
+    final icon = safeStep == 1
+        ? Icons.receipt_long_rounded
+        : safeStep == 2
+            ? Icons.auto_awesome_rounded
+            : safeStep == 3
+                ? Icons.check_rounded
+                : Icons.done_all_rounded;
+
     return AnimatedBuilder(
-      animation: _motion,
+      animation: _ambientMotion,
       builder: (context, _) {
-        final sweep = _motion.status == AnimationStatus.reverse
-            ? 1.0 - _motion.value
-            : _motion.value;
+        final t = _ambientMotion.value;
+        final pulse = (math.sin(t * math.pi * 12) + 1) / 2;
+        final angle = t * math.pi * 5;
 
-        return Row(
-          children: [
-            for (int i = 1; i <= 4; i++) ...[
-              Expanded(
+        return SizedBox(
+          width: 66,
+          height: 66,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              TweenAnimationBuilder<double>(
+                key: ValueKey<int>(safeStep),
+                tween: Tween(begin: 0, end: 1),
+                duration: const Duration(milliseconds: 1100),
+                curve: Curves.easeOutCubic,
+                builder: (context, wave, _) {
+                  return Opacity(
+                    opacity: (1 - wave).clamp(0.0, 1.0) * 0.32,
+                    child: Transform.scale(
+                      scale: 0.72 + wave * 0.42,
+                      child: Container(
+                        width: 62,
+                        height: 62,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: accent,
+                            width: 1.2,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+              Transform.rotate(
+                angle: angle,
                 child: SizedBox(
-                  height: 9,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(999),
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        final isCompleted = i < step || step >= 4;
-                        final isCurrent = i == step && step < 4;
-
-                        if (isCompleted) {
-                          return Container(
-                            decoration: const BoxDecoration(
-                              color: FlowColors.ink2,
-                            ),
-                          );
-                        }
-
-                        if (!isCurrent) {
-                          return Container(
+                  width: 58,
+                  height: 58,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      SizedBox(
+                        width: 58,
+                        height: 58,
+                        child: CircularProgressIndicator(
+                          value: 0.58 + (safeStep * 0.07),
+                          strokeWidth: 1.65,
+                          strokeCap: StrokeCap.round,
+                          backgroundColor: accent.withOpacity(0.075),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            accent.withOpacity(0.48),
+                          ),
+                        ),
+                      ),
+                      Align(
+                        alignment: Alignment.topCenter,
+                        child: Transform.scale(
+                          scale: 0.88 + pulse * 0.18,
+                          child: Container(
+                            width: 7,
+                            height: 7,
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.50),
-                            ),
-                          );
-                        }
-
-                        final width = constraints.maxWidth;
-                        final shineWidth = (width * 0.46).clamp(18.0, 52.0);
-                        final travel = width + shineWidth * 2;
-                        final left = -shineWidth + (travel * sweep);
-
-                        return Stack(
-                          fit: StackFit.expand,
-                          clipBehavior: Clip.hardEdge,
-                          children: [
-                            Container(
-                              decoration: const BoxDecoration(
-                                color: FlowColors.ink2,
-                              ),
-                            ),
-                            Positioned(
-                              left: left,
-                              top: -3,
-                              bottom: -3,
-                              width: shineWidth,
-                              child: Transform.rotate(
-                                angle: -0.16,
-                                child: DecoratedBox(
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      begin: Alignment.centerLeft,
-                                      end: Alignment.centerRight,
-                                      colors: [
-                                        Colors.white.withOpacity(0.00),
-                                        Colors.white.withOpacity(0.12),
-                                        Colors.white.withOpacity(0.72),
-                                        Colors.white.withOpacity(0.18),
-                                        Colors.white.withOpacity(0.00),
-                                      ],
-                                      stops: const [0, 0.22, 0.50, 0.78, 1],
-                                    ),
-                                  ),
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: accent, width: 1.4),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: accent.withOpacity(0.28 + pulse * 0.2),
+                                  blurRadius: 7 + pulse * 4,
+                                  spreadRadius: pulse * 0.8,
                                 ),
-                              ),
+                              ],
                             ),
-                          ],
-                        );
-                      },
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Container(
+                width: 43,
+                height: 43,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.76),
+                  border: Border.all(color: Colors.white.withOpacity(0.9)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: accent.withOpacity(0.08 + pulse * 0.07),
+                      blurRadius: 13,
+                    ),
+                  ],
+                ),
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 520),
+                  switchInCurve: Curves.easeOutBack,
+                  switchOutCurve: Curves.easeIn,
+                  transitionBuilder: (child, animation) => FadeTransition(
+                    opacity: animation,
+                    child: ScaleTransition(scale: animation, child: child),
+                  ),
+                  child: Icon(
+                    icon,
+                    key: ValueKey<int>(safeStep),
+                    size: 20,
+                    color: accent,
+                  ),
+                ),
+              ),
+              Positioned(
+                bottom: 0,
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 420),
+                  child: Container(
+                    key: ValueKey<String>(labels[safeStep - 1]),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _v6Cream.withOpacity(0.94),
+                      borderRadius: BorderRadius.circular(99),
+                      border: Border.all(color: accent.withOpacity(0.12)),
+                    ),
+                    child: Text(
+                      labels[safeStep - 1],
+                      style: TextStyle(
+                        color: accent,
+                        fontSize: 8,
+                        height: 1,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                   ),
                 ),
               ),
-              if (i != 4) const SizedBox(width: 5),
             ],
-          ],
+          ),
         );
       },
     );
