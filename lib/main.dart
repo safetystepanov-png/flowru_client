@@ -7605,15 +7605,15 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
                 borderRadius: BorderRadius.circular(27),
                 gradient: const LinearGradient(
                   colors: [
-                    Color(0xFFF7FFFF),
-                    Color(0xFFEDFAF8),
-                    Color(0xFFF2F0FF),
+                    Color(0xFF173C41),
+                    Color(0xFF0C6371),
+                    Color(0xFF204D57),
                   ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
                 border: Border.all(
-                  color: Colors.white.withOpacity(0.88),
+                  color: const Color(0xFFC99A60).withOpacity(0.58),
                 ),
                 boxShadow: [
                   BoxShadow(
@@ -7676,7 +7676,7 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
-                                  color: FlowColors.ink,
+                                  color: Colors.white,
                                   fontSize: 20,
                                   fontWeight: FontWeight.w900,
                                   letterSpacing: -0.45,
@@ -7731,7 +7731,7 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            color: FlowColors.ink.withOpacity(0.62),
+                            color: Colors.white.withOpacity(0.83),
                             fontSize: 12.5,
                             height: 1.27,
                             fontWeight: FontWeight.w700,
@@ -7742,19 +7742,31 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
                   ),
                   const SizedBox(width: 10),
                   Container(
-                    width: 44,
-                    height: 44,
+                    height: 45,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.76),
+                      gradient: const LinearGradient(
+                          colors: [Color(0xFFB9734F), Color(0xFFE1B45D)]),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: FlowColors.ink.withOpacity(0.05),
-                      ),
+                      boxShadow: [
+                        BoxShadow(
+                            color: const Color(0xFFE1B45D).withOpacity(0.30),
+                            blurRadius: 16,
+                            offset: const Offset(0, 6))
+                      ],
                     ),
-                    child: const Icon(
-                      Icons.arrow_forward_rounded,
-                      color: FlowColors.ink,
-                      size: 22,
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('Открыть',
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w900)),
+                        SizedBox(width: 4),
+                        Icon(Icons.arrow_forward_rounded,
+                            color: Colors.white, size: 17),
+                      ],
                     ),
                   ),
                 ],
@@ -18861,6 +18873,13 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
         _active = mapList(active['items']);
 
         final mode = (settings['time_mode'] ?? 'in_minutes').toString();
+        final preset = switch (mode) {
+          'in_minutes_15_20_25' => <int>[15, 20, 25],
+          'in_minutes_20_25_30' => <int>[20, 25, 30],
+          'in_minutes_30_40_50' => <int>[30, 40, 50],
+          _ => <int>[10, 15, 20],
+        };
+        if (!preset.contains(_pickupMinutes)) _pickupMinutes = preset[1];
         final allowAsap = boolValue(settings['allow_asap']);
 
         if (mode == 'scheduled') {
@@ -21399,9 +21418,9 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
             // FLOWRU_PREORDER_V34_TALL_PRODUCT_PREVIEW_20260919
             // The preview is deliberately tall: catalogue photos are a visual
             // showcase, not a small banner. It uses one sharp full-bleed image.
-            Widget heroImage() {
+            Widget heroImage({double height = 362}) {
               return SizedBox(
-                height: 362,
+                height: height,
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
@@ -21799,6 +21818,10 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
               MediaQuery.of(dialogContext).size.height * 0.90,
               650.0,
             );
+            // FLOWRU_PREORDER_CART_CARDS_POLISH_V37_20260923
+            final focusedHeroHeight = (groupedHeight - 82 - 102 - 90 - 16)
+                .clamp(164.0, 362.0)
+                .toDouble();
 
             return SafeArea(
               child: Center(
@@ -21860,16 +21883,8 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                                             curve: Curves.easeOutCubic,
                                             child: activeGroup == null
                                                 ? heroImage()
-                                                : SizedBox(
-                                                    height: 164,
-                                                    child: ClipRect(
-                                                      child: Align(
-                                                        alignment:
-                                                            Alignment.topCenter,
-                                                        heightFactor: 0.46,
-                                                        child: heroImage(),
-                                                      ),
-                                                    ),
+                                                : heroImage(
+                                                    height: focusedHeroHeight,
                                                   ),
                                           ),
                                           modifierDeck(),
@@ -21913,6 +21928,8 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                                             const Expanded(
                                               child: SizedBox(),
                                             ),
+                                          if (activeGroup != null)
+                                            const Spacer(),
                                           footer(),
                                         ],
                                       ),
@@ -24254,7 +24271,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
                                     const Text(
-                                      'Продолжить',
+                                      'Продолжить покупку',
                                       style: TextStyle(
                                         color: Colors.white,
                                         fontSize: 14.5,
@@ -24277,6 +24294,39 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                               ),
                             ),
                           ),
+                          if (_catalogCart.isNotEmpty) ...[
+                            const SizedBox(height: 9),
+                            SizedBox(
+                              width: double.infinity,
+                              height: 52,
+                              child: TextButton.icon(
+                                onPressed: _sending
+                                    ? null
+                                    : () {
+                                        HapticFeedback.mediumImpact();
+                                        Navigator.of(sheetContext).pop();
+                                        WidgetsBinding.instance
+                                            .addPostFrameCallback((_) {
+                                          if (mounted && !_sending) _send();
+                                        });
+                                      },
+                                icon: const Icon(Icons.arrow_forward_rounded,
+                                    size: 18),
+                                label: const Text('Оформить заказ'),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: _v6Ink,
+                                  textStyle: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w900),
+                                  shape: RoundedRectangleBorder(
+                                    side: BorderSide(
+                                        color: _v6Ink.withOpacity(0.12)),
+                                    borderRadius: BorderRadius.circular(18),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -25051,13 +25101,34 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                                   Row(
                                     children: [
                                       Expanded(
-                                        child: Text(
-                                          '${product.groups.isNotEmpty ? 'от ' : ''}${product.basePrice} ₽',
-                                          style: const TextStyle(
-                                            color: _v6Ink,
-                                            fontSize: 13.5,
-                                            fontWeight: FontWeight.w900,
-                                          ),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            if (product.groups.isNotEmpty)
+                                              const Text('от',
+                                                  style: TextStyle(
+                                                      color: _v6Muted,
+                                                      fontSize: 9,
+                                                      fontWeight:
+                                                          FontWeight.w800,
+                                                      height: 1)),
+                                            FittedBox(
+                                              fit: BoxFit.scaleDown,
+                                              alignment: Alignment.centerLeft,
+                                              child: Text(
+                                                '${product.basePrice} ₽',
+                                                softWrap: false,
+                                                maxLines: 1,
+                                                style: const TextStyle(
+                                                    color: _v6Ink,
+                                                    fontSize: 13.5,
+                                                    fontWeight:
+                                                        FontWeight.w900),
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
                                       GestureDetector(
@@ -25749,23 +25820,19 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
     final options = <Map<String, dynamic>>[];
 
     if (_timeMode != 'scheduled') {
-      options.addAll([
-        {
-          'label': 'Через\n10 мин',
+      final times = switch (_timeMode) {
+        'in_minutes_15_20_25' => <int>[15, 20, 25],
+        'in_minutes_20_25_30' => <int>[20, 25, 30],
+        'in_minutes_30_40_50' => <int>[30, 40, 50],
+        _ => <int>[10, 15, 20],
+      };
+      for (final minutes in times) {
+        options.add({
+          'label': 'Через\n$minutes мин',
           'type': 'in_minutes',
-          'minutes': 10,
-        },
-        {
-          'label': 'Через\n15 мин',
-          'type': 'in_minutes',
-          'minutes': 15,
-        },
-        {
-          'label': 'Через\n20 мин',
-          'type': 'in_minutes',
-          'minutes': 20,
-        },
-      ]);
+          'minutes': minutes,
+        });
+      }
     }
 
     if (_allowAsap) {
@@ -25776,12 +25843,22 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
       });
     }
 
-    if (_allowScheduledTime || _timeMode == 'scheduled') {
+    if (_allowScheduledTime ||
+        _timeMode == 'scheduled' ||
+        (!_isAppointment && _timeMode.startsWith('in_minutes'))) {
       options.add({
         'label': 'Ко\nвремени',
         'type': 'at_time',
         'minutes': 0,
       });
+    }
+
+    // FLOWRU_APP_TIME_PRESETS_SYMMETRY_V2_20260923: expose the exact-time option beside quick choices.
+    final exactIndex =
+        options.indexWhere((option) => option['type'] == 'at_time');
+    if (exactIndex >= 0 && _timeMode != 'scheduled') {
+      final exact = options.removeAt(exactIndex);
+      options.insert(0, exact);
     }
 
     if (options.isEmpty) {
