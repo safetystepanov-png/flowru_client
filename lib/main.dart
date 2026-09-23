@@ -7519,6 +7519,7 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
   }
 
   // FLOWRU_PREORDER_VISUAL_V2_20260819
+  // FLOWRU_PREORDER_V38_REMOVE_AVAILABLE_BADGE_20260923
   Widget _preorderQuickCard() {
     final id = _establishmentId;
     final token = widget.token.trim();
@@ -7681,46 +7682,6 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
                                   fontWeight: FontWeight.w900,
                                   letterSpacing: -0.45,
                                 ),
-                              ),
-                            ),
-                            const SizedBox(
-                              width: 8,
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(
-                                  0xFF19B97B,
-                                ).withOpacity(0.10),
-                                borderRadius: BorderRadius.circular(99),
-                              ),
-                              child: const Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.circle,
-                                    size: 6,
-                                    color: Color(
-                                      0xFF19B97B,
-                                    ),
-                                  ),
-                                  SizedBox(
-                                    width: 5,
-                                  ),
-                                  Text(
-                                    'Доступно',
-                                    style: TextStyle(
-                                      color: Color(
-                                        0xFF13885E,
-                                      ),
-                                      fontSize: 9.5,
-                                      fontWeight: FontWeight.w900,
-                                    ),
-                                  ),
-                                ],
                               ),
                             ),
                           ],
