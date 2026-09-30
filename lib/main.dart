@@ -604,6 +604,41 @@ class FlowApi {
     );
   }
 
+  // FLOWRU_CLIENT_GIFT_REDEEM_V40_20260929
+  Future<Map<String, dynamic>> redeemSubscriptionGift(
+          String token, String code) =>
+      _request(
+          path: '/client/subscription-gifts/redeem',
+          method: 'POST',
+          token: token,
+          body: {'code': code});
+
+  // FLOWRU_CERTIFICATES_V42_20260929
+  Future<Map<String, dynamic>> myCertificates(String token) =>
+      _request(path: '/client/subscription-gifts', token: token)
+          .timeout(const Duration(seconds: 18));
+
+  Future<Map<String, dynamic>> claimCertificate(String token, String code) =>
+      _request(
+          path: '/client/subscription-gifts/claim',
+          method: 'POST',
+          token: token,
+          body: {'code': code}).timeout(const Duration(seconds: 18));
+
+  Future<Map<String, dynamic>> shareCertificate(String token, int id) =>
+      _request(
+              path: '/client/subscription-gifts/$id/share',
+              method: 'POST',
+              token: token)
+          .timeout(const Duration(seconds: 18));
+
+  Future<Map<String, dynamic>> activateCertificate(String token, int id) =>
+      _request(
+              path: '/client/subscription-gifts/$id/activate',
+              method: 'POST',
+              token: token)
+          .timeout(const Duration(seconds: 18));
+
   Future<Map<String, dynamic>> clientQr(String token) =>
       _request(path: '/client/qr', token: token);
 
@@ -1364,9 +1399,8 @@ class _BootstrapScreenState extends State<BootstrapScreen> {
   }
 
   Future<void> _boot() async {
-    await Future.delayed(const Duration(milliseconds: 650));
-
-    await _checkAppVersionNotice();
+    // FLOWRU_CLIENT_STARTUP_QR_V39_20260929
+    unawaited(_checkAppVersionNotice());
 
     if (!mounted) {
       return;
@@ -1515,9 +1549,8 @@ class _BiometricUnlockScreenState extends State<BiometricUnlockScreen> {
               padding: const EdgeInsets.all(22),
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 430),
-                child: SurfaceCard(
-                  padding: const EdgeInsets.all(22),
-                  radius: 34,
+                child: Padding(
+                  padding: const EdgeInsets.all(10),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -2811,6 +2844,7 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
   bool historyLoading = false;
   bool joiningDraw = false;
   bool joiningInvite = false;
+  bool _giftRedemptionBusy = false;
   bool applyingReferral = false;
   StreamSubscription<Uri>? inviteDeepLinkSub;
   String? error;
@@ -3282,7 +3316,6 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
     initInviteDeepLinks();
 
     loadAll().then((_) {
-      refreshClientQr(silent: true);
       retryPendingInviteToken(source: 'after_load_all');
     });
 
@@ -3576,42 +3609,45 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
       final nextHistoryByEst = <int, List<Map<String, dynamic>>>{};
       final nextSubscriptionsByEst = <int, List<Map<String, dynamic>>>{};
 
-      for (final est in ests) {
-        final id = intOrNull(est['establishment_id']);
-        if (id == null) continue;
-
-        try {
-          nextHomeByEst[id] = await api.home(token, establishmentId: id);
-        } catch (_) {
-          if (id == activeId) nextHomeByEst[id] = baseHome;
-        }
-
-        try {
-          nextOffersByEst[id] = await api.offers(token, id);
-        } catch (_) {
-          nextOffersByEst[id] = {};
-        }
-
-        try {
-          nextProfilesByEst[id] = await api.establishmentProfile(token, id);
-        } catch (_) {
-          nextProfilesByEst[id] = {};
-        }
-
-        try {
-          final res = await api.history(token, id);
-          nextHistoryByEst[id] = visibleClientHistory(mapList(res['items']));
-        } catch (_) {
-          nextHistoryByEst[id] = [];
-        }
-
-        try {
-          final res = await api.subscriptions(token, id);
-          nextSubscriptionsByEst[id] = mapList(res['items']);
-        } catch (_) {
-          nextSubscriptionsByEst[id] = [];
-        }
+      // Show the first usable profile immediately; secondary content follows.
+      if (mounted) {
+        setState(() {
+          home = baseHome;
+          establishments = ests;
+          selectedEstablishmentId = activeId;
+          loading = false;
+        });
+        unawaited(refreshClientQr(silent: true));
       }
+
+      final profileToken = token;
+      await Future.wait(ests.map((est) async {
+        final id = intOrNull(est['establishment_id']);
+        if (id == null) return;
+        final results = await Future.wait<Object?>([
+          api
+              .home(profileToken, establishmentId: id)
+              .catchError((_) => <String, dynamic>{}),
+          api.offers(profileToken, id).catchError((_) => <String, dynamic>{}),
+          api
+              .establishmentProfile(profileToken, id)
+              .catchError((_) => <String, dynamic>{}),
+          api.history(profileToken, id).catchError((_) => <String, dynamic>{}),
+          api
+              .subscriptions(profileToken, id)
+              .catchError((_) => <String, dynamic>{}),
+        ]);
+        final h = results[0] as Map<String, dynamic>;
+        nextHomeByEst[id] = h.isNotEmpty
+            ? h
+            : (id == activeId ? baseHome : <String, dynamic>{});
+        nextOffersByEst[id] = results[1] as Map<String, dynamic>;
+        nextProfilesByEst[id] = results[2] as Map<String, dynamic>;
+        nextHistoryByEst[id] = visibleClientHistory(
+            mapList((results[3] as Map<String, dynamic>)['items']));
+        nextSubscriptionsByEst[id] =
+            mapList((results[4] as Map<String, dynamic>)['items']);
+      }));
 
       Map<String, dynamic> selectedHome =
           activeId == null ? baseHome : (nextHomeByEst[activeId] ?? baseHome);
@@ -3647,8 +3683,6 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
         subscriptionsLastRefreshedAt = DateTime.now();
         loading = false;
       });
-
-      await refreshClientQr(silent: true);
     } on ApiError catch (e) {
       if (e.status == 401) return logout();
       if (!mounted) return;
@@ -4387,6 +4421,558 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
     );
   }
 
+  // FLOWRU_CLIENT_GIFT_DIALOG_V41_20260929
+  // FLOWRU_CERTIFICATES_V42_20260929
+  // FLOWRU_CERTIFICATES_V44_20260930
+  String _certificateDate(dynamic raw) {
+    final date = DateTime.tryParse('$raw')?.toLocal();
+    if (date == null) return 'Срок активации уточняется';
+    String two(int n) => n.toString().padLeft(2, '0');
+    return 'Активировать до ${two(date.day)}.${two(date.month)}.${date.year} в ${two(date.hour)}:${two(date.minute)}';
+  }
+
+  bool _certificateExpired(dynamic raw) {
+    final date = DateTime.tryParse('$raw');
+    return date == null || !date.toUtc().isAfter(DateTime.now().toUtc());
+  }
+
+  Future<void> showCertificates() async {
+    final codeInput = TextEditingController();
+    var busy = false;
+    var dialogAlive = true;
+    final transferCodes = <int, String>{};
+    String? transferCode;
+    var loaded = false;
+    var buying = false;
+    String? notice;
+    List<Map<String, dynamic>> certificates = [];
+    Future<void> refresh(StateSetter update) async {
+      try {
+        final token =
+            await getFreshAccessToken().timeout(const Duration(seconds: 20));
+        if (token == null || token.isEmpty)
+          throw Exception('Войдите в аккаунт заново');
+        final response = await api.myCertificates(token);
+        if (!dialogAlive) return;
+        final raw = response['items'];
+        update(() {
+          certificates = raw is List
+              ? raw
+                  .whereType<Map>()
+                  .map((e) => Map<String, dynamic>.from(e))
+                  .toList()
+              : [];
+          notice = null;
+          loaded = true;
+        });
+      } on ApiError catch (error) {
+        if (!dialogAlive) return;
+        update(() {
+          notice = error.message;
+          loaded = true;
+        });
+      } catch (_) {
+        if (!dialogAlive) return;
+        update(() {
+          notice = 'Не удалось загрузить сертификаты';
+          loaded = true;
+        });
+      }
+    }
+
+    try {
+      await showGeneralDialog<void>(
+        context: context,
+        barrierDismissible: true,
+        barrierLabel: 'Сертификаты',
+        barrierColor: const Color(0xB80C282E),
+        transitionDuration: const Duration(milliseconds: 360),
+        pageBuilder: (dialogContext, animation, secondaryAnimation) {
+          return StatefulBuilder(builder: (dialogContext, update) {
+            // Schedule the first load after the dialog has a live state.
+            if (!loaded && !busy) {
+              busy = true;
+              WidgetsBinding.instance.addPostFrameCallback((_) async {
+                if (!dialogContext.mounted) return;
+                await refresh(update);
+                if (dialogContext.mounted) update(() => busy = false);
+              });
+            }
+            final keyboard = MediaQuery.of(dialogContext).viewInsets.bottom;
+            return SafeArea(
+                child: Center(
+                    child: Padding(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + keyboard),
+              child: SingleChildScrollView(
+                  child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 460),
+                child: Material(
+                  color: const Color(0xFFFAF8F4),
+                  borderRadius: BorderRadius.circular(32),
+                  clipBehavior: Clip.antiAlias,
+                  elevation: 18,
+                  child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                                padding:
+                                    const EdgeInsets.fromLTRB(18, 20, 10, 20),
+                                decoration: BoxDecoration(
+                                    gradient: const LinearGradient(colors: [
+                                      Color(0xFF163D3F),
+                                      Color(0xFF29625B)
+                                    ]),
+                                    borderRadius: BorderRadius.circular(24)),
+                                child: Row(children: [
+                                  Container(
+                                      padding: const EdgeInsets.all(11),
+                                      decoration: BoxDecoration(
+                                          color: Colors.white.withOpacity(0.12),
+                                          borderRadius:
+                                              BorderRadius.circular(16)),
+                                      child: const Icon(
+                                          Icons.card_giftcard_rounded,
+                                          color: Color(0xFFE1BE8D),
+                                          size: 27)),
+                                  const SizedBox(width: 12),
+                                  const Expanded(
+                                      child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                        Text('ВАШИ ПОДАРКИ',
+                                            style: TextStyle(
+                                                color: Color(0xFFE1BE8D),
+                                                fontSize: 9,
+                                                fontWeight: FontWeight.w800,
+                                                letterSpacing: 1.8)),
+                                        SizedBox(height: 5),
+                                        Text('Сертификаты',
+                                            style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 21,
+                                                fontWeight: FontWeight.w800)),
+                                      ])),
+                                  IconButton(
+                                      onPressed: () =>
+                                          Navigator.of(dialogContext).pop(),
+                                      icon: const Icon(Icons.close_rounded,
+                                          color: Colors.white)),
+                                ])),
+                            const SizedBox(height: 8),
+                            const Text(
+                                'Активируйте для себя или подарите. На активацию — 5 суток с покупки; передача срок не продлевает.',
+                                style: TextStyle(
+                                    color: FlowColors.muted, height: 1.4)),
+                            if (transferCode != null)
+                              Container(
+                                  margin: const EdgeInsets.only(top: 16),
+                                  padding: const EdgeInsets.all(18),
+                                  decoration: BoxDecoration(
+                                      color: const Color(0xFFF0E6D7),
+                                      borderRadius: BorderRadius.circular(22)),
+                                  child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(children: [
+                                          const Icon(
+                                              Icons.card_giftcard_rounded,
+                                              color: Color(0xFF91693F)),
+                                          const SizedBox(width: 8),
+                                          const Expanded(
+                                              child: Text('Подарок готов',
+                                                  style: TextStyle(
+                                                      fontSize: 17,
+                                                      fontWeight:
+                                                          FontWeight.w800,
+                                                      color:
+                                                          Color(0xFF193C3A)))),
+                                          IconButton(
+                                              onPressed: () => update(
+                                                  () => transferCode = null),
+                                              icon: const Icon(
+                                                  Icons.close_rounded,
+                                                  size: 18)),
+                                        ]),
+                                        const Text(
+                                            'Отправьте код получателю. Он введёт его в разделе «Сертификаты».',
+                                            style: TextStyle(
+                                                color: Color(0xFF6E7064),
+                                                height: 1.4)),
+                                        const SizedBox(height: 12),
+                                        SelectableText(transferCode!,
+                                            style: const TextStyle(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w700,
+                                                color: Color(0xFF193C3A))),
+                                        const SizedBox(height: 10),
+                                        Wrap(spacing: 8, children: [
+                                          TextButton.icon(
+                                              onPressed: () async {
+                                                await Clipboard.setData(
+                                                    ClipboardData(
+                                                        text: transferCode!));
+                                                if (dialogContext.mounted)
+                                                  update(() => notice =
+                                                      'Код скопирован');
+                                              },
+                                              icon: const Icon(
+                                                  Icons.copy_rounded,
+                                                  size: 17),
+                                              label: const Text('Скопировать')),
+                                          TextButton.icon(
+                                              onPressed: () async {
+                                                final code = transferCode!;
+                                                try {
+                                                  final box = dialogContext
+                                                          .findRenderObject()
+                                                      as RenderBox?;
+                                                  final origin = box == null
+                                                      ? null
+                                                      : box.localToGlobal(
+                                                              Offset.zero) &
+                                                          box.size;
+                                                  await Share.share(
+                                                          'Подарочный сертификат Flowru: $code. '
+                                                          'Профиль → Сертификаты → Получить по коду.',
+                                                          sharePositionOrigin:
+                                                              origin)
+                                                      .timeout(const Duration(
+                                                          seconds: 8));
+                                                } catch (_) {
+                                                  if (dialogContext.mounted)
+                                                    update(() => notice =
+                                                        'Не удалось открыть меню отправки. Скопируйте код и отправьте в мессенджере.');
+                                                }
+                                              },
+                                              icon: const Icon(
+                                                  Icons.ios_share_rounded,
+                                                  size: 17),
+                                              label: const Text('Поделиться')),
+                                        ]),
+                                      ])),
+                            const SizedBox(height: 18),
+                            AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 260),
+                                child: buying
+                                    ? Column(
+                                        key: const ValueKey('purchase'),
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                            const Text('Покупка в заведении',
+                                                style: TextStyle(
+                                                    color: FlowColors.ink,
+                                                    fontSize: 18,
+                                                    fontWeight:
+                                                        FontWeight.w700)),
+                                            const SizedBox(height: 10),
+                                            const Text(
+                                                'Пока сертификаты продаются только в заведении. Покупка в приложении появится позже.',
+                                                style: TextStyle(
+                                                    color: FlowColors.muted,
+                                                    height: 1.4)),
+                                            TextButton(
+                                                onPressed: () => update(
+                                                    () => buying = false),
+                                                child: const Text(
+                                                    'Вернуться к сертификатам')),
+                                          ])
+                                    : Column(
+                                        key: const ValueKey('wallet'),
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                            if (busy)
+                                              const Center(
+                                                  child: Padding(
+                                                      padding:
+                                                          EdgeInsets.all(18),
+                                                      child:
+                                                          CircularProgressIndicator())),
+                                            if (!busy && certificates.isEmpty)
+                                              const Padding(
+                                                  padding: EdgeInsets.symmetric(
+                                                      vertical: 12),
+                                                  child: Text(
+                                                      'У вас пока нет сертификатов',
+                                                      style: TextStyle(
+                                                          color: FlowColors
+                                                              .muted))),
+                                            for (final gift
+                                                in certificates) ...[
+                                              Container(
+                                                margin: const EdgeInsets.only(
+                                                    bottom: 12),
+                                                padding:
+                                                    const EdgeInsets.all(16),
+                                                decoration: BoxDecoration(
+                                                    color: Colors.white,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            20),
+                                                    border: Border.all(
+                                                        color: const Color(
+                                                            0xFFECE7DC))),
+                                                child: Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      Text(
+                                                          '${gift['plan_name'] ?? 'Абонемент'}',
+                                                          style: const TextStyle(
+                                                              fontSize: 17,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w800,
+                                                              color: FlowColors
+                                                                  .ink)),
+                                                      const SizedBox(height: 4),
+                                                      Text(
+                                                          '${gift['establishment_name'] ?? 'Заведение'}',
+                                                          style: const TextStyle(
+                                                              color: FlowColors
+                                                                  .muted)),
+                                                      const SizedBox(
+                                                          height: 10),
+                                                      Text(
+                                                          _certificateDate(gift[
+                                                              'redeem_by']),
+                                                          style: const TextStyle(
+                                                              color: Color(
+                                                                  0xFF9A7446),
+                                                              fontSize: 12)),
+                                                      const SizedBox(
+                                                          height: 12),
+                                                      if (gift['redeemed_at'] !=
+                                                          null)
+                                                        const Text(
+                                                            'Активирован',
+                                                            style: TextStyle(
+                                                                color:
+                                                                    FlowColors
+                                                                        .muted))
+                                                      else if (_certificateExpired(
+                                                          gift['redeem_by']))
+                                                        const Text(
+                                                            'Срок активации истёк',
+                                                            style: TextStyle(
+                                                                color: Colors
+                                                                    .redAccent))
+                                                      else
+                                                        Wrap(
+                                                            spacing: 8,
+                                                            runSpacing: 6,
+                                                            children: [
+                                                              FilledButton(
+                                                                  style: FilledButton.styleFrom(
+                                                                      backgroundColor:
+                                                                          const Color(
+                                                                              0xFF21544F),
+                                                                      foregroundColor:
+                                                                          Colors
+                                                                              .white,
+                                                                      padding: const EdgeInsets
+                                                                          .symmetric(
+                                                                          horizontal:
+                                                                              18,
+                                                                          vertical:
+                                                                              13),
+                                                                      shape: RoundedRectangleBorder(
+                                                                          borderRadius: BorderRadius.circular(
+                                                                              16))),
+                                                                  onPressed:
+                                                                      busy
+                                                                          ? null
+                                                                          : () async {
+                                                                              update(() {
+                                                                                busy = true;
+                                                                                notice = null;
+                                                                              });
+                                                                              try {
+                                                                                final token = await getFreshAccessToken().timeout(const Duration(seconds: 20));
+                                                                                if (token == null) throw Exception();
+                                                                                await api.activateCertificate(token, (gift['id'] as num).toInt());
+                                                                                if (dialogContext.mounted) await refresh(update);
+                                                                                if (mounted) unawaited(loadAll());
+                                                                              } on ApiError catch (error) {
+                                                                                if (dialogContext.mounted) update(() => notice = error.message);
+                                                                              } catch (_) {
+                                                                                if (dialogContext.mounted) update(() => notice = 'Не удалось активировать');
+                                                                              } finally {
+                                                                                if (dialogContext.mounted) update(() => busy = false);
+                                                                              }
+                                                                            },
+                                                                  child: const Text(
+                                                                      'Активировать себе')),
+                                                              OutlinedButton(
+                                                                  style: OutlinedButton.styleFrom(
+                                                                      foregroundColor:
+                                                                          const Color(
+                                                                              0xFF21544F),
+                                                                      side: const BorderSide(
+                                                                          color: Color(
+                                                                              0xFFC6D1C8)),
+                                                                      padding: const EdgeInsets
+                                                                          .symmetric(
+                                                                          horizontal:
+                                                                              18,
+                                                                          vertical:
+                                                                              13),
+                                                                      shape: RoundedRectangleBorder(
+                                                                          borderRadius: BorderRadius.circular(
+                                                                              16))),
+                                                                  onPressed:
+                                                                      busy
+                                                                          ? null
+                                                                          : () async {
+                                                                              update(() {
+                                                                                busy = true;
+                                                                                notice = null;
+                                                                              });
+                                                                              try {
+                                                                                final token = await getFreshAccessToken().timeout(const Duration(seconds: 20));
+                                                                                if (token == null) throw Exception();
+                                                                                final id = (gift['id'] as num).toInt();
+                                                                                String? code = transferCodes[id];
+                                                                                if (code == null) {
+                                                                                  final result = await api.shareCertificate(token, id);
+                                                                                  code = '${result['code'] ?? ''}';
+                                                                                  if (code.isEmpty) throw Exception();
+                                                                                  transferCodes[id] = code;
+                                                                                }
+                                                                                if (dialogContext.mounted) update(() => transferCode = code);
+                                                                                // Sharing never holds the wallet in a loading state.
+                                                                              } on ApiError catch (error) {
+                                                                                if (dialogContext.mounted) update(() => notice = error.message);
+                                                                              } catch (_) {
+                                                                                if (dialogContext.mounted) update(() => notice = 'Не удалось подготовить подарок');
+                                                                              } finally {
+                                                                                if (dialogContext.mounted) update(() => busy = false);
+                                                                              }
+                                                                            },
+                                                                  child: const Text(
+                                                                      'Подарить')),
+                                                            ]),
+                                                    ]),
+                                              ),
+                                            ],
+                                            TextField(
+                                                controller: codeInput,
+                                                textCapitalization:
+                                                    TextCapitalization
+                                                        .characters,
+                                                decoration: InputDecoration(
+                                                    labelText:
+                                                        'Код сертификата',
+                                                    filled: true,
+                                                    fillColor: Colors.white,
+                                                    border: OutlineInputBorder(
+                                                        borderRadius:
+                                                            BorderRadius
+                                                                .circular(
+                                                                    16)))),
+                                            const SizedBox(height: 10),
+                                            SizedBox(
+                                                width: double.infinity,
+                                                child: OutlinedButton(
+                                                    onPressed: busy
+                                                        ? null
+                                                        : () async {
+                                                            if (codeInput.text
+                                                                .trim()
+                                                                .isEmpty) {
+                                                              update(() => notice =
+                                                                  'Введите код сертификата');
+                                                              return;
+                                                            }
+                                                            update(() {
+                                                              busy = true;
+                                                              notice = null;
+                                                            });
+                                                            try {
+                                                              final token =
+                                                                  await getFreshAccessToken().timeout(
+                                                                      const Duration(
+                                                                          seconds:
+                                                                              20));
+                                                              if (token == null)
+                                                                throw Exception();
+                                                              await api
+                                                                  .claimCertificate(
+                                                                      token,
+                                                                      codeInput
+                                                                          .text
+                                                                          .trim());
+                                                              codeInput.clear();
+                                                              if (dialogContext
+                                                                  .mounted)
+                                                                await refresh(
+                                                                    update);
+                                                            } on ApiError catch (error) {
+                                                              if (dialogContext
+                                                                  .mounted)
+                                                                update(() =>
+                                                                    notice = error
+                                                                        .message);
+                                                            } catch (_) {
+                                                              if (dialogContext
+                                                                  .mounted)
+                                                                update(() =>
+                                                                    notice =
+                                                                        'Не удалось получить сертификат');
+                                                            } finally {
+                                                              if (dialogContext
+                                                                  .mounted)
+                                                                update(() =>
+                                                                    busy =
+                                                                        false);
+                                                            }
+                                                          },
+                                                    child: const Text(
+                                                        'Получить по коду'))),
+                                            const SizedBox(height: 8),
+                                            SizedBox(
+                                                width: double.infinity,
+                                                child: TextButton(
+                                                    onPressed: () => update(
+                                                        () => buying = true),
+                                                    child: const Text(
+                                                        'Купить сертификат'))),
+                                          ])),
+                            if (notice != null)
+                              Padding(
+                                  padding: const EdgeInsets.only(top: 10),
+                                  child: Text(notice!,
+                                      style: const TextStyle(
+                                          color: Colors.redAccent))),
+                          ])),
+                ),
+              )),
+            )));
+          });
+        },
+        transitionBuilder: (context, animation, secondaryAnimation, child) {
+          final curve =
+              CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
+          return FadeTransition(
+              opacity: curve,
+              child: ScaleTransition(
+                  scale: Tween<double>(begin: 0.9, end: 1.0).animate(curve),
+                  child: child));
+        },
+      );
+    } finally {
+      dialogAlive = false;
+      codeInput.dispose();
+    }
+  }
+
   Widget profileTab() {
     return RefreshIndicator(
       onRefresh: loadAll,
@@ -4429,6 +5015,16 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
                   onTap: () {}),
             ]),
           ),
+          const SizedBox(height: 18),
+          const SectionTitle(
+              title: 'Сертификаты',
+              subtitle: 'Активируйте покупку или подарите её'),
+          const SizedBox(height: 10),
+          ProfileSettingsRow(
+              icon: Icons.card_giftcard_rounded,
+              title: 'Мои сертификаты',
+              subtitle: 'Активировать, подарить или получить по коду',
+              onTap: showCertificates),
           const SizedBox(height: 18),
           const SectionTitle(
               title: 'Персонализация',
@@ -4871,7 +5467,7 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
     if (qr.isEmpty) {
       ScaffoldMessenger.of(this.context).showSnackBar(
         const SnackBar(
-          content: Text('?? ??????? ???????? QR-???. ?????????? ??? ???.'),
+          content: Text('Не удалось загрузить QR-код. Попробуйте ещё раз.'),
         ),
       );
       return;
@@ -6413,52 +7009,34 @@ class FlowruClientQrPanel extends StatelessWidget {
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(22),
-                  child: qr.isNotEmpty
-                      ? QrImageView(
-                          data: qr,
-                          size: qrSize,
-                          backgroundColor: Colors.white,
-                          eyeStyle: const QrEyeStyle(
-                            eyeShape: QrEyeShape.square,
-                            color: FlowColors.ink,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 520),
+                    switchInCurve: Curves.easeOutCubic,
+                    child: qr.isNotEmpty
+                        ? QrImageView(
+                            key: const ValueKey('ready-qr'),
+                            data: qr,
+                            size: qrSize,
+                            backgroundColor: Colors.white,
+                            eyeStyle: const QrEyeStyle(
+                              eyeShape: QrEyeShape.square,
+                              color: FlowColors.ink,
+                            ),
+                            dataModuleStyle: const QrDataModuleStyle(
+                              dataModuleShape: QrDataModuleShape.square,
+                              color: FlowColors.ink,
+                            ),
+                          )
+                        : SizedBox(
+                            key: const ValueKey('pending-qr'),
+                            width: qrSize,
+                            height: qrSize,
+                            child: Center(
+                              child: const CircularProgressIndicator(
+                                  color: FlowColors.ink),
+                            ),
                           ),
-                          dataModuleStyle: const QrDataModuleStyle(
-                            dataModuleShape: QrDataModuleShape.square,
-                            color: FlowColors.ink,
-                          ),
-                        )
-                      : SizedBox(
-                          width: qrSize,
-                          height: qrSize,
-                          child: Center(
-                            child: loading
-                                ? const CircularProgressIndicator()
-                                : Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(
-                                        Icons.qr_code_2_rounded,
-                                        size: 54,
-                                        color: FlowColors.ink2,
-                                      ),
-                                      const SizedBox(height: 10),
-                                      const Text(
-                                        'QR-??? ???? ??????????',
-                                        textAlign: TextAlign.center,
-                                        style: TextStyle(
-                                          color: FlowColors.ink,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 6),
-                                      TextButton(
-                                        onPressed: onRefresh,
-                                        child: const Text('????????'),
-                                      ),
-                                    ],
-                                  ),
-                          ),
-                        ),
+                  ),
                 ),
               ),
             ),
@@ -16059,16 +16637,13 @@ class LoadingState extends StatelessWidget {
   const LoadingState({super.key});
   @override
   Widget build(BuildContext context) => const Center(
-      child: SurfaceCard(
-          padding: EdgeInsets.all(24),
-          radius: 28,
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            CircularProgressIndicator(color: FlowColors.ink),
-            SizedBox(height: 14),
-            Text('Загружаем профиль...',
-                style: TextStyle(
-                    color: FlowColors.ink, fontWeight: FontWeight.w900))
-          ])));
+        CircularProgressIndicator(color: FlowColors.ink),
+        SizedBox(height: 14),
+        Text('Загружаем профиль...',
+            style:
+                TextStyle(color: FlowColors.ink, fontWeight: FontWeight.w900))
+      ]));
 }
 
 class ErrorState extends StatelessWidget {

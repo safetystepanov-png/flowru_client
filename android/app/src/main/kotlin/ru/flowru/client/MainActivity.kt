@@ -1,4 +1,4 @@
-package com.example.flowru_client
+package ru.flowru.client
 
 import io.flutter.embedding.android.FlutterActivity
 
