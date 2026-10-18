@@ -1,3 +1,7 @@
+import 'flowru_future_ui.dart';
+import 'flowru_order_design.dart';
+import 'order_delivery_ui.dart';
+import 'order_payment_checkout.dart';
 // FLOWRU_COMPACT_MODIFIER_UI_V2_20260819
 // FLOWRU_MULTISELECT_WORKING_V1_20260819
 // Flowru Client V3 Concept
@@ -226,8 +230,11 @@ Future<String> _flowruInstalledAppVersion() async {
   }
 }
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+// FLOWRU_STARTUP_COMPLETE_V45_20261002
+late final Future<void> _flowruFirebaseReady;
+late final Future<void> _flowruInviteReady;
+
+Future<void> _flowruInitializeFirebase() async {
   try {
     if (defaultTargetPlatform == TargetPlatform.android) {
       // Android configuration is generated from android/app/google-services.json.
@@ -252,8 +259,17 @@ void main() async {
     final safe = safeRaw.length > 80 ? safeRaw.substring(0, 80) : safeRaw;
     firebaseInitStatus = 'firebase-init-error-$safe-1.0.15+99';
   }
+}
+
+Future<void> _flowruInitializeInvites() async {
   await FlowInviteDeepLinks.restorePendingInviteToken();
   await FlowInviteDeepLinks.initInitialLink();
+}
+
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  _flowruFirebaseReady = _flowruInitializeFirebase();
+  _flowruInviteReady = _flowruInitializeInvites().catchError((_) {});
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -539,6 +555,35 @@ class ApiError implements Exception {
 }
 
 class FlowApi {
+  Future<Map<String, dynamic>> orderPaymentRequest(String path, String method,
+      Map<String, dynamic>? body, String fallbackToken) async {
+    var token = await AuthStorage.access() ?? fallbackToken;
+    for (var attempt = 0; attempt < 2; attempt++) {
+      try {
+        final uri = Uri.parse(path);
+        return await _request(
+            path: uri.path,
+            method: method,
+            token: token,
+            body: body,
+            query: uri.queryParameters.isEmpty ? null : uri.queryParameters);
+      } on ApiError catch (e) {
+        if (e.status != 401 || attempt > 0) throw Exception(e.message);
+        final refreshToken = await AuthStorage.refresh();
+        if (refreshToken == null)
+          throw Exception(
+              'Сессия истекла. Войдите снова: попытка оплаты сохранена.');
+        final result = await refresh(refreshToken);
+        token = (result['access_token'] ?? '').toString();
+        if (token.isEmpty)
+          throw Exception('Войдите снова. Попытка оплаты сохранена.');
+        final newRefresh = (result['refresh_token'] ?? refreshToken).toString();
+        await AuthStorage.save(access: token, refresh: newRefresh);
+      }
+    }
+    throw Exception('Войдите снова. Попытка оплаты сохранена.');
+  }
+
   Future<Map<String, dynamic>> refresh(String refreshToken) => _request(
       path: '/auth/refresh',
       method: 'POST',
@@ -638,6 +683,10 @@ class FlowApi {
               method: 'POST',
               token: token)
           .timeout(const Duration(seconds: 18));
+
+  Future<Map<String, dynamic>> linkedEstablishments(String token) =>
+      _request(path: '/client/establishments', token: token)
+          .timeout(const Duration(seconds: 15));
 
   Future<Map<String, dynamic>> clientQr(String token) =>
       _request(path: '/client/qr', token: token);
@@ -1112,6 +1161,7 @@ class FlowClientPush {
     if (kIsWeb) return;
 
     try {
+      await _flowruFirebaseReady;
       await _mark(accessToken, 'debug-01-start-1.0.15+99');
       await _mark(accessToken, firebaseInitStatus);
 
@@ -1405,10 +1455,22 @@ class _BootstrapScreenState extends State<BootstrapScreen> {
     if (!mounted) {
       return;
     }
-    final token = await AuthStorage.access();
-    final refreshToken = await AuthStorage.refresh();
-    final biometricEnabled = await AuthStorage.biometricEnabled();
-    final biometricAvailable = await BiometricService.isAvailable();
+    final saved = await Future.wait<Object?>([
+      AuthStorage.access(),
+      AuthStorage.refresh(),
+      AuthStorage.biometricEnabled(),
+    ]);
+    final token = saved[0] as String?;
+    final refreshToken = saved[1] as String?;
+    final biometricEnabled = saved[2] as bool;
+    final biometricAvailable = !kIsWeb && biometricEnabled
+        ? await BiometricService.isAvailable()
+        : false;
+    try {
+      await _flowruInviteReady;
+    } catch (_) {
+      // An unavailable deep-link plugin must not block login.
+    }
     if (!mounted) return;
 
     final hasSession = (token != null && token.isNotEmpty) ||
@@ -2626,34 +2688,7 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
                           minWidth: (screenWidth * 0.85).clamp(0.0, 500.0)),
                       padding: EdgeInsets.fromLTRB(cardPadding, cardPadding,
                           cardPadding, cardPadding + 4),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(isVerySmall
-                            ? 26
-                            : isSmallScreen
-                                ? 32
-                                : 44),
-                        boxShadow: [
-                          BoxShadow(
-                              color: Colors.black.withOpacity(0.13),
-                              blurRadius: isVerySmall
-                                  ? 18
-                                  : isSmallScreen
-                                      ? 24
-                                      : 38,
-                              offset: Offset(
-                                  0,
-                                  isVerySmall
-                                      ? 7
-                                      : isSmallScreen
-                                          ? 12
-                                          : 18)),
-                          BoxShadow(
-                              color: Colors.white.withOpacity(0.26),
-                              blurRadius: 18,
-                              spreadRadius: 1,
-                              offset: const Offset(0, -2)),
-                        ],
-                      ),
+                      decoration: const BoxDecoration(),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(isVerySmall
                             ? 26
@@ -2664,23 +2699,7 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
                           filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
                           child: Container(
                             padding: EdgeInsets.all(innerPadding),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(isVerySmall
-                                  ? 26
-                                  : isSmallScreen
-                                      ? 32
-                                      : 44),
-                              gradient: LinearGradient(
-                                  colors: [
-                                    kLoginCardStrong,
-                                    kLoginCard,
-                                    Colors.white.withOpacity(0.78)
-                                  ],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight),
-                              border:
-                                  Border.all(color: kLoginStroke, width: 1.2),
-                            ),
+                            decoration: const BoxDecoration(),
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
@@ -2844,6 +2863,8 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
   bool historyLoading = false;
   bool joiningDraw = false;
   bool joiningInvite = false;
+  bool _checkingLinkedPlaces = false;
+  Timer? _linkedPlacesTimer;
   bool _giftRedemptionBusy = false;
   bool applyingReferral = false;
   StreamSubscription<Uri>? inviteDeepLinkSub;
@@ -2872,6 +2893,7 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
   String flowruQrPayload = '';
   DateTime? flowruQrExpiresAt;
   bool flowruQrLoading = false;
+  bool _flowruQrRequestInFlight = false;
   Timer? flowruQrTimer;
   Timer? subscriptionsRefreshTimer;
 
@@ -3115,7 +3137,7 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
   }
 
   void initInviteDeepLinks() {
-    inviteDeepLinkSub = FlowInviteDeepLinks.stream.listen((uri) {
+    inviteDeepLinkSub = FlowInviteDeepLinks.stream.listen((uri) async {
       final referral = FlowInviteDeepLinks.parseReferral(uri);
       if (referral != null) {
         handleReferralLink(referral);
@@ -3124,8 +3146,8 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
 
       final token = FlowInviteDeepLinks.parseInviteToken(uri);
       if (token != null && token.isNotEmpty) {
-        unawaited(FlowInviteDeepLinks.savePendingInviteToken(token));
-        handleInviteToken(token);
+        await FlowInviteDeepLinks.savePendingInviteToken(token);
+        if (mounted) await handleInviteToken(token);
       }
     });
   }
@@ -3136,7 +3158,7 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
     final token = await FlowInviteDeepLinks.loadPendingInviteToken();
     if (token == null || token.trim().isEmpty) return;
 
-    debugPrint('FLOWRU_INVITE_RETRY source=$source token=${token.trim()}');
+    debugPrint('FLOWRU_INVITE_RETRY source=$source');
     await handleInviteToken(token.trim());
   }
 
@@ -3330,6 +3352,7 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
     );
 
     startSubscriptionsRefreshTimer();
+    _startLinkedPlacesTimer();
   }
 
   @override
@@ -3338,6 +3361,8 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
 
     if (state == AppLifecycleState.resumed) {
       retryPendingInviteToken(source: 'app_resumed');
+      _startLinkedPlacesTimer();
+      unawaited(_refreshLinkedPlaces());
       consumePendingReferralLink();
       startSubscriptionsRefreshTimer();
       unawaited(refreshSubscriptions(force: true));
@@ -3345,6 +3370,7 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
         state == AppLifecycleState.inactive ||
         state == AppLifecycleState.detached) {
       stopSubscriptionsRefreshTimer();
+      _linkedPlacesTimer?.cancel();
     }
   }
 
@@ -3352,6 +3378,8 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     inviteDeepLinkSub?.cancel();
+    _linkedPlacesTimer?.cancel();
+    stopSubscriptionsRefreshTimer();
     flowruQrTimer?.cancel();
     super.dispose();
   }
@@ -3387,9 +3415,11 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
   }
 
   Future<void> refreshClientQr({bool silent = false}) async {
+    if (_flowruQrRequestInFlight) return;
+    _flowruQrRequestInFlight = true;
     if (mounted) {
       setState(() {
-        if (!silent) flowruQrLoading = true;
+        if (!silent || flowruQrPayload.isEmpty) flowruQrLoading = true;
       });
     }
 
@@ -3442,14 +3472,56 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
     } catch (_) {
       if (!mounted) return;
 
-      setState(() {
-        flowruQrPayload = '';
-        flowruQrExpiresAt = null;
-      });
+      if (flowruQrExpiresAt == null ||
+          !flowruQrExpiresAt!.isAfter(DateTime.now())) {
+        setState(() {
+          flowruQrPayload = '';
+          flowruQrExpiresAt = null;
+        });
+      }
     } finally {
+      _flowruQrRequestInFlight = false;
       if (mounted) {
         setState(() => flowruQrLoading = false);
       }
+    }
+  }
+
+  void _startLinkedPlacesTimer() {
+    _linkedPlacesTimer?.cancel();
+    _linkedPlacesTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+      unawaited(_refreshLinkedPlaces());
+    });
+  }
+
+  Future<void> _refreshLinkedPlaces() async {
+    if (!mounted || loading || joiningInvite || _checkingLinkedPlaces) return;
+    _checkingLinkedPlaces = true;
+    try {
+      final token = await getFreshAccessToken();
+      if (token == null || token.isEmpty || !mounted) return;
+      final result = await api.linkedEstablishments(token);
+      if (!mounted || loading || joiningInvite) return;
+      final next = dedupeEstablishments(mapList(result['items']));
+      final oldIds = establishments
+          .map((e) => intOrNull(e['establishment_id']))
+          .whereType<int>()
+          .toSet();
+      final nextIds = next
+          .map((e) => intOrNull(e['establishment_id']))
+          .whereType<int>()
+          .toSet();
+      if (oldIds.length != nextIds.length || !oldIds.containsAll(nextIds)) {
+        if (selectedEstablishmentId != null &&
+            !nextIds.contains(selectedEstablishmentId)) {
+          selectedEstablishmentId = null;
+        }
+        await loadAll();
+      }
+    } catch (_) {
+      // Keep the displayed data during a temporary network failure.
+    } finally {
+      _checkingLinkedPlaces = false;
     }
   }
 
@@ -3585,6 +3657,7 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
       var token = await getFreshAccessToken();
       if (token == null || token.isEmpty) return logout();
 
+      unawaited(refreshClientQr(silent: true));
       Map<String, dynamic> baseHome;
       try {
         baseHome =
@@ -3617,7 +3690,6 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
           selectedEstablishmentId = activeId;
           loading = false;
         });
-        unawaited(refreshClientQr(silent: true));
       }
 
       final profileToken = token;
@@ -3625,9 +3697,11 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
         final id = intOrNull(est['establishment_id']);
         if (id == null) return;
         final results = await Future.wait<Object?>([
-          api
-              .home(profileToken, establishmentId: id)
-              .catchError((_) => <String, dynamic>{}),
+          id == activeId
+              ? Future<Map<String, dynamic>>.value(baseHome)
+              : api
+                  .home(profileToken, establishmentId: id)
+                  .catchError((_) => <String, dynamic>{}),
           api.offers(profileToken, id).catchError((_) => <String, dynamic>{}),
           api
               .establishmentProfile(profileToken, id)
@@ -4259,6 +4333,165 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
     );
   }
 
+  Future<void> _openDeliveryPlaces() async {
+    final token = await getFreshAccessToken();
+    if (token == null || token.isEmpty || !mounted) return;
+    await Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => DeliveryPlacesScreen(
+            request: (path, method, body) =>
+                api.orderPaymentRequest(path, method, body, token),
+            onSelect: (place) async {
+              final id = toInt(place['id']);
+              if (!mounted) return;
+              await Navigator.of(context).push(appRoute(ClientPreorderScreen(
+                  api: api,
+                  token: token,
+                  establishmentId: id,
+                  establishmentName: (place['name'] ?? 'Заведение').toString(),
+                  establishmentPhotoUrl: (place['image_url'] ?? '').toString(),
+                  points: 0,
+                  guestFeature: 'order',
+                  initialFulfillment: 'delivery')));
+            })));
+  }
+
+  Future<void> _openPickupPlaces() async {
+    await showDialog<void>(
+        context: context,
+        builder: (sheetContext) => Dialog(
+            backgroundColor: const Color(0xFFF6FBFF),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+            insetPadding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+                constraints: BoxConstraints(
+                    maxWidth: 460,
+                    maxHeight: MediaQuery.of(sheetContext).size.height * .68),
+                child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(mainAxisSize: MainAxisSize.min, children: [
+                      Row(children: [
+                        const Expanded(
+                            child: Text('Заказать онлайн',
+                                style: TextStyle(
+                                    color: FlowColors.ink,
+                                    fontSize: 25,
+                                    fontWeight: FontWeight.w800))),
+                        IconButton(
+                            onPressed: () => Navigator.pop(sheetContext),
+                            icon: const Icon(Icons.close_rounded))
+                      ]),
+                      const Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text('Где приготовим ваш заказ?',
+                              style: TextStyle(
+                                  color: FlowColors.soft, fontSize: 14))),
+                      const SizedBox(height: 20),
+                      Flexible(
+                          child: ListView(shrinkWrap: true, children: [
+                        if (establishments.isEmpty)
+                          const Padding(
+                              padding: EdgeInsets.all(16),
+                              child:
+                                  Text('Добавьте заведение по QR или ссылке.')),
+                        ...establishments.map((e) => Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                    borderRadius: BorderRadius.circular(18),
+                                    onTap: () async {
+                                      Navigator.pop(sheetContext);
+                                      final token = await getFreshAccessToken();
+                                      final id =
+                                          intOrNull(e['establishment_id']) ??
+                                              -1;
+                                      if (!mounted ||
+                                          token == null ||
+                                          token.isEmpty ||
+                                          id <= 0) return;
+                                      final home =
+                                          homeByEstablishment[id] ?? {};
+                                      await Navigator.of(context).push(appRoute(
+                                          ClientPreorderScreen(
+                                              api: api,
+                                              token: token,
+                                              establishmentId: id,
+                                              establishmentName: (e[
+                                                          'establishment_name'] ??
+                                                      e['name'] ??
+                                                      map(home['establishment'])[
+                                                          'name'] ??
+                                                      'Заведение')
+                                                  .toString(),
+                                              establishmentPhotoUrl:
+                                                  extractImageUrl(e) ??
+                                                      extractImageUrl(map(home[
+                                                          'establishment'])) ??
+                                                      '',
+                                              points: toInt(
+                                                  map(home['loyalty'])['points']),
+                                              guestFeature: 'order',
+                                              initialFulfillment: 'pickup')));
+                                    },
+                                    child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                            vertical: 16, horizontal: 4),
+                                        child: Row(children: [
+                                          ClipRRect(
+                                              borderRadius:
+                                                  BorderRadius.circular(16),
+                                              child: SizedBox(
+                                                  width: 64,
+                                                  height: 64,
+                                                  child: (extractImageUrl(e) ?? '')
+                                                          .isNotEmpty
+                                                      ? Image.network(
+                                                          extractImageUrl(e)!,
+                                                          fit: BoxFit.cover,
+                                                          errorBuilder: (_,
+                                                                  error,
+                                                                  stack) =>
+                                                              const Icon(
+                                                                  Icons
+                                                                      .storefront_rounded,
+                                                                  color: FlowColors
+                                                                      .ink,
+                                                                  size: 32))
+                                                      : const Icon(
+                                                          Icons.storefront_rounded,
+                                                          color: FlowColors.ink,
+                                                          size: 32))),
+                                          const SizedBox(width: 16),
+                                          Expanded(
+                                              child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                Text(
+                                                    (e['establishment_name'] ??
+                                                            e['name'] ??
+                                                            'Заведение')
+                                                        .toString(),
+                                                    style: const TextStyle(
+                                                        color: FlowColors.ink,
+                                                        fontSize: 20,
+                                                        fontWeight:
+                                                            FontWeight.w800)),
+                                                const SizedBox(height: 5),
+                                                const Text('Открыть меню',
+                                                    style: TextStyle(
+                                                        color: FlowColors.soft,
+                                                        fontSize: 13))
+                                              ])),
+                                          const Icon(
+                                              Icons.arrow_forward_rounded,
+                                              color: Color(0xFF7A4CFF))
+                                        ]))))))
+                      ]))
+                    ])))));
+  }
+
   Widget commandTab() {
     return RefreshIndicator(
       onRefresh: loadAll,
@@ -4276,7 +4509,9 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
             onRefresh: () => refreshClientQr(),
             onOpen: () => showQrSheet(context),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 12),
+          Center(child: FlowruQuickOrder(onTap: _openPickupPlaces)),
+          const SizedBox(height: 16),
           if (combinedSubscriptions.isNotEmpty) ...[
             const SectionTitle(
               title: 'Мои абонементы',
@@ -7698,7 +7933,7 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
         '';
   }
 
-  void _openPreorderScreen() {
+  void _openPreorderScreen({String? guestFeature}) {
     final id = _establishmentId;
     if (id == null || id <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -7708,6 +7943,7 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
     }
 
     Navigator.of(context).push(appRoute(ClientPreorderScreen(
+      guestFeature: guestFeature,
       api: widget.api,
       token: widget.token,
       establishmentId: id,
@@ -8098,7 +8334,15 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
 
   // FLOWRU_PREORDER_VISUAL_V2_20260819
   // FLOWRU_PREORDER_V38_REMOVE_AVAILABLE_BADGE_20260923
-  Widget _preorderQuickCard() {
+  Widget _preorderQuickCard() => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _guestServiceCard('order'),
+          _guestServiceCard('appointment')
+        ],
+      );
+
+  Widget _guestServiceCard(String guestFeature) {
     final id = _establishmentId;
     final token = widget.token.trim();
 
@@ -8115,22 +8359,31 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
 
         final settings = snapshot.data ?? {};
 
-        final enabled = boolValue(settings['enabled']);
+        final originalFeature =
+            (settings['feature_type'] ?? 'order').toString();
+        final enabled = boolValue(settings[guestFeature == 'appointment'
+                ? 'appointments_enabled'
+                : 'preorder_enabled'] ??
+            (boolValue(settings['enabled']) &&
+                (originalFeature == guestFeature ||
+                    originalFeature == 'both')));
         final allowed = boolValue(settings['allowed']);
 
         if (!enabled || !allowed) {
           return const SizedBox.shrink();
         }
 
-        final featureType = (settings['feature_type'] ?? 'order').toString();
+        final featureType = guestFeature;
 
         final title = featureType == 'appointment'
             ? 'Запись'
             : featureType == 'booking'
                 ? 'Бронирование'
-                : 'Предзаказ';
+                : 'Заказать';
 
-        final hint = nonEmpty(settings['client_hint']) ??
+        final hint = (originalFeature == guestFeature
+                ? nonEmpty(settings['client_hint'])
+                : null) ??
             (featureType == 'appointment'
                 ? 'Выберите услугу и удобное время'
                 : featureType == 'booking'
@@ -8171,7 +8424,7 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
             );
           },
           child: GestureDetector(
-            onTap: _openPreorderScreen,
+            onTap: () => _openPreorderScreen(guestFeature: guestFeature),
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.fromLTRB(
@@ -9855,408 +10108,130 @@ class _ClientSubscriptionCardState extends State<ClientSubscriptionCard>
 
   @override
   Widget build(BuildContext context) {
-    final data = widget.data;
-    final visual = _visualState();
-
-    final title = nonEmpty(data['plan_name']) ?? 'Абонемент';
-    final establishment = nonEmpty(data['establishment_name']) ?? 'Заведение';
-    final availability =
-        nonEmpty(data['next_available_label']) ?? visual.detail;
-
-    final unlimited = data['is_unlimited'] == true;
-    final remaining = _number(data['remaining']) ?? 0;
-    final limit = _number(data['usage_limit']) ?? 0;
-
-    final progress = unlimited
-        ? 1.0
-        : (limit <= 0 ? 0.0 : (remaining / limit).clamp(0.0, 1.0));
-
-    final daysLeft = _daysUntil(data['ends_at']);
-    final endingSoon =
-        visual.active && daysLeft != null && daysLeft >= 0 && daysLeft <= 7;
-
+    final d = widget.data, visual = _visualState();
+    final title = nonEmpty(d['plan_name']) ?? 'Абонемент';
+    final establishment = nonEmpty(d['establishment_name']) ?? 'Заведение';
+    final unlimited = d['is_unlimited'] == true;
+    final availability = nonEmpty(d['next_available_label']) ?? visual.detail;
     return AnimatedBuilder(
-      animation: shineController,
-      builder: (context, child) {
-        final t = shineController.value;
-
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 420),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(28),
-            boxShadow: [
-              BoxShadow(
-                color: visual.colors[1].withOpacity(
-                  visual.active ? 0.30 : 0.14,
-                ),
-                blurRadius: visual.active ? 30 : 18,
-                spreadRadius: visual.active ? 1 : 0,
-                offset: const Offset(0, 14),
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(28),
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: visual.colors,
-                        begin: Alignment(
-                          -1 + t * 0.35,
-                          -1,
-                        ),
-                        end: Alignment(
-                          1,
-                          1 - t * 0.25,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  top: -52,
-                  right: -34,
-                  child: Transform.rotate(
-                    angle: t * 0.45,
-                    child: Container(
-                      width: 142,
-                      height: 142,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(42),
-                        color: Colors.white.withOpacity(0.08),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.08),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                Positioned.fill(
-                  child: IgnorePointer(
-                    child: Transform.translate(
-                      offset: Offset(
-                        -260 + t * 720,
-                        0,
-                      ),
-                      child: Transform.rotate(
-                        angle: -0.26,
-                        child: Container(
-                          width: 92,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                Colors.transparent,
-                                Colors.white.withOpacity(0.12),
-                                Colors.transparent,
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  left: 14,
-                  right: 14,
-                  top: 14,
-                  child: IgnorePointer(
-                    child: AnimatedSlide(
-                      duration: const Duration(milliseconds: 360),
-                      curve: Curves.easeOutBack,
-                      offset:
-                          showLiveUpdate ? Offset.zero : const Offset(0, -1.1),
-                      child: AnimatedOpacity(
-                        duration: const Duration(milliseconds: 240),
-                        opacity: showLiveUpdate ? 1 : 0,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 13,
-                            vertical: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.96),
-                            borderRadius: BorderRadius.circular(17),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.14),
-                                blurRadius: 22,
-                                offset: const Offset(0, 9),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 30,
-                                height: 30,
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: visual.colors,
-                                  ),
-                                  borderRadius: BorderRadius.circular(
-                                    10,
-                                  ),
-                                ),
-                                child: const Icon(
-                                  Icons.check_rounded,
-                                  color: Colors.white,
-                                  size: 18,
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  liveUpdateText,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: FlowColors.ink,
-                                    fontSize: 12,
-                                    height: 1.15,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                Material(
-                  color: Colors.transparent,
-                  child: InkWell(
+        animation: shineController,
+        builder: (context, _) => Container(
+            decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(25),
+                gradient: LinearGradient(
+                    begin: Alignment(-1 + shineController.value * .3, -1),
+                    end: Alignment.bottomRight,
+                    colors: visual.active
+                        ? const [
+                            Color(0xFF7755FF),
+                            Color(0xFF655FFF),
+                            Color(0xFF27BDD7)
+                          ]
+                        : const [Color(0xFF7393AC), Color(0xFF97AFC2)]),
+                boxShadow: const [
+                  BoxShadow(
+                      color: Color(0x207A4CFF),
+                      blurRadius: 20,
+                      offset: Offset(0, 8))
+                ]),
+            child: Material(
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(25),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
                     onTap: _openSubscription,
                     child: Padding(
-                      padding: const EdgeInsets.all(21),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
+                        padding: const EdgeInsets.fromLTRB(12, 15, 15, 13),
+                        child: Column(children: [
                           Row(
-                            children: [
-                              Container(
-                                width: 46,
-                                height: 46,
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.16),
-                                  borderRadius: BorderRadius.circular(
-                                    16,
-                                  ),
-                                  border: Border.all(
-                                    color: Colors.white.withOpacity(0.22),
-                                  ),
-                                ),
-                                child: Icon(
-                                  visual.icon,
-                                  color: Colors.white,
-                                  size: 24,
-                                ),
-                              ),
-                              const SizedBox(width: 13),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      title,
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                const FlowruOrderArt('membership',
+                                    width: 64, height: 67),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                    child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                      Text(title,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w800,
+                                              height: 1.15)),
+                                      const SizedBox(height: 8),
+                                      Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 10, vertical: 5),
+                                          decoration: BoxDecoration(
+                                              color:
+                                                  Colors.white.withOpacity(.18),
+                                              borderRadius:
+                                                  BorderRadius.circular(20)),
+                                          child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Flexible(
+                                                    child: Text(establishment,
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                        style: const TextStyle(
+                                                            color: Colors.white,
+                                                            fontSize: 12))),
+                                                const SizedBox(width: 4),
+                                                const Icon(
+                                                    Icons.chevron_right_rounded,
+                                                    size: 15,
+                                                    color: Colors.white)
+                                              ]))
+                                    ])),
+                                const SizedBox(width: 12),
+                                Container(
+                                    width: 1,
+                                    height: 57,
+                                    color: Colors.white.withOpacity(.24)),
+                                const SizedBox(width: 12),
+                                Column(children: [
+                                  const Text('Осталось',
+                                      style: TextStyle(
+                                          fontSize: 10, color: Colors.white)),
+                                  Text(
+                                      unlimited
+                                          ? '∞'
+                                          : _compact(d['remaining']),
                                       style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 20,
-                                        height: 1.05,
-                                        fontWeight: FontWeight.w900,
-                                        letterSpacing: -0.40,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 5),
-                                    Text(
-                                      establishment,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        color: Colors.white.withOpacity(0.78),
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 7,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.14),
-                                  borderRadius: BorderRadius.circular(
-                                    999,
-                                  ),
-                                  border: Border.all(
-                                    color: Colors.white.withOpacity(0.18),
-                                  ),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      visual.icon,
-                                      color: visual.accent,
-                                      size: 14,
-                                    ),
-                                    const SizedBox(width: 5),
-                                    Text(
-                                      visual.label,
-                                      style: TextStyle(
-                                        color: visual.accent,
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w900,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          if (endingSoon) ...[
-                            const SizedBox(height: 13),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 11,
-                                vertical: 7,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.14),
-                                borderRadius: BorderRadius.circular(
-                                  13,
-                                ),
-                              ),
-                              child: Text(
-                                daysLeft == 0
-                                    ? 'Последний день действия'
-                                    : 'До завершения: $daysLeft дн.',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10.5,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                            ),
-                          ],
-                          const SizedBox(height: 20),
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      unlimited ? 'Доступно' : 'Осталось',
-                                      style: TextStyle(
-                                        color: Colors.white.withOpacity(0.72),
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 3),
-                                    Text(
-                                      unlimited ? '∞' : _compact(remaining),
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 31,
-                                        height: 1,
-                                        fontWeight: FontWeight.w900,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Text(
-                                _date(data['ends_at']),
-                                style: TextStyle(
-                                  color: Colors.white.withOpacity(0.78),
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 13),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(100),
-                            child: Container(
-                              height: 7,
-                              color: Colors.white.withOpacity(0.16),
-                              child: TweenAnimationBuilder<double>(
-                                tween: Tween(
-                                  begin: 0,
-                                  end: progress,
-                                ),
-                                duration: const Duration(
-                                  milliseconds: 850,
-                                ),
-                                curve: Curves.easeOutCubic,
-                                builder: (
-                                  context,
-                                  value,
-                                  child,
-                                ) {
-                                  return FractionallySizedBox(
-                                    alignment: Alignment.centerLeft,
-                                    widthFactor: value.clamp(0, 1),
-                                    child: Container(
-                                      color: Colors.white,
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 13),
-                          Row(
-                            children: [
-                              Icon(
-                                visual.icon,
-                                color: visual.accent,
-                                size: 18,
-                              ),
-                              const SizedBox(width: 7),
-                              Expanded(
+                                          color: Colors.white,
+                                          fontSize: 30,
+                                          fontWeight: FontWeight.w800)),
+                                  Icon(visual.icon,
+                                      color: Colors.white, size: 18)
+                                ]),
+                              ]),
+                          const SizedBox(height: 9),
+                          Row(children: [
+                            Icon(visual.icon, color: Colors.white, size: 12),
+                            const SizedBox(width: 5),
+                            Expanded(
                                 child: Text(
-                                  availability,
-                                  style: TextStyle(
-                                    color: Colors.white.withOpacity(0.88),
-                                    fontSize: 11.5,
-                                    height: 1.15,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                              ),
-                              const Icon(
-                                Icons.open_in_full_rounded,
-                                color: Colors.white,
-                                size: 18,
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
+                                    showLiveUpdate
+                                        ? liveUpdateText
+                                        : availability,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 11,
+                                        height: 1.2))),
+                            const SizedBox(width: 8),
+                            Text(_date(d['ends_at']),
+                                style: const TextStyle(
+                                    color: Colors.white, fontSize: 10))
+                          ]),
+                        ]))))));
   }
 }
 
@@ -11347,7 +11322,7 @@ class _MapOnlyLinkRow extends StatelessWidget {
             children: [
               Container(
                 width: 38,
-                height: 38,
+                height: 49,
                 decoration: BoxDecoration(
                   color: color.withOpacity(0.18),
                   borderRadius: BorderRadius.circular(16),
@@ -17902,6 +17877,8 @@ class _FlowruFidelityParticlesPainter extends CustomPainter {
 }
 
 class ClientPreorderScreen extends StatefulWidget {
+  final String initialFulfillment;
+  final String? guestFeature;
   final FlowApi api;
   final String token;
   final int establishmentId;
@@ -17918,6 +17895,8 @@ class ClientPreorderScreen extends StatefulWidget {
 
   const ClientPreorderScreen({
     super.key,
+    this.guestFeature,
+    this.initialFulfillment = 'pickup',
     required this.api,
     required this.token,
     required this.establishmentId,
@@ -17933,6 +17912,145 @@ class ClientPreorderScreen extends StatefulWidget {
 
 class _ClientPreorderScreenState extends State<ClientPreorderScreen>
     with TickerProviderStateMixin {
+  bool _testOnlineAvailable = false, _hasOnlineOrders = false;
+  bool _deliveryAvailable = false, _pickupAvailable = true;
+  String _fulfillment = 'pickup';
+  bool _fulfillmentInitialized = false;
+  Map<String, dynamic>? _deliveryAddress;
+  Future<Map<String, dynamic>> _deliveryRequest(
+          String path, String method, Map<String, dynamic>? body) =>
+      widget.api.orderPaymentRequest(path, method, body, widget.token);
+  Widget _fulfillmentChoices() {
+    if (_isAppointment) return const SizedBox.shrink();
+    return Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+        child:
+            Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          FlowruReceiveSwitch(
+              pickup: _pickupAvailable,
+              delivery: _deliveryAvailable,
+              value: _fulfillment,
+              onChanged: (value) => setState(() => _fulfillment = value)),
+          if (_fulfillment == 'delivery')
+            FlowruAddressAction(
+                address: _deliveryAddress?['address']?.toString(),
+                onTap: () async {
+                  final address = await chooseDeliveryAddress(
+                      context, _deliveryRequest, widget.establishmentId,
+                      initialAddress: _deliveryAddress);
+                  if (mounted && address != null)
+                    setState(() => _deliveryAddress = address);
+                }),
+        ]));
+  }
+
+  String _paymentScope = '';
+  Future<void> _loadPaymentCapabilities() async {
+    try {
+      final d = await widget.api.orderPaymentRequest(
+          '/client/order-payments/settings?establishment_id=${widget.establishmentId}',
+          'GET',
+          null,
+          widget.token);
+      _testOnlineAvailable = d['online_available'] == true;
+      _deliveryAvailable = d['delivery_available'] == true;
+      _pickupAvailable = d['pickup_enabled'] != false;
+      if (!_fulfillmentInitialized) {
+        _fulfillment = widget.initialFulfillment;
+        _fulfillmentInitialized = true;
+      }
+      if (_fulfillment == 'delivery' && !_deliveryAvailable)
+        _fulfillment = 'pickup';
+      if (_fulfillment == 'pickup' && !_pickupAvailable && _deliveryAvailable)
+        _fulfillment = 'delivery';
+      _hasOnlineOrders = d['has_orders'] == true;
+      _paymentScope = (d['scope'] ?? '').toString();
+    } catch (_) {
+      _testOnlineAvailable = false;
+      _deliveryAvailable = false;
+    }
+  }
+
+  Map<String, dynamic> _checkoutBody(List<Map<String, dynamic>> lines) => {
+        'lines': lines,
+        'fulfillment': _fulfillment,
+        if (_fulfillment == 'delivery' && _deliveryAddress != null) ...{
+          'address_token': _deliveryAddress!['address_token'],
+          'delivery_address': _deliveryAddress!['address'],
+          'apartment': _deliveryAddress!['apartment'],
+          'entrance': _deliveryAddress!['entrance'],
+          'floor': _deliveryAddress!['floor'],
+          'delivery_note': _deliveryAddress!['delivery_note'],
+        },
+        'pickup_type': _fulfillment == 'delivery' ? 'in_minutes' : _pickupType,
+        'pickup_minutes': _fulfillment == 'delivery'
+            ? (toInt(_settings['minimum_prepare_minutes']) > 0
+                ? toInt(_settings['minimum_prepare_minutes'])
+                : 15)
+            : (_pickupType == 'asap' ? 0 : _pickupMinutes),
+        'pickup_at': _fulfillment == 'pickup' && _pickupType == 'at_time'
+            ? _scheduledPickupAt?.toUtc().toIso8601String()
+            : null,
+        'comment': _commentController.text.trim()
+      };
+
+  Future<bool?> _openOnlinePayment({bool checkout = false}) async {
+    final lines = <Map<String, dynamic>>[];
+    if (checkout) {
+      for (final line in _catalogCart) {
+        final variant =
+            line.modifiers.where((m) => m.id.startsWith('variant:')).toList();
+        lines.add({
+          'item_id': int.parse(line.product.id),
+          'quantity': line.quantity,
+          'variant_id': variant.isEmpty
+              ? null
+              : int.parse(variant.first.id.split(':').last),
+          'modifier_ids': line.modifiers
+              .where((m) => m.id.startsWith('modifier:'))
+              .map((m) => int.parse(m.id.split(':').last))
+              .toList()
+        });
+      }
+    }
+    if (!mounted) return false;
+    return Navigator.of(context).push<bool>(MaterialPageRoute(
+        builder: (_) => OrderPaymentScreen(
+              establishmentId: widget.establishmentId,
+              scope: _paymentScope,
+              request: (path, method, body) => widget.api
+                  .orderPaymentRequest(path, method, body, widget.token),
+              checkout: checkout ? _checkoutBody(lines) : null,
+              onlineAvailable: _testOnlineAvailable || _deliveryAvailable,
+              establishmentName: widget.establishmentName,
+              changeReceiving: (mode, checkoutContext) async {
+                if (mode == 'delivery') {
+                  if (!_deliveryAvailable) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                        content: Text('Доставка сейчас недоступна')));
+                    return null;
+                  }
+                  final address = await chooseDeliveryAddress(
+                      checkoutContext, _deliveryRequest, widget.establishmentId,
+                      initialAddress: _deliveryAddress);
+                  if (!mounted || address == null) return null;
+                  setState(() {
+                    _fulfillment = mode;
+                    _deliveryAddress = address;
+                  });
+                } else {
+                  if (!_pickupAvailable) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                        content: Text('Самовывоз сейчас недоступен')));
+                    return null;
+                  }
+                  setState(() => _fulfillment = mode);
+                }
+                return _checkoutBody(lines);
+              },
+            )));
+  }
+
   // FLOWRU_PREORDER_V17_SEAMLESS_20260917
   // FLOWRU_PREORDER_V18_RECOMMENDATION_CTA_FIX_20260917
   // FLOWRU_PREORDER_V19_IPHONE_POLISH_20260918
@@ -17979,6 +18097,8 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
 
   // FLOWRU_REAL_CATALOG_STATE_V1_20260819
   String _catalogCategory = '';
+  String? _catalogSubcategory;
+  List<Map<String, dynamic>> _catalogSections = [];
   final List<_PreorderCartLine> _catalogCart = [];
 
   // FLOWRU_CATALOG_ADD_FEEDBACK_V1
@@ -18293,12 +18413,15 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
       return null;
     }
 
-    final productsWithImages = _catalogProducts.where((product) {
+    final availableProducts =
+        _catalogProducts.where((p) => p.isAvailable).toList();
+    if (availableProducts.isEmpty) return null;
+    final productsWithImages = availableProducts.where((product) {
       final value = product.imageUrl.trim();
       return value.startsWith('https://') || value.startsWith('http://');
     }).toList();
     final recommendationPool =
-        productsWithImages.isNotEmpty ? productsWithImages : _catalogProducts;
+        productsWithImages.isNotEmpty ? productsWithImages : availableProducts;
 
     final indexed = <MapEntry<int, _PreorderProduct>>[
       for (var i = 0; i < recommendationPool.length; i++)
@@ -18584,7 +18707,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Предзаказ онлайн',
+                      'Заказ онлайн',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 15,
@@ -18682,7 +18805,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [_v6Terra, Color(0xFFE1B45D)],
+                      colors: [_v6Terra, Color(0xFF16D1DD)],
                     ),
                     shape: BoxShape.circle,
                   ),
@@ -18783,7 +18906,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                     end: Alignment.bottomRight,
                     colors: [
                       _v6Terra,
-                      Color(0xFFE1B45D),
+                      Color(0xFF16D1DD),
                     ],
                   ),
                   borderRadius: BorderRadius.circular(15),
@@ -18853,7 +18976,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
     final result = <String>[];
 
     for (final product in _catalogProducts) {
-      final category = product.category.trim();
+      final category = product.categoryKey;
 
       if (category.isNotEmpty && !result.contains(category)) {
         result.add(category);
@@ -18970,7 +19093,8 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
 
         // FLOWRU_CLIENT_STOPLIST_V1_20260909
         // ?????, ??????????? ??????????? ? Business, ?? ?????????? ???????.
-        if (item['is_available'] == false) continue;
+        final itemAvailable =
+            item['is_available'] == null || boolValue(item['is_available']);
 
         final itemId = item['id'];
         if (itemId == null) continue;
@@ -18988,12 +19112,24 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                 .toList()
             : <Map<String, dynamic>>[];
 
+        final hasVariants = variantsRaw is List && variantsRaw.isNotEmpty;
+        final available =
+            itemAvailable && (!hasVariants || variants.isNotEmpty);
         int basePrice = _catalogPrice(item['price']);
 
         if (basePrice <= 0) {
           basePrice = _catalogPrice(item['price_from']);
         }
 
+        if (basePrice <= 0 && variantsRaw is List) {
+          final originalPrices = variantsRaw
+              .whereType<Map>()
+              .map((variant) => _catalogPrice(variant['price']))
+              .where((price) => price > 0)
+              .toList()
+            ..sort();
+          if (originalPrices.isNotEmpty) basePrice = originalPrices.first;
+        }
         final groups = <_PreorderModifierGroup>[];
 
         // Варианты товара (например Американо 250 / 350)
@@ -19041,7 +19177,10 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
         products.add(
           _PreorderProduct(
             id: itemId.toString(),
+            isAvailable: available,
             category: categoryName.isEmpty ? 'Без категории' : categoryName,
+            categoryKey: (category['id'] ?? 'uncategorized').toString(),
+            subcategoryId: item['subcategory_id']?.toString(),
             title: (item['name'] ?? '').toString(),
             description: (item['description'] ?? '').toString(),
             basePrice: basePrice,
@@ -19077,10 +19216,17 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
 
       setState(() {
         _catalogProducts = products;
+        _catalogSections = mapList(payload['categories']);
         _catalogLoading = false;
         _catalogError = null;
 
         final categories = _catalogCategories;
+        if (_catalogSubcategory != null &&
+            !_catalogProducts.any((p) =>
+                p.categoryKey == _catalogCategory &&
+                p.subcategoryId == _catalogSubcategory)) {
+          _catalogSubcategory = null;
+        }
 
         if (categories.isEmpty) {
           _catalogCategory = '';
@@ -19088,6 +19234,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
           _catalogCategory,
         )) {
           _catalogCategory = categories.first;
+          _catalogSubcategory = null;
         }
       });
     } on ApiError catch (e) {
@@ -19244,12 +19391,17 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
     super.dispose();
   }
 
-  String get _featureType => (_settings['feature_type'] ?? 'order').toString();
+  String get _featureType =>
+      widget.guestFeature ??
+      ((_settings['feature_type'] ?? 'order').toString() == 'both'
+          ? 'order'
+          : (_settings['feature_type'] ?? 'order').toString());
 
   String get _actionLabel =>
       nonEmpty(_settings['action_label']) ?? 'Сделать заказ';
 
-  String get _screenTitle => nonEmpty(_settings['screen_title']) ?? 'Предзаказ';
+  String get _screenTitle =>
+      nonEmpty(_settings['screen_title']) ?? 'Заказ онлайн';
 
   String get _inputLabel =>
       nonEmpty(_settings['input_label']) ?? 'Что приготовить?';
@@ -19262,7 +19414,19 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
 
   String get _timeMode => (_settings['time_mode'] ?? 'in_minutes').toString();
 
-  bool get _allowAsap => boolValue(_settings['allow_asap']);
+  int get _pickupMinimum => (int.tryParse(
+              '${_settings['minimum_prepare_minutes'] ?? _settings['default_prepare_minutes'] ?? 15}') ??
+          15)
+      .clamp(1, 180)
+      .toInt();
+
+  List<int> get _pickupChoices => <int>{
+        _pickupMinimum,
+        (_pickupMinimum + 5).clamp(1, 180).toInt(),
+        (_pickupMinimum + 10).clamp(1, 180).toInt()
+      }.toList();
+
+  bool get _allowAsap => _isAppointment && boolValue(_settings['allow_asap']);
 
   bool get _allowScheduledTime => boolValue(_settings['allow_scheduled_time']);
 
@@ -19364,6 +19528,54 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
     return 'Когда заберёте?';
   }
 
+  Future<List<Map<String, dynamic>>> _mergeActiveDelivery(
+      List<Map<String, dynamic>> preorders) async {
+    final merged = <String, Map<String, dynamic>>{
+      for (final row in preorders)
+        '${row['id']}': Map<String, dynamic>.from(row)
+    };
+    try {
+      final response = await _deliveryRequest(
+          '/client/order-payments/list?establishment_id=${widget.establishmentId}',
+          'GET',
+          null);
+      for (final payment in mapList(response['items'])) {
+        if (payment['fulfillment'] != 'delivery' ||
+            payment['state'] != 'succeeded' ||
+            payment['desired_action'] == 'cancel') continue;
+        final status = (payment['preorder_status'] ?? 'new').toString();
+        final phase = (payment['delivery_phase'] ?? '').toString();
+        if (!['new', 'in_work', 'ready'].contains(status) && phase != 'on_way')
+          continue;
+        final id = '${payment['preorder_id']}';
+        final previous = merged[id] ?? <String, dynamic>{};
+        final items = mapList(payment['items']);
+        final address = payment['delivery_address'];
+        merged[id] = {
+          ...previous,
+          'id': payment['preorder_id'],
+          'status': phase == 'on_way' ? 'in_work' : status,
+          'fulfillment': 'delivery',
+          'delivery_phase': phase,
+          'delivery_address': address is Map ? address['address'] : address,
+          'order_text': previous['order_text'] ??
+              items
+                  .map((item) => "${item['name']} ×${item['quantity']}")
+                  .join(' · '),
+          'created_at': payment['created_at'],
+          'estimated_ready_at': payment['estimated_ready_at'],
+          'estimated_delivery_from': payment['estimated_delivery_from'],
+          'estimated_delivery_to': payment['estimated_delivery_to']
+        };
+      }
+    } catch (_) {
+      /* Existing active preorders remain available during payment endpoint outages. */
+    }
+    final rows = merged.values.toList();
+    rows.sort((a, b) => toInt(b['id']).compareTo(toInt(a['id'])));
+    return rows;
+  }
+
   Future<void> _pollPreorderStatus() async {
     if (!mounted || _preorderStatusPollBusy) return;
     if (_featureType == 'appointment') return;
@@ -19373,9 +19585,10 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
         widget.token,
         widget.establishmentId,
       );
+      final activeItems = await _mergeActiveDelivery(mapList(active['items']));
       if (!mounted) return;
       setState(() {
-        _active = mapList(active['items']);
+        _active = activeItems;
       });
     } catch (_) {
       // silent retry
@@ -19395,27 +19608,64 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
         widget.token,
         widget.establishmentId,
       );
-      final active = await widget.api.preorderActive(
-        widget.token,
-        widget.establishmentId,
-      );
+      final selectedFeature = widget.guestFeature ??
+          ((settings['feature_type'] ?? 'order') == 'appointment'
+              ? 'appointment'
+              : 'order');
+      final key = selectedFeature == 'appointment'
+          ? 'appointments_enabled'
+          : 'preorder_enabled';
+      if (settings.containsKey(key) && !boolValue(settings[key])) {
+        throw StateError('Раздел выключен');
+      }
+      settings['feature_type'] = selectedFeature;
+      settings['action_label'] =
+          selectedFeature == 'appointment' ? 'Записаться' : 'Заказать';
+      settings['screen_title'] =
+          selectedFeature == 'appointment' ? 'Запись' : 'Заказы';
+      settings['input_label'] = selectedFeature == 'appointment'
+          ? 'Комментарий к записи'
+          : 'Что приготовить?';
+      settings['item_label'] =
+          selectedFeature == 'appointment' ? 'запись' : 'заказ';
+      settings['object_label'] = settings['item_label'];
+      settings['submit_label'] =
+          selectedFeature == 'appointment' ? 'Записаться' : 'Отправить заказ';
+      if (selectedFeature == 'appointment') {
+        settings['time_mode'] = 'scheduled';
+        settings['allow_asap'] = false;
+        settings['allow_scheduled_time'] = true;
+      } else if (settings['time_mode'] == 'scheduled') {
+        settings['time_mode'] = 'in_minutes';
+      }
+      final active = selectedFeature == 'appointment'
+          ? <String, dynamic>{'items': <dynamic>[]}
+          : await widget.api
+              .preorderActive(widget.token, widget.establishmentId);
+      if (selectedFeature != 'appointment') {
+        await _loadCatalog(silent: true);
+        await _loadPaymentCapabilities();
+      }
 
-      await _loadCatalog(silent: true);
-
+      final activeItems = selectedFeature == 'appointment'
+          ? <Map<String, dynamic>>[]
+          : await _mergeActiveDelivery(mapList(active['items']));
       if (!mounted) return;
 
       setState(() {
         _settings = settings;
-        _active = mapList(active['items']);
+        _active = activeItems;
 
         final mode = (settings['time_mode'] ?? 'in_minutes').toString();
-        final preset = switch (mode) {
-          'in_minutes_15_20_25' => <int>[15, 20, 25],
-          'in_minutes_20_25_30' => <int>[20, 25, 30],
-          'in_minutes_30_40_50' => <int>[30, 40, 50],
-          _ => <int>[10, 15, 20],
-        };
-        if (!preset.contains(_pickupMinutes)) _pickupMinutes = preset[1];
+        final preset = _isAppointment
+            ? (switch (_timeMode) {
+                'in_minutes_15_20_25' => <int>[15, 20, 25],
+                'in_minutes_20_25_30' => <int>[20, 25, 30],
+                'in_minutes_30_40_50' => <int>[30, 40, 50],
+                _ => <int>[10, 15, 20]
+              })
+            : _pickupChoices;
+        if (!preset.contains(_pickupMinutes)) _pickupMinutes = preset.first;
         final allowAsap = boolValue(settings['allow_asap']);
 
         if (mode == 'scheduled') {
@@ -19429,6 +19679,10 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
           _pickupMinutes = 0;
         }
 
+        if (!_isAppointment && _pickupType == 'asap') {
+          _pickupType = 'in_minutes';
+          _pickupMinutes = _pickupMinimum;
+        }
         _loading = false;
       });
 
@@ -19750,7 +20004,10 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
     }
   }
 
+  bool _checkingStock = false;
+
   Future<void> _send() async {
+    if (_sending || _checkingStock) return;
     if (_isAppointment) {
       await _sendAppointment();
       return;
@@ -19765,7 +20022,8 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
       return;
     }
 
-    if (_pickupType == 'at_time' &&
+    if (_fulfillment == 'pickup' &&
+        _pickupType == 'at_time' &&
         (_scheduledPickupAt == null ||
             !_scheduledPickupAt!.isAfter(DateTime.now()))) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -19778,6 +20036,54 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
       return;
     }
 
+    if (_catalogCart.isNotEmpty) {
+      _checkingStock = true;
+      try {
+        await _loadCatalog(silent: true);
+      } finally {
+        _checkingStock = false;
+      }
+      if (!mounted) return;
+      if (_catalogError != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text(
+                  'Не удалось проверить наличие блюд. Попробуйте ещё раз')),
+        );
+        return;
+      }
+      final unavailable = _catalogCart
+          .where((line) => !_catalogProductAvailable(line.product))
+          .map((line) => line.product.title)
+          .toSet()
+          .join(', ');
+      if (unavailable.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text(
+                  'Уже закончилось: $unavailable. Уберите эти позиции из корзины')),
+        );
+        return;
+      }
+    }
+    if (_catalogCart.isNotEmpty &&
+        (_testOnlineAvailable || _deliveryAvailable)) {
+      final saved = await _openOnlinePayment(checkout: true);
+      if (saved == true) {
+        _orderController.clear();
+        _commentController.clear();
+        _catalogCart.clear();
+        _scheduledPickupAt = null;
+      }
+      if (mounted) await _load();
+      return;
+    }
+    if (_fulfillment == 'delivery') {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Доставка сейчас недоступна')));
+      return;
+    }
+    if (!_pickupAvailable) return;
     final comment = _commentController.text.trim();
 
     setState(() {
@@ -19793,7 +20099,11 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
             ? text
             : '$text\n\u041a\u043e\u043c\u043c\u0435\u043d\u0442\u0430\u0440\u0438\u0439: $comment',
         pickupType: _pickupType,
-        pickupMinutes: _pickupType == 'asap' ? 0 : _pickupMinutes,
+        pickupMinutes: _fulfillment == 'delivery'
+            ? (toInt(_settings['minimum_prepare_minutes']) > 0
+                ? toInt(_settings['minimum_prepare_minutes'])
+                : 15)
+            : (_pickupType == 'asap' ? 0 : _pickupMinutes),
         pickupAt: _pickupType == 'at_time'
             ? _scheduledPickupAt?.toIso8601String()
             : null,
@@ -20180,11 +20490,11 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
 
   Color get _v22TimeBaseColor {
     final hour = DateTime.now().hour;
-    if (hour < 6) return const Color(0xFFF0ECEA);
-    if (hour < 11) return const Color(0xFFFFF5E7);
+    if (hour < 6) return const Color(0xFFF1F8FF);
+    if (hour < 11) return const Color(0xFFF6FBFF);
     if (hour < 17) return _v6Cream;
-    if (hour < 22) return const Color(0xFFF5ECE7);
-    return const Color(0xFFF0ECEA);
+    if (hour < 22) return const Color(0xFFF0F4FF);
+    return const Color(0xFFF1F8FF);
   }
 
   Color get _v22TimeAccentColor {
@@ -20196,19 +20506,19 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
 
     final hour = DateTime.now().hour;
     if (hour < 6) return const Color(0xFF69717D);
-    if (hour < 11) return const Color(0xFFE0A14E);
+    if (hour < 11) return const Color(0xFF16D1DD);
     if (hour < 17) return _v6Terra;
-    if (hour < 22) return const Color(0xFFA66D72);
+    if (hour < 22) return const Color(0xFF7A4CFF);
     return const Color(0xFF69717D);
   }
 
   Color get _v22TimeSecondaryColor {
     final temp = _v15WeatherTemp;
     if (temp != null && temp <= 10) return const Color(0xFF7D9BAB);
-    if (temp != null && temp >= 25) return const Color(0xFFE2A557);
+    if (temp != null && temp >= 25) return const Color(0xFF16D1DD);
 
     final hour = DateTime.now().hour;
-    if (hour < 11) return const Color(0xFFDDBE78);
+    if (hour < 11) return const Color(0xFFB992FF);
     if (hour < 18) return _v6Sage;
     return const Color(0xFF8D7181);
   }
@@ -20325,9 +20635,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          _allowed
-                              ? 'Предзаказ онлайн'
-                              : 'Предзаказ недоступен',
+                          _allowed ? 'Заказ онлайн' : 'Предзаказ недоступен',
                           style: const TextStyle(
                             color: _v6Ink,
                             fontSize: 18,
@@ -20399,8 +20707,8 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
         _pickupMinutes;
 
     final prepare = raw is num
-        ? raw.round().clamp(1, 90)
-        : (int.tryParse(raw.toString()) ?? 15).clamp(1, 90);
+        ? raw.round().clamp(1, 180)
+        : (int.tryParse(raw.toString()) ?? 15).clamp(1, 180);
 
     return Container(
       height: 78,
@@ -20453,7 +20761,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Предзаказ онлайн',
+                  'Заказ онлайн',
                   style: TextStyle(
                     color: _v6Ink,
                     fontSize: 14.5,
@@ -21010,7 +21318,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                                   end: Alignment.bottomRight,
                                   colors: [
                                     activeColor,
-                                    const Color(0xFFE1B45D)
+                                    const Color(0xFF16D1DD)
                                   ],
                                 ),
                                 boxShadow: [
@@ -21181,15 +21489,15 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
     );
   }
 
-  static const Color _v6Cream = Color(0xFFFBF7F1);
-  static const Color _v6Cream2 = Color(0xFFF4EDE2);
+  static const Color _v6Cream = Color(0xFFF6FBFF);
+  static const Color _v6Cream2 = Color(0xFFEFF5FF);
   static const Color _v6Paper = Color(0xFFFFFFFF);
-  static const Color _v6Ink = Color(0xFF14110D);
-  static const Color _v6Ink2 = Color(0xFF2A2419);
-  static const Color _v6Muted = Color(0xFF97897A);
-  static const Color _v6Terra = Color(0xFFC17A54);
-  static const Color _v6TerraDeep = Color(0xFFA05D3B);
-  static const Color _v6Sage = Color(0xFF7B9A6B);
+  static const Color _v6Ink = Color(0xFF0A2B47);
+  static const Color _v6Ink2 = Color(0xFF29465A);
+  static const Color _v6Muted = Color(0xFF50718B);
+  static const Color _v6Terra = Color(0xFF7A4CFF);
+  static const Color _v6TerraDeep = Color(0xFF437CFF);
+  static const Color _v6Sage = Color(0xFF0FCAC5);
 
   Animation<double> _v6CartScale() {
     return TweenSequence<double>([
@@ -21357,7 +21665,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                                 ? _v6Sage
                                 : i % 3 == 1
                                     ? _v6Terra
-                                    : const Color(0xFFE7B765),
+                                    : const Color(0xFF16D1DD),
                             shape: BoxShape.circle,
                           ),
                         ),
@@ -21402,6 +21710,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
     _PreorderProduct product,
     BuildContext sourceContext,
   ) async {
+    if (!_catalogProductAvailable(product)) return;
     final selected = <String, List<_PreorderModifier>>{};
 
     for (final group in product.groups) {
@@ -21657,7 +21966,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                             end: Alignment.bottomRight,
                             colors: [
                               _v6Terra,
-                              Color(0xFFE1B45D),
+                              Color(0xFF16D1DD),
                             ],
                           )
                         : chosen.isNotEmpty
@@ -22207,7 +22516,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                             end: Alignment.bottomRight,
                             colors: [
                               _v6Terra,
-                              Color(0xFFE1B45D),
+                              Color(0xFF16D1DD),
                             ],
                           ),
                           shape: BoxShape.circle,
@@ -22521,117 +22830,38 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
     optionRailController.dispose();
   }
 
-  Widget _background() {
-    return AnimatedBuilder(
-      animation: _ambientMotion,
-      builder: (context, _) {
-        final t = _ambientMotion.value;
-        final wave = math.sin(t * math.pi * 2);
-        final drift = math.cos(t * math.pi * 2);
-        final primary = _v22TimeAccentColor;
-        final secondary = _v22TimeSecondaryColor;
-
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            ColoredBox(color: _v22TimeBaseColor),
-            Positioned(
-              left: -190 + wave * 58,
-              top: -210 + drift * 48,
-              child: Transform.scale(
-                scale: 1.0 + wave * 0.055,
-                child: Container(
-                  width: 470,
-                  height: 470,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: [
-                        primary.withOpacity(0.25),
-                        primary.withOpacity(0.07),
-                        Colors.transparent,
-                      ],
-                      stops: const [0.0, 0.48, 1.0],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              right: -205 - wave * 54,
-              top: 235 + drift * 62,
-              child: Transform.scale(
-                scale: 1.04 - drift * 0.06,
-                child: Container(
-                  width: 430,
-                  height: 430,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: [
-                        secondary.withOpacity(0.22),
-                        secondary.withOpacity(0.06),
-                        Colors.transparent,
-                      ],
-                      stops: const [0.0, 0.46, 1.0],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              left: -175 + drift * 88,
-              top: 520 + wave * 95,
-              child: Transform.rotate(
-                angle: -0.22 + wave * 0.10,
-                child: Container(
-                  width: 560,
-                  height: 116,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(999),
-                    gradient: LinearGradient(
-                      colors: [
-                        Colors.transparent,
-                        primary.withOpacity(0.10),
-                        Colors.white.withOpacity(0.28),
-                        secondary.withOpacity(0.10),
-                        Colors.transparent,
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            for (int i = 0; i < 18; i++)
-              Align(
-                alignment: Alignment(
-                  -0.92 + (((i * 43) % 184) / 100),
-                  -0.92 + (((i * 71) % 184) / 100),
-                ),
-                child: Transform.translate(
-                  offset: Offset(
-                    ((i % 3) - 1) * wave * (7 + i % 5),
-                    drift * (9 + (i % 4) * 3),
-                  ),
-                  child: Opacity(
-                    opacity: 0.45 + ((wave + 1) * 0.16),
-                    child: Container(
-                      width: i % 4 == 0 ? 5 : 3,
-                      height: i % 4 == 0 ? 5 : 3,
-                      decoration: BoxDecoration(
-                        color:
-                            (i.isEven ? primary : secondary).withOpacity(0.34),
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        );
-      },
-    );
-  }
+  Widget _background() => FutureScene(
+      child: AnimatedBuilder(
+          animation: _ambientMotion,
+          builder: (context, _) => Stack(children: [
+                Positioned(
+                    right: -90,
+                    top:
+                        150 + math.sin(_ambientMotion.value * math.pi * 2) * 24,
+                    child: IgnorePointer(
+                        child: Container(
+                            width: 300,
+                            height: 300,
+                            decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: RadialGradient(colors: [
+                                  const Color(0xFFC7A7FF).withOpacity(.12),
+                                  Colors.transparent
+                                ]))))),
+                Positioned(
+                    left: -130,
+                    bottom: 80,
+                    child: IgnorePointer(
+                        child: Container(
+                            width: 340,
+                            height: 340,
+                            decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: RadialGradient(colors: [
+                                  futureAqua.withOpacity(.10),
+                                  Colors.transparent
+                                ])))))
+              ])));
 
   Widget _softCircle(double size, Color color) {
     return Container(
@@ -22714,9 +22944,9 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            _v6Cream,
-            _v6Cream.withOpacity(0.95),
-            _v6Cream.withOpacity(0.72),
+            const Color(0xFFF3F6FF),
+            const Color(0xFFF3F6FF).withOpacity(0.8),
+            const Color(0xFFF3F6FF).withOpacity(0.0),
           ],
           stops: const [0.0, 0.64, 1.0],
         ),
@@ -22823,8 +23053,8 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                           ),
                         ),
                         const Spacer(),
-                        _miniMetric(
-                            'Формат', _isAppointment ? 'Запись' : 'Предзаказ'),
+                        _miniMetric('Формат',
+                            _isAppointment ? 'Запись' : 'Заказ онлайн'),
                         const SizedBox(height: 8),
                         _miniMetric('Статус', _allowed ? 'Доступен' : 'Закрыт'),
                       ],
@@ -22890,13 +23120,16 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
   }
 
   Widget _activeCard(Map<String, dynamic> item) {
+    final delivery = item['fulfillment'] == 'delivery';
+    final onWay = item['delivery_phase'] == 'on_way';
     final status = (item['status'] ?? '').toString();
     final accent = status == 'cancelled'
-        ? const Color(0xFFA65E59)
-        : status == 'ready' || status == 'completed'
-            ? _v6Sage
-            : _v6TerraDeep;
-    final pickupTime = _formatTime(item['pickup_at']);
+        ? const Color(0xFFE45866)
+        : status == 'completed'
+            ? const Color(0xFF0BADA0)
+            : const Color(0xFFF29A26);
+    final confirmedReady = item['estimated_ready_at'];
+    final pickupTime = _formatTime(confirmedReady ?? item['pickup_at']);
     final createdTime = _formatTime(item['created_at']);
     final orderText = (item['order_text'] ?? '').toString().trim();
 
@@ -22935,7 +23168,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                 const SizedBox(width: 9),
                 Expanded(
                   child: Text(
-                    _activeTitle.toUpperCase(),
+                    delivery ? 'АКТИВНАЯ ДОСТАВКА' : _activeTitle.toUpperCase(),
                     style: const TextStyle(
                       color: _v6Muted,
                       fontSize: 9.5,
@@ -22955,7 +23188,11 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                     border: Border.all(color: accent.withOpacity(0.16)),
                   ),
                   child: Text(
-                    _statusText(status),
+                    onWay
+                        ? 'Курьер в пути'
+                        : delivery && status == 'ready'
+                            ? 'Готов · ожидает курьера'
+                            : _statusText(status),
                     style: TextStyle(
                       color: accent,
                       fontSize: 11.5,
@@ -22999,11 +23236,14 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                             const SizedBox(width: 5),
                             Flexible(
                               child: Text(
-                                createdTime.isNotEmpty && pickupTime.isNotEmpty
-                                    ? '$createdTime  →  $pickupTime'
-                                    : createdTime.isNotEmpty
-                                        ? 'Поступил $createdTime'
-                                        : 'Забрать $pickupTime',
+                                confirmedReady != null && pickupTime.isNotEmpty
+                                    ? 'Ожидаемая готовность $pickupTime'
+                                    : createdTime.isNotEmpty &&
+                                            pickupTime.isNotEmpty
+                                        ? '$createdTime  →  $pickupTime'
+                                        : createdTime.isNotEmpty
+                                            ? 'Поступил $createdTime'
+                                            : 'Забрать $pickupTime',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
@@ -24229,8 +24469,16 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
     );
   }
 
+  bool _catalogProductAvailable(_PreorderProduct product) {
+    for (final current in _catalogProducts) {
+      if (current.id == product.id) return current.isAvailable;
+    }
+    return false;
+  }
+
   void _addCatalogLine(
       _PreorderProduct product, List<_PreorderModifier> modifiers) {
+    if (!_catalogProductAvailable(product)) return;
     final modifierIds = modifiers.map((item) => item.id).toList()..sort();
     final key = '${product.id}|${modifierIds.join(",")}';
 
@@ -24273,6 +24521,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
   }
 
   void _changeCatalogQuantity(_PreorderCartLine line, int delta) {
+    if (delta > 0 && !_catalogProductAvailable(line.product)) return;
     setState(() {
       line.quantity += delta;
       if (line.quantity <= 0) _catalogCart.remove(line);
@@ -24416,7 +24665,14 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                   maxHeight: MediaQuery.of(context).size.height * 0.88,
                 ),
                 decoration: const BoxDecoration(
-                  color: _v6Cream,
+                  gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Color(0xFFF2FAFF),
+                        Color(0xFFF4F1FF),
+                        Color(0xFFE9FCFC)
+                      ]),
                   borderRadius: BorderRadius.only(
                     topLeft: Radius.circular(34),
                     topRight: Radius.circular(34),
@@ -24425,90 +24681,13 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                 child: Column(
                   children: [
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(
-                        18,
-                        13,
-                        18,
-                        13,
-                      ),
-                      child: Column(
-                        children: [
-                          Container(
-                            width: 40,
-                            height: 4,
-                            decoration: BoxDecoration(
-                              color: _v6Ink.withOpacity(0.10),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                          ),
-                          const SizedBox(height: 15),
-                          Row(
-                            children: [
-                              Container(
-                                width: 48,
-                                height: 48,
-                                alignment: Alignment.center,
-                                decoration: BoxDecoration(
-                                  gradient: const LinearGradient(
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                    colors: [
-                                      _v6Terra,
-                                      Color(0xFFE1B45D),
-                                    ],
-                                  ),
-                                  borderRadius: BorderRadius.circular(
-                                    17,
-                                  ),
-                                ),
-                                child: Text(
-                                  '$_catalogCartCount',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              const Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Корзина',
-                                      style: TextStyle(
-                                        color: _v6Ink,
-                                        fontSize: 23,
-                                        fontWeight: FontWeight.w900,
-                                        letterSpacing: -0.5,
-                                      ),
-                                    ),
-                                    SizedBox(height: 2),
-                                    Text(
-                                      'Проверь заказ',
-                                      style: TextStyle(
-                                        color: _v6Muted,
-                                        fontSize: 10.5,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Text(
-                                '$_catalogCartTotal ₽',
-                                style: const TextStyle(
-                                  color: _v6Ink,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
+                        padding: const EdgeInsets.only(top: 10),
+                        child: FutureHero(
+                            title: 'Корзина',
+                            height: 138,
+                            imageAsset: 'assets/flowru_future/cart.png',
+                            subtitle:
+                                '$_catalogCartCount поз. · $_catalogCartTotal ₽')),
                     Divider(
                       height: 1,
                       color: _v6Ink.withOpacity(0.05),
@@ -24689,7 +24868,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                                                   colors: [
                                                     _v6Terra,
                                                     Color(
-                                                      0xFFE1B45D,
+                                                      0xFF16D1DD,
                                                     ),
                                                   ],
                                                 ),
@@ -24779,29 +24958,12 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                               child: Container(
                                 height: 58,
                                 decoration: BoxDecoration(
-                                  gradient: const LinearGradient(
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                    colors: [
-                                      _v6Terra,
-                                      Color(0xFFE1B45D),
-                                    ],
-                                  ),
+                                  color: Colors.transparent,
+                                  border: Border.all(
+                                      color: _v6Ink.withOpacity(0.14)),
                                   borderRadius: BorderRadius.circular(
                                     20,
                                   ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: _v6Terra.withOpacity(
-                                        0.18,
-                                      ),
-                                      blurRadius: 18,
-                                      offset: const Offset(
-                                        0,
-                                        8,
-                                      ),
-                                    ),
-                                  ],
                                 ),
                                 child: Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
@@ -24809,7 +24971,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                                     const Text(
                                       'Продолжить покупку',
                                       style: TextStyle(
-                                        color: Colors.white,
+                                        color: _v6Ink,
                                         fontSize: 14.5,
                                         fontWeight: FontWeight.w900,
                                       ),
@@ -24818,7 +24980,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                                     Text(
                                       '$_catalogCartTotal ₽',
                                       style: TextStyle(
-                                        color: Colors.white.withOpacity(
+                                        color: _v6Ink.withOpacity(
                                           0.76,
                                         ),
                                         fontSize: 12.5,
@@ -24850,13 +25012,13 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                                     size: 18),
                                 label: const Text('Оформить заказ'),
                                 style: TextButton.styleFrom(
-                                  foregroundColor: _v6Ink,
+                                  backgroundColor: const Color(0xFF69E8EB),
+                                  foregroundColor: futureInk,
                                   textStyle: const TextStyle(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w900),
                                   shape: RoundedRectangleBorder(
-                                    side: BorderSide(
-                                        color: _v6Ink.withOpacity(0.12)),
+                                    side: BorderSide(color: Colors.transparent),
                                     borderRadius: BorderRadius.circular(18),
                                   ),
                                 ),
@@ -24918,7 +25080,10 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
     }
 
     final products = _catalogProducts
-        .where((product) => product.category == _catalogCategory)
+        .where((product) =>
+            product.categoryKey == _catalogCategory &&
+            (_catalogSubcategory == null ||
+                product.subcategoryId == _catalogSubcategory))
         .toList();
 
     final dragBehavior = const MaterialScrollBehavior().copyWith(
@@ -24949,7 +25114,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                 ),
               ),
               Text(
-                '${_catalogProducts.length} поз.',
+                '${products.length} поз.',
                 style: const TextStyle(
                   color: _v6TerraDeep,
                   fontSize: 10,
@@ -24962,22 +25127,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
         const SizedBox(height: 13),
         ScrollConfiguration(
           behavior: dragBehavior,
-          child: SizedBox(
-            height: 49,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              clipBehavior: Clip.none,
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              itemCount: _catalogCategories.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
-              itemBuilder: (context, index) {
-                return _catalogCategoryChip(
-                  _catalogCategories[index],
-                );
-              },
-            ),
-          ),
+          child: _catalogNavigation(),
         ),
         const SizedBox(height: 14),
         if (products.isEmpty)
@@ -25340,27 +25490,159 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
     );
   }
 
-  Widget _catalogCategoryChip(String category) {
-    final selected = category == _catalogCategory;
+  String _catalogCategoryLabel(String key) {
+    final matches = _catalogProducts.where((p) => p.categoryKey == key);
+    return matches.isEmpty ? 'Меню' : matches.first.category;
+  }
+
+  List<Map<String, dynamic>> _catalogChildren(String key) {
+    for (final section in _catalogSections) {
+      if ((section['id'] ?? 'uncategorized').toString() == key) {
+        return mapList(section['subcategories']);
+      }
+    }
+    return [];
+  }
+
+  void _resetCatalogPage() {
+    if (_v6MenuController.hasClients) {
+      _v6MenuController.jumpToPage(0);
+    }
+  }
+
+  void _chooseCatalogCategory(String key) {
+    _fidelityHapticLight();
+    setState(() {
+      _catalogCategory = key;
+      _catalogSubcategory = null;
+      _v6MenuPage = 0;
+    });
+    _resetCatalogPage();
+  }
+
+  void _chooseCatalogSubcategory(String? id) {
+    _fidelityHapticLight();
+    setState(() {
+      _catalogSubcategory = id;
+      _v6MenuPage = 0;
+    });
+    _resetCatalogPage();
+  }
+
+  Widget _catalogNavigation() {
+    final children = _catalogChildren(_catalogCategory);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          height: 49,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            clipBehavior: Clip.none,
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: _catalogCategories.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (_, index) =>
+                _catalogCategoryChip(_catalogCategories[index]),
+          ),
+        ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 240),
+          curve: Curves.easeInOutCubic,
+          alignment: Alignment.topCenter,
+          child: children.isEmpty
+              ? const SizedBox.shrink()
+              : Padding(
+                  padding: const EdgeInsets.only(top: 4, bottom: 8),
+                  child: SizedBox(
+                    height: 38,
+                    child: ListView.separated(
+                      key: ValueKey('catalog-children-$_catalogCategory'),
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      itemCount: children.length + 1,
+                      separatorBuilder: (_, __) => Center(
+                          child: Text('／',
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  color: _v6Muted.withOpacity(0.3)))),
+                      itemBuilder: (_, index) {
+                        final id = index == 0
+                            ? null
+                            : children[index - 1]['id'].toString();
+                        final label = index == 0
+                            ? 'Всё'
+                            : (children[index - 1]['name'] ?? '').toString();
+                        final selected = _catalogSubcategory == id;
+                        return Semantics(
+                          button: true,
+                          selected: selected,
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () => _chooseCatalogSubcategory(id),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 220),
+                              curve: Curves.easeOutCubic,
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 10),
+                              alignment: Alignment.center,
+                              child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    AnimatedDefaultTextStyle(
+                                      duration:
+                                          const Duration(milliseconds: 220),
+                                      style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: selected
+                                              ? FontWeight.w800
+                                              : FontWeight.w500,
+                                          color: selected
+                                              ? _v6TerraDeep
+                                              : _v6Muted,
+                                          letterSpacing: selected ? 0.15 : 0),
+                                      child: Text(label),
+                                    ),
+                                    AnimatedSize(
+                                      duration:
+                                          const Duration(milliseconds: 220),
+                                      child: selected
+                                          ? const Padding(
+                                              padding: EdgeInsets.only(left: 6),
+                                              child: Icon(Icons.check_rounded,
+                                                  size: 14,
+                                                  color: _v6TerraDeep),
+                                            )
+                                          : const SizedBox.shrink(),
+                                    ),
+                                  ]),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _catalogCategoryChip(
+    String category, {
+    String? title,
+    bool? isSelected,
+    VoidCallback? onPressed,
+  }) {
+    final selected = isSelected ?? category == _catalogCategory;
+    final label = title ?? _catalogCategoryLabel(category);
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () {
-        _fidelityHapticLight();
-
-        setState(() {
-          _catalogCategory = category;
-          _v6MenuPage = 0;
-        });
-
-        if (_v6MenuController.hasClients) {
-          _v6MenuController.animateToPage(
-            0,
-            duration: const Duration(milliseconds: 420),
-            curve: Curves.easeOutCubic,
-          );
-        }
-      },
+      onTap: onPressed ?? () => _chooseCatalogCategory(category),
       child: AnimatedBuilder(
         animation: _pulseMotion,
         builder: (context, _) {
@@ -25434,12 +25716,12 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                                 colors: const [
                                   _v6TerraDeep,
                                   _v6Terra,
-                                  Color(0xFFE1B45D),
+                                  Color(0xFF16D1DD),
                                 ],
                               ).createShader(rect),
-                              child: Text(category),
+                              child: Text(label),
                             )
-                          : Text(category),
+                          : Text(label),
                     ),
                   ],
                 ),
@@ -25455,7 +25737,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                       colors: [
                         Colors.transparent,
                         _v6Terra,
-                        Color(0xFFE1B45D),
+                        Color(0xFF16D1DD),
                         Colors.transparent,
                       ],
                     ),
@@ -25478,6 +25760,70 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
   }
 
   Widget _catalogProductRow(_PreorderProduct product) {
+    final card = _catalogProductCard(product);
+    if (product.isAvailable) return card;
+    return Semantics(
+      enabled: false,
+      label: '${product.title}. Закончилось',
+      child: Stack(fit: StackFit.expand, children: [
+        IgnorePointer(
+          child: ColorFiltered(
+            colorFilter: const ColorFilter.matrix(<double>[
+              0.2126,
+              0.7152,
+              0.0722,
+              0,
+              0,
+              0.2126,
+              0.7152,
+              0.0722,
+              0,
+              0,
+              0.2126,
+              0.7152,
+              0.0722,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+            ]),
+            child: Opacity(opacity: 0.62, child: card),
+          ),
+        ),
+        Positioned(
+          top: 12,
+          left: 12,
+          right: 12,
+          child: Center(
+              child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F3F5),
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: const [
+                BoxShadow(color: Color(0x14000000), blurRadius: 10)
+              ],
+            ),
+            child: const Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.remove_circle_outline_rounded,
+                  size: 15, color: Color(0xFF626B76)),
+              SizedBox(width: 6),
+              Text('Закончилось',
+                  style: TextStyle(
+                      color: Color(0xFF626B76),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800)),
+            ]),
+          )),
+        ),
+      ]),
+    );
+  }
+
+  Widget _catalogProductCard(_PreorderProduct product) {
     final added = _catalogAddedFeedback.contains(product.id);
     final quantity = _catalogCart
         .where((line) => line.product.id == product.id)
@@ -25712,7 +26058,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                                                         colors: [
                                                           _v6Terra,
                                                           Color(
-                                                            0xFFE1B45D,
+                                                            0xFF16D1DD,
                                                           ),
                                                         ],
                                                       )
@@ -25809,7 +26155,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: const Color(0xFF14110D).withOpacity(0.06),
+                      color: const Color(0xFF0A2B47).withOpacity(0.06),
                     ),
                   ),
                 ),
@@ -25822,7 +26168,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: const Color(0xFF14110D).withOpacity(0.035),
+                      color: const Color(0xFF0A2B47).withOpacity(0.035),
                     ),
                   ),
                 ),
@@ -25834,11 +26180,11 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                   width: 7,
                   height: 7,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFC17A54),
+                    color: const Color(0xFF7A4CFF),
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFFC17A54).withOpacity(0.28),
+                        color: const Color(0xFF7A4CFF).withOpacity(0.28),
                         blurRadius: 12,
                         spreadRadius: 3,
                       ),
@@ -25853,7 +26199,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                   width: 6,
                   height: 6,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF7B9A6B),
+                    color: const Color(0xFF0FCAC5),
                     shape: BoxShape.circle,
                   ),
                 ),
@@ -25867,7 +26213,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                     borderRadius: BorderRadius.circular(999),
                     gradient: RadialGradient(
                       colors: [
-                        const Color(0xFF14110D).withOpacity(0.14),
+                        const Color(0xFF0A2B47).withOpacity(0.14),
                         Colors.transparent,
                       ],
                     ),
@@ -25902,7 +26248,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                             boxShadow: [
                               BoxShadow(
                                 color:
-                                    const Color(0xFF14110D).withOpacity(0.18),
+                                    const Color(0xFF0A2B47).withOpacity(0.18),
                                 blurRadius: 42,
                                 offset: const Offset(0, 24),
                               ),
@@ -25970,13 +26316,13 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                     Container(
                       width: 18,
                       height: 1,
-                      color: const Color(0xFFC17A54).withOpacity(0.35),
+                      color: const Color(0xFF7A4CFF).withOpacity(0.35),
                     ),
                     const SizedBox(width: 8),
                     const Text(
                       '\u041f\u0420\u0418\u0413\u041e\u0422\u041e\u0412\u0418\u041c \u041a \u041d\u0423\u0416\u041d\u041e\u041c\u0423 \u0412\u0420\u0415\u041c\u0415\u041d\u0418',
                       style: TextStyle(
-                        color: Color(0xFFC17A54),
+                        color: Color(0xFF7A4CFF),
                         fontSize: 7.7,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 1.6,
@@ -25986,7 +26332,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                     Container(
                       width: 18,
                       height: 1,
-                      color: const Color(0xFFC17A54).withOpacity(0.35),
+                      color: const Color(0xFF7A4CFF).withOpacity(0.35),
                     ),
                   ],
                 ),
@@ -26047,8 +26393,9 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
             children: [
               _fidelityRecommendation(),
               const SizedBox(height: 8),
+              _fulfillmentChoices(),
               _catalogMenu(),
-              if (_catalogCart.isNotEmpty) ...[
+              if (_catalogCart.isNotEmpty && _fulfillment == 'pickup') ...[
                 const SizedBox(height: 28),
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 20),
@@ -26249,8 +26596,8 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
   Future<void> _pickScheduledTime() async {
     final now = DateTime.now();
 
-    final suggested =
-        _scheduledPickupAt ?? now.add(const Duration(minutes: 15));
+    final suggested = _scheduledPickupAt ??
+        now.add(Duration(minutes: _isAppointment ? 15 : _pickupMinimum));
 
     final picked = await showTimePicker(
       context: context,
@@ -26284,13 +26631,12 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
       picked.minute,
     );
 
-    if (!candidate.isAfter(DateTime.now())) {
+    if (candidate.isBefore(DateTime.now()
+        .add(Duration(minutes: _isAppointment ? 0 : _pickupMinimum)))) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            '\u0412\u044b\u0431\u0435\u0440\u0438\u0442\u0435 \u0432\u0440\u0435\u043c\u044f \u043f\u043e\u0437\u0436\u0435 \u0442\u0435\u043a\u0443\u0449\u0435\u0433\u043e',
-          ),
-        ),
+        SnackBar(
+            content: Text(
+                'Выберите время не раньше чем через ${_isAppointment ? 0 : _pickupMinimum} мин')),
       );
       return;
     }
@@ -26356,12 +26702,14 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
     final options = <Map<String, dynamic>>[];
 
     if (_timeMode != 'scheduled') {
-      final times = switch (_timeMode) {
-        'in_minutes_15_20_25' => <int>[15, 20, 25],
-        'in_minutes_20_25_30' => <int>[20, 25, 30],
-        'in_minutes_30_40_50' => <int>[30, 40, 50],
-        _ => <int>[10, 15, 20],
-      };
+      final times = _isAppointment
+          ? (switch (_timeMode) {
+              'in_minutes_15_20_25' => <int>[15, 20, 25],
+              'in_minutes_20_25_30' => <int>[20, 25, 30],
+              'in_minutes_30_40_50' => <int>[30, 40, 50],
+              _ => <int>[10, 15, 20]
+            })
+          : _pickupChoices;
       for (final minutes in times) {
         options.add({
           'label': 'Через\n$minutes мин',
@@ -26521,7 +26869,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                   end: Alignment.bottomRight,
                   colors: [
                     _v6Terra,
-                    Color(0xFFE1B45D),
+                    Color(0xFF16D1DD),
                   ],
                 )
               : null,
@@ -26787,7 +27135,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
           ),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF14110D).withOpacity(0.16),
+              color: const Color(0xFF0A2B47).withOpacity(0.16),
               blurRadius: 40,
               offset: const Offset(0, 18),
             ),
@@ -26800,13 +27148,13 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
               height: 52,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: const Color(0xFF14110D),
+                color: const Color(0xFF0A2B47),
                 borderRadius: BorderRadius.circular(18),
               ),
               child: Text(
                 '$_catalogCartCount',
                 style: const TextStyle(
-                  color: Color(0xFFFBF7F1),
+                  color: Color(0xFFF6FBFF),
                   fontSize: 19,
                   fontWeight: FontWeight.w900,
                 ),
@@ -26817,7 +27165,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
               child: Text(
                 '\u041a\u043e\u0440\u0437\u0438\u043d\u0430',
                 style: TextStyle(
-                  color: Color(0xFF14110D),
+                  color: Color(0xFF0A2B47),
                   fontSize: 14.5,
                   fontWeight: FontWeight.w900,
                 ),
@@ -26826,7 +27174,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
             Text(
               '$_catalogCartTotal \u20bd',
               style: const TextStyle(
-                color: Color(0xFF14110D),
+                color: Color(0xFF0A2B47),
                 fontSize: 15.5,
                 fontWeight: FontWeight.w900,
               ),
@@ -26838,8 +27186,8 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
                   colors: [
-                    Color(0xFFC17A54),
-                    Color(0xFFA05D3B),
+                    Color(0xFF7A4CFF),
+                    Color(0xFF437CFF),
                   ],
                 ),
                 borderRadius: BorderRadius.circular(18),
@@ -26994,6 +27342,20 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                                             child: _myAppointmentsCard(),
                                           ),
                                         _formCard(),
+                                        if (_hasOnlineOrders &&
+                                            _paymentScope.isNotEmpty)
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                                top: 12, bottom: 6),
+                                            child: TextButton.icon(
+                                              onPressed: () =>
+                                                  _openOnlinePayment(),
+                                              icon: const Icon(
+                                                  Icons.receipt_long_outlined,
+                                                  size: 17),
+                                              label: const Text('Мои заказы'),
+                                            ),
+                                          ),
                                         if (!_isAppointment &&
                                             _catalogCart.isNotEmpty) ...[
                                           const SizedBox(height: 20),
@@ -27040,7 +27402,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                         gradient: LinearGradient(
                           colors: [
                             _v6Terra,
-                            Color(0xFFE7B765),
+                            Color(0xFF16D1DD),
                           ],
                         ),
                       ),
@@ -27106,16 +27468,22 @@ class _PreorderModifierGroup {
 }
 
 class _PreorderProduct {
+  final bool isAvailable;
   final String id;
   final String category;
+  final String categoryKey;
+  final String? subcategoryId;
   final String title;
   final String description;
   final int basePrice;
   final String imageUrl;
   final List<_PreorderModifierGroup> groups;
   const _PreorderProduct({
+    this.isAvailable = true,
     required this.id,
     required this.category,
+    this.categoryKey = 'uncategorized',
+    this.subcategoryId,
     required this.title,
     required this.description,
     required this.basePrice,

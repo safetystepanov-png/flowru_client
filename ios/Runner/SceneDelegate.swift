@@ -1,5 +1,6 @@
 import UIKit
 import Flutter
+import app_links
 
 class SceneDelegate: UIResponder, UIWindowSceneDelegate {
   var window: UIWindow?
@@ -11,6 +12,22 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     options connectionOptions: UIScene.ConnectionOptions
   ) {
     setupPushNativeChannel()
+    self.scene(scene, openURLContexts: connectionOptions.urlContexts)
+    for activity in connectionOptions.userActivities {
+      self.scene(scene, continue: activity)
+    }
+  }
+
+  func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
+    for context in URLContexts {
+      AppLinks.shared.handleLink(url: context.url)
+    }
+  }
+
+  func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
+    if let url = userActivity.webpageURL {
+      AppLinks.shared.handleLink(url: url)
+    }
   }
 
   func sceneDidBecomeActive(_ scene: UIScene) {
