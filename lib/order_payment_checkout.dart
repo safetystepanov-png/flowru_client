@@ -165,9 +165,9 @@ class _OrderPaymentScreenState extends State<OrderPaymentScreen> {
           barrierDismissible: false,
           builder: (ctx) => AlertDialog(
             title: const Text('Есть незавершённая оплата'),
-            content: const Text('Можно вернуться к прежнему заказу или оформить текущую корзину. Прежний заказ останется в истории. Не оплачивайте оба, если нужен только один.'),
+            content: const Text('Продолжите прежнюю оплату или закройте старый заказ, чтобы оформить корзину. Закрытие уберёт его с экрана: статус оплаты не изменится, заказ останется в истории.'),
             actions: [TextButton(onPressed: () => Navigator.pop(ctx, false),child: const Text('К прежнему заказу')),
-              FilledButton(onPressed: () => Navigator.pop(ctx, true),child: const Text('Оформить корзину'))]));
+              FilledButton(onPressed: () => Navigator.pop(ctx, true),child: const Text('Закрыть старый заказ'))]));
         if (!mounted) return;
         if (fresh == true) await _startNewCheckout();
       }
@@ -1412,13 +1412,13 @@ class _OrderPaymentScreenState extends State<OrderPaymentScreen> {
                                       Padding(padding: const EdgeInsets.only(bottom: 10),child: OutlinedButton.icon(
                                         onPressed: _busy ? null : () => _run(() async {
                                           final yes = detachPreviousCheckout(_order!) || await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(
-                                            title:const Text('Оформить текущую корзину?'),
-                                            content:const Text('Прежний заказ останется в истории. Его оплата и отмена обрабатываются отдельно.'),
+                                            title:const Text('Закрыть старый заказ?'),
+                                            content:const Text('Старый заказ исчезнет с этого экрана, и откроется оформление корзины. Он останется в истории. Закрытие не отменяет платёж и не оформляет возврат.'),
                                             actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Остаться')),
-                                             FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Оформить корзину'))])) == true;
+                                             FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Закрыть старый заказ'))])) == true;
                                           if (yes && mounted) await _startNewCheckout();
                                         }),
-                                        icon:const Icon(Icons.shopping_bag_outlined),label:const Text('Оформить текущую корзину'))),
+                                        icon:const Icon(Icons.shopping_bag_outlined),label:const Text('Закрыть заказ'))),
                                     if (_order == null && _checkout != null)
                                       FutureAction(
                                           label: _quote == null
