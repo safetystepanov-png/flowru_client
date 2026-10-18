@@ -1,3 +1,4 @@
+import 'checkout_recovery.dart';
 import 'flowru_future_ui.dart';
 import 'flowru_order_design.dart';
 import 'dart:async';
@@ -156,14 +157,20 @@ class _OrderPaymentScreenState extends State<OrderPaymentScreen> {
       if (r['order'] is Map)
         _order = Map<String, dynamic>.from(r['order'] as Map);
     }
-    if (_checkout != null &&
-        _order != null &&
-        ['succeeded', 'cash_due', 'canceled', 'refunded']
-            .contains(_order!['state'])) {
-      // Only a server-confirmed finished payment attempt can be detached from a NEW checkout.
-      await _storage.delete(key: _key);
-      _intent = null;
-      _order = null;
+    if (_checkout != null && _order != null) {
+      if (detachPreviousCheckout(_order!)) {
+        await _startNewCheckout();
+      } else {
+        final fresh = await showDialog<bool>(context: context,
+          barrierDismissible: false,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Есть незавершённая оплата'),
+            content: const Text('Можно вернуться к прежнему заказу или оформить текущую корзину. Прежний заказ останется в истории. Не оплачивайте оба, если нужен только один.'),
+            actions: [TextButton(onPressed: () => Navigator.pop(ctx, false),child: const Text('К прежнему заказу')),
+              FilledButton(onPressed: () => Navigator.pop(ctx, true),child: const Text('Оформить корзину'))]));
+        if (!mounted) return;
+        if (fresh == true) await _startNewCheckout();
+      }
     }
     if (_intent != null)
       _receiptEmail.text = _intent!['receipt_email']?.toString() ?? '';
@@ -171,8 +178,21 @@ class _OrderPaymentScreenState extends State<OrderPaymentScreen> {
       _paymentMode = _intent!['payment_mode']?.toString() ?? 'online';
       _redeemPoints = (_intent!['redeem_points'] as num? ?? 0).toInt();
     }
-    if (_checkout != null && _order == null) await _refreshQuote();
+    if (_checkout != null && _order == null && _quote == null) await _refreshQuote();
     await _sync();
+  }
+
+  Future<void> _startNewCheckout() async {
+    if (_checkout == null || _order == null) return;
+    // Detach only a server-known attempt. Never replace an unresolved request UUID.
+    await _storage.delete(key: _key);
+    _intent = null;
+    _order = null;
+    _quote = null;
+    _paymentOpened = false;
+    _redeemPoints = 0;
+    _paymentMode = (_checkout!['fulfillment'] == 'delivery' || widget.onlineAvailable) ? 'online' : 'cash';
+    await _refreshQuote();
   }
 
   Future<void> _refreshQuote() async {
@@ -771,7 +791,9 @@ class _OrderPaymentScreenState extends State<OrderPaymentScreen> {
             ? 'Оплата возвращена'
             : canceled
                 ? 'Заказ отменён'
-                : cancelling || state == 'refund_pending'
+                : cancelling && state != 'succeeded' && state != 'refund_pending'
+                    ? 'Отменяем заказ'
+                    : cancelling || state == 'refund_pending'
                     ? 'Оформляем возврат'
                     : (paid || cashDue)
                         ? (delivery && deliveryPhase == 'on_way'
@@ -802,7 +824,9 @@ class _OrderPaymentScreenState extends State<OrderPaymentScreen> {
             ? 'Возврат подтверждён. Срок зачисления зависит от вашего банка.'
             : canceled
                 ? 'Этот заказ отменён.'
-                : cancelling || state == 'refund_pending'
+                : cancelling && state != 'succeeded' && state != 'refund_pending'
+                    ? 'Запрос на отмену отправлен. Статус обновится автоматически. Можно оформить новую корзину.'
+                    : cancelling || state == 'refund_pending'
                     ? 'Отмена принята. Статус возврата обновится здесь.'
                     : (paid || cashDue)
                         ? (delivery && deliveryPhase == 'on_way'
@@ -1145,7 +1169,7 @@ class _OrderPaymentScreenState extends State<OrderPaymentScreen> {
                                                         ? 'Оплачено'
                                                         : cashDue
                                                             ? 'Оплата в заведении'
-                                                            : paymentStateLabel(
+                                                            : cancelling ? 'Отмена заказа' : paymentStateLabel(
                                                                 state),
                                                     style: const TextStyle(
                                                         color: futureInk,
@@ -1384,6 +1408,17 @@ class _OrderPaymentScreenState extends State<OrderPaymentScreen> {
                               child: Column(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
+                                    if (_order != null && _checkout != null)
+                                      Padding(padding: const EdgeInsets.only(bottom: 10),child: OutlinedButton.icon(
+                                        onPressed: _busy ? null : () => _run(() async {
+                                          final yes = detachPreviousCheckout(_order!) || await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(
+                                            title:const Text('Оформить текущую корзину?'),
+                                            content:const Text('Прежний заказ останется в истории. Его оплата и отмена обрабатываются отдельно.'),
+                                            actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Остаться')),
+                                             FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Оформить корзину'))])) == true;
+                                          if (yes && mounted) await _startNewCheckout();
+                                        }),
+                                        icon:const Icon(Icons.shopping_bag_outlined),label:const Text('Оформить текущую корзину'))),
                                     if (_order == null && _checkout != null)
                                       FutureAction(
                                           label: _quote == null
