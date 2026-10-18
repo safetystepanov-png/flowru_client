@@ -231,7 +231,12 @@ class _OrderPaymentScreenState extends State<OrderPaymentScreen> {
       if (_paymentMode == 'online' &&
           !RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
               .hasMatch(_receiptEmail.text.trim())) {
-        throw Exception('Укажите email для электронного чека');
+        final email = await showDialog<String>(context: context,
+          barrierDismissible: false,
+          builder: (_) => _ReceiptEmailDialog(initialEmail: _receiptEmail.text));
+        if (!mounted || email == null) return;
+        _receiptEmail.text = email;
+
       }
       if (_checkout == null || _quote == null)
         throw Exception('Сначала обновите расчёт');
@@ -526,7 +531,7 @@ class _OrderPaymentScreenState extends State<OrderPaymentScreen> {
       Wrap(spacing: 8, runSpacing: 4, children: [
         if (widget.onlineAvailable)
           _choice(
-              'Картой · ЮKassa',
+              'Онлайн · ЮKassa',
               _paymentMode == 'online',
               editable
                   ? () => _run(() async {
@@ -1004,7 +1009,7 @@ class _OrderPaymentScreenState extends State<OrderPaymentScreen> {
                                       if (widget.onlineAvailable)
                                         Expanded(
                                             child: FutureOption(
-                                                title: 'Картой',
+                                                title: 'Онлайн',
                                                 subtitle: 'ЮKassa',
                                                 icon: Icons.credit_card_rounded,
                                                 selected:
@@ -1445,4 +1450,34 @@ class _OrderPaymentScreenState extends State<OrderPaymentScreen> {
                                   ])),
                         ]))))));
   }
+}
+
+class _ReceiptEmailDialog extends StatefulWidget {
+ final String initialEmail;
+ const _ReceiptEmailDialog({required this.initialEmail});
+ @override State<_ReceiptEmailDialog> createState() => _ReceiptEmailDialogState();
+}
+class _ReceiptEmailDialogState extends State<_ReceiptEmailDialog> {
+ final _form=GlobalKey<FormState>();
+ late final TextEditingController _email;
+ @override void initState(){super.initState();_email=TextEditingController(text:widget.initialEmail);}
+ @override void dispose(){_email.dispose();super.dispose();}
+ void _confirm(){if(_form.currentState!.validate())Navigator.of(context).pop(_email.text.trim());}
+ @override Widget build(BuildContext context) => AlertDialog(
+  scrollable:true,backgroundColor:const Color(0xFFF6FBFF),
+  shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(28)),
+  icon:const Icon(Icons.mark_email_read_rounded,color:Color(0xFF087F83),size:38),
+  title:const Text('Куда отправить чек?',style:TextStyle(color:_ink,fontWeight:FontWeight.w800)),
+  content:Form(key:_form,child:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,children:[
+   const Text('Введите почту для получения электронного чека. После этого продолжим оплату.',style:TextStyle(color:_ink,height:1.45)),
+   const SizedBox(height:20),
+   TextFormField(controller:_email,autofocus:true,keyboardType:TextInputType.emailAddress,
+    textInputAction:TextInputAction.done,autofillHints:const [AutofillHints.email],autocorrect:false,
+    textCapitalization:TextCapitalization.none,onFieldSubmitted:(_)=>_confirm(),
+    validator:(value)=>RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch((value??'').trim())?null:'Введите корректную почту, например name@mail.ru',
+    decoration:InputDecoration(labelText:'Почта для чека',hintText:'name@mail.ru',errorMaxLines:3,
+     prefixIcon:const Icon(Icons.alternate_email_rounded),border:OutlineInputBorder(borderRadius:BorderRadius.circular(16)))),
+  ])),
+  actions:[TextButton(onPressed:()=>Navigator.of(context).pop(),child:const Text('Вернуться')),
+   FilledButton(onPressed:_confirm,style:FilledButton.styleFrom(backgroundColor:const Color(0xFF087F83)),child:const Text('Продолжить оплату'))]);
 }
