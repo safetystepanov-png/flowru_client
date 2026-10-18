@@ -18609,7 +18609,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                   ? null
                   : () {
                       HapticFeedback.selectionClick();
-                      _loadV15Weather();
+                      // Weather removed: do not fetch an unrelated city forecast.
                     },
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(999),
@@ -18772,7 +18772,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
           ? null
           : () {
               HapticFeedback.selectionClick();
-              _loadV15Weather();
+              // Weather removed: do not fetch an unrelated city forecast.
             },
       child: ClipRRect(
         borderRadius: BorderRadius.circular(999),
@@ -19365,7 +19365,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
     });
 
     _load();
-    _loadV15Weather();
+    // Weather removed: do not fetch an unrelated city forecast.
 
     _preorderStatusPoller = Timer.periodic(
       const Duration(seconds: 5),
@@ -20498,12 +20498,6 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
   }
 
   Color get _v22TimeAccentColor {
-    final code = _v15WeatherCode;
-    if (code != null &&
-        ((code >= 51 && code <= 82) || code == 45 || code == 48)) {
-      return const Color(0xFF718B96);
-    }
-
     final hour = DateTime.now().hour;
     if (hour < 6) return const Color(0xFF69717D);
     if (hour < 11) return const Color(0xFF16D1DD);
@@ -20513,10 +20507,6 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
   }
 
   Color get _v22TimeSecondaryColor {
-    final temp = _v15WeatherTemp;
-    if (temp != null && temp <= 10) return const Color(0xFF7D9BAB);
-    if (temp != null && temp >= 25) return const Color(0xFF16D1DD);
-
     final hour = DateTime.now().hour;
     if (hour < 11) return const Color(0xFFB992FF);
     if (hour < 18) return _v6Sage;
@@ -20602,11 +20592,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                 ),
               ),
             ),
-          Positioned(
-            top: 19,
-            right: 18,
-            child: _v16WeatherOverlay(),
-          ),
+
           Positioned(
             left: 27,
             right: 82,
@@ -25760,68 +25746,15 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
   }
 
   Widget _catalogProductRow(_PreorderProduct product) {
-    final card = _catalogProductCard(product);
-    if (product.isAvailable) return card;
-    return Semantics(
-      enabled: false,
-      label: '${product.title}. Закончилось',
-      child: Stack(fit: StackFit.expand, children: [
-        IgnorePointer(
-          child: ColorFiltered(
-            colorFilter: const ColorFilter.matrix(<double>[
-              0.2126,
-              0.7152,
-              0.0722,
-              0,
-              0,
-              0.2126,
-              0.7152,
-              0.0722,
-              0,
-              0,
-              0.2126,
-              0.7152,
-              0.0722,
-              0,
-              0,
-              0,
-              0,
-              0,
-              1,
-              0,
-            ]),
-            child: Opacity(opacity: 0.62, child: card),
-          ),
-        ),
-        Positioned(
-          top: 12,
-          left: 12,
-          right: 12,
-          child: Center(
-              child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF1F3F5),
-              borderRadius: BorderRadius.circular(14),
-              boxShadow: const [
-                BoxShadow(color: Color(0x14000000), blurRadius: 10)
-              ],
-            ),
-            child: const Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.remove_circle_outline_rounded,
-                  size: 15, color: Color(0xFF626B76)),
-              SizedBox(width: 6),
-              Text('Закончилось',
-                  style: TextStyle(
-                      color: Color(0xFF626B76),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800)),
-            ]),
-          )),
-        ),
-      ]),
-    );
-  }
+ final card=_catalogProductCard(product);
+ if(product.isAvailable)return card;
+ return Semantics(enabled:false,label:'${product.title}. Закончилось',child:ClipRRect(borderRadius:BorderRadius.circular(24),child:Stack(fit:StackFit.expand,children:[
+  IgnorePointer(child:ColorFiltered(colorFilter:const ColorFilter.matrix(<double>[0.2126,0.7152,0.0722,0,0,0.2126,0.7152,0.0722,0,0,0.2126,0.7152,0.0722,0,0,0,0,0,1,0]),child:Opacity(opacity:0.62,child:card))),
+  Positioned(top:20,left:-22,right:-22,child:Transform.rotate(angle:-0.18,child:Container(
+   padding:const EdgeInsets.symmetric(horizontal:25,vertical:7),color:const Color(0xFF65737B),
+   child:const FittedBox(fit:BoxFit.scaleDown,child:Text('ЗАКОНЧИЛОСЬ',maxLines:1,style:TextStyle(color:Colors.white,fontSize:11,letterSpacing:1.1,fontWeight:FontWeight.w800))))))
+ ])));
+ }
 
   Widget _catalogProductCard(_PreorderProduct product) {
     final added = _catalogAddedFeedback.contains(product.id);
