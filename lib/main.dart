@@ -18018,6 +18018,15 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
         builder: (_) => OrderPaymentScreen(
               establishmentId: widget.establishmentId,
               scope: _paymentScope,
+              onOrderCreated: checkout ? () {
+                if (!mounted) return;
+                setState(() {
+                  _catalogCart.clear();
+                  _orderController.clear();
+                  _commentController.clear();
+                  _scheduledPickupAt = null;
+                });
+              } : null,
               request: (path, method, body) => widget.api
                   .orderPaymentRequest(path, method, body, widget.token),
               checkout: checkout ? _checkoutBody(lines) : null,

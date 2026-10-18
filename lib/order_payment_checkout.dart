@@ -1,3 +1,4 @@
+import 'submitted_cart.dart';
 import 'checkout_recovery.dart';
 import 'flowru_future_ui.dart';
 import 'flowru_order_design.dart';
@@ -42,6 +43,7 @@ class OrderPaymentScreen extends StatefulWidget {
       changeReceiving;
   final bool onlineAvailable;
   final String establishmentName;
+  final VoidCallback? onOrderCreated;
   const OrderPaymentScreen(
       {super.key,
       required this.establishmentId,
@@ -50,7 +52,8 @@ class OrderPaymentScreen extends StatefulWidget {
       this.checkout,
       this.changeReceiving,
       this.onlineAvailable = true,
-      this.establishmentName = ''});
+      this.establishmentName = '',
+      this.onOrderCreated});
   @override
   State<OrderPaymentScreen> createState() => _OrderPaymentScreenState();
 }
@@ -64,6 +67,8 @@ class _OrderPaymentScreenState extends State<OrderPaymentScreen> {
   final _receiptEmail = TextEditingController();
   bool _busy = false, _paymentOpened = false;
   String? _error;
+  bool _submittedHere = false;
+  final _notifiedRequests = <String>{};
   Map<String, dynamic>? _checkout;
   int _redeemPoints = 0;
   String _paymentMode = 'online';
@@ -167,7 +172,7 @@ class _OrderPaymentScreenState extends State<OrderPaymentScreen> {
             title: const Text('Есть незавершённая оплата'),
             content: const Text('Продолжите прежнюю оплату или закройте старый заказ, чтобы оформить корзину. Закрытие уберёт его с экрана: статус оплаты не изменится, заказ останется в истории.'),
             actions: [TextButton(onPressed: () => Navigator.pop(ctx, false),child: const Text('К прежнему заказу')),
-              FilledButton(onPressed: () => Navigator.pop(ctx, true),child: const Text('Закрыть старый заказ'))]));
+              FilledButton(onPressed: () => Navigator.pop(ctx, true),child: const Text('Оформить корзину'))]));
         if (!mounted) return;
         if (fresh == true) await _startNewCheckout();
       }
@@ -223,6 +228,14 @@ class _OrderPaymentScreenState extends State<OrderPaymentScreen> {
     if (mounted) setState(() {});
   }
 
+  void _notifyCartSubmitted() {
+    final intent = _intent;
+    final order = _order;
+    if (!isConfirmedCartSubmission(submittedHere:_submittedHere,checkout:_checkout,intent:intent,order:order)) return;
+    final requestId = intent!['request_id'].toString();
+    if (_notifiedRequests.add(requestId)) widget.onOrderCreated?.call();
+  }
+
   Future<void> _sync() async {
     final r = await _get(
         '/client/order-payments/list?establishment_id=${widget.establishmentId}');
@@ -243,6 +256,7 @@ class _OrderPaymentScreenState extends State<OrderPaymentScreen> {
         _intent!['request_id'] == _order!['request_id'] &&
         ['waiting_for_capture', 'succeeded', 'cash_due', 'canceled', 'refunded']
             .contains(_order!['state'])) await _storage.delete(key: _key);
+    _notifyCartSubmitted();
     if (mounted) setState(() {});
   }
 
@@ -285,7 +299,9 @@ class _OrderPaymentScreenState extends State<OrderPaymentScreen> {
       throw Exception(
           'Есть незавершённая оплата другого заказа. Проверьте её статус перед новой оплатой.');
     }
+    _submittedHere = true;
     _order = await _post('/client/order-payments/checkout', _intent!);
+    _notifyCartSubmitted();
     await _sync();
     if (_order?['state'] == 'pending' && _order?['confirmation_url'] != null)
       await _openPayment();
@@ -1408,17 +1424,6 @@ class _OrderPaymentScreenState extends State<OrderPaymentScreen> {
                               child: Column(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    if (_order != null && _checkout != null)
-                                      Padding(padding: const EdgeInsets.only(bottom: 10),child: OutlinedButton.icon(
-                                        onPressed: _busy ? null : () => _run(() async {
-                                          final yes = detachPreviousCheckout(_order!) || await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(
-                                            title:const Text('Закрыть старый заказ?'),
-                                            content:const Text('Старый заказ исчезнет с этого экрана, и откроется оформление корзины. Он останется в истории. Закрытие не отменяет платёж и не оформляет возврат.'),
-                                            actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Остаться')),
-                                             FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Закрыть старый заказ'))])) == true;
-                                          if (yes && mounted) await _startNewCheckout();
-                                        }),
-                                        icon:const Icon(Icons.shopping_bag_outlined),label:const Text('Закрыть заказ'))),
                                     if (_order == null && _checkout != null)
                                       FutureAction(
                                           label: _quote == null
