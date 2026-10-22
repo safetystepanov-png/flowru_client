@@ -1,3 +1,4 @@
+import 'app_inbox.dart';
 import 'flowru_future_ui.dart';
 import 'flowru_order_design.dart';
 import 'order_delivery_ui.dart';
@@ -288,6 +289,8 @@ class FlowruClientApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: appInboxNavigatorKey,
+      builder: (context, child) => AppInboxOverlay(child: child ?? const SizedBox.shrink()),
       title: 'Flowru',
       debugShowCheckedModeBanner: false,
       locale: const Locale('ru'),
@@ -471,6 +474,7 @@ class AuthStorage {
       {required String access, required String refresh}) async {
     await _storage.write(key: _access, value: access);
     await _storage.write(key: _refresh, value: refresh);
+    refreshAppInbox();
   }
 
   static Future<void> saveAccess(String accessToken) =>
@@ -502,11 +506,13 @@ class AuthStorage {
   static Future<void> clear() async {
     await _storage.delete(key: _access);
     await _storage.delete(key: _refresh);
+    refreshAppInbox();
   }
 
   static Future<void> clearAll() async {
     await _storage.delete(key: _access);
     await _storage.delete(key: _refresh);
+    refreshAppInbox();
     await _storage.delete(key: _biometricEnabled);
     await _storage.delete(key: _savedPhone);
     await _storage.delete(key: _savedPassword);
@@ -5313,6 +5319,12 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
             radius: 24,
             padding: const EdgeInsets.all(12),
             child: Column(children: [
+              ProfileSettingsRow(
+                  icon: Icons.notifications_active_rounded,
+                  title: 'Уведомления',
+                  subtitle: 'Подарки, предложения и новости',
+                  onTap: () => AppInboxOverlay.openInbox(context)),
+              const Divider(height: 18, color: FlowColors.line),
               ProfileSettingsRow(
                   icon: Icons.logout_rounded,
                   title: 'Выйти из аккаунта',
@@ -16661,122 +16673,9 @@ class ErrorState extends StatelessWidget {
 }
 
 class RaffleDetailsSheet extends StatelessWidget {
-  final Map<String, dynamic> draw;
-  final bool joining;
-  final VoidCallback? onJoin;
-  const RaffleDetailsSheet(
-      {super.key,
-      required this.draw,
-      required this.joining,
-      required this.onJoin});
-
-  @override
-  Widget build(BuildContext context) {
-    final title = nonEmpty(draw['title']) ?? 'Розыгрыш';
-    final prize = nonEmpty(draw['prize_text']) ??
-        nonEmpty(draw['description']) ??
-        'Приз от заведения';
-    final postText = nonEmpty(draw['post_text']) ??
-        nonEmpty(draw['full_text']) ??
-        nonEmpty(draw['rules']) ??
-        'Подробности розыгрыша скоро появятся.';
-    final participants = toInt(draw['participants_count']);
-    final isJoined = draw['is_joined'] == true;
-    final buttonTitle = draw['join_button_title']?.toString() ??
-        (isJoined ? 'Вы участвуете' : 'Участвовать');
-    final drawAt = formatClientDateTime(draw['draw_at']);
-    final imageUrl = extractImageUrl(draw);
-
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-        child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (imageUrl != null && imageUrl.trim().isNotEmpty) ...[
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(22),
-                  child: SizedBox(
-                    height: 190,
-                    width: double.infinity,
-                    child: Image.network(imageUrl,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
-                            color: kLoginViolet.withOpacity(0.10),
-                            alignment: Alignment.center,
-                            child: const Icon(Icons.celebration_rounded,
-                                color: kLoginViolet, size: 44))),
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
-              Row(children: [
-                Container(
-                    width: 50,
-                    height: 50,
-                    decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                            colors: [kLoginBlue, kLoginPink]),
-                        borderRadius: BorderRadius.circular(18)),
-                    child: const Icon(Icons.celebration_rounded,
-                        color: Colors.white)),
-                const SizedBox(width: 12),
-                Expanded(
-                    child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                      const Text('Розыгрыш',
-                          style: TextStyle(
-                              color: kLoginInkSoft,
-                              fontWeight: FontWeight.w800)),
-                      Text(title,
-                          style: const TextStyle(
-                              color: kLoginInk,
-                              fontSize: 21,
-                              height: 1.1,
-                              fontWeight: FontWeight.w900)),
-                    ])),
-              ]),
-              const SizedBox(height: 18),
-              Text(prize,
-                  style: const TextStyle(
-                      color: kLoginInk,
-                      fontWeight: FontWeight.w900,
-                      height: 1.35)),
-              const SizedBox(height: 12),
-              Wrap(spacing: 8, runSpacing: 8, children: [
-                if (participants > 0)
-                  LightChip(
-                      icon: Icons.groups_rounded,
-                      text: '$participants участников'),
-                if (drawAt.isNotEmpty)
-                  LightChip(icon: Icons.schedule_rounded, text: drawAt),
-              ]),
-              const SizedBox(height: 16),
-              Flexible(
-                  child: SingleChildScrollView(
-                      child: Text(postText,
-                          style: const TextStyle(
-                              color: kLoginInkSoft,
-                              height: 1.45,
-                              fontWeight: FontWeight.w600)))),
-              if (onJoin != null) ...[
-                const SizedBox(height: 18),
-                PrimaryButton(
-                    text: joining ? 'Отправляем...' : buttonTitle,
-                    loading: joining,
-                    onTap: joining || isJoined
-                        ? null
-                        : () {
-                            Navigator.of(context).pop();
-                            onJoin!();
-                          }),
-              ],
-            ]),
-      ),
-    );
-  }
+ final Map<String,dynamic> draw;final bool joining;final VoidCallback? onJoin;
+ const RaffleDetailsSheet({super.key,required this.draw,required this.joining,required this.onJoin});
+ @override Widget build(BuildContext context)=>AppRaffleDetails(draw:draw,joining:joining,onJoin:onJoin,imageUrl:extractImageUrl(draw));
 }
 
 class DarkChip extends StatelessWidget {
