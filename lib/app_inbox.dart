@@ -1,9 +1,10 @@
+import 'client_benefits.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import 'main.dart' show AuthStorage, FlowApi;
+import 'main.dart' show AuthStorage, FlowApi, ApiError;
 
 final appInboxNavigatorKey=GlobalKey<NavigatorState>();
 final _inboxSignal=ValueNotifier<int>(0);
@@ -16,7 +17,7 @@ Future<Map<String,dynamic>> _call(String path,[String method='GET']) async {
  if(token==null || token.isEmpty)throw StateError('Войдите в приложение');
  return FlowApi().orderPaymentRequest(path,method,null,token);
 }
-IconData _icon(String kind)=>switch(kind){'birthday'=>Icons.cake_rounded,'prize'=>Icons.emoji_events_rounded,'raffle'=>Icons.auto_awesome_rounded,'referral'=>Icons.favorite_rounded,_=>Icons.notifications_rounded};
+IconData _icon(String kind)=>switch(kind){'coupon'=>Icons.local_offer_rounded,'birthday'=>Icons.cake_rounded,'prize'=>Icons.emoji_events_rounded,'raffle'=>Icons.auto_awesome_rounded,'referral'=>Icons.favorite_rounded,_=>Icons.notifications_rounded};
 String _when(dynamic raw){final d=DateTime.tryParse('$raw')?.toLocal();return d==null?'':'${d.day.toString().padLeft(2,'0')}.${d.month.toString().padLeft(2,'0')} · ${d.hour.toString().padLeft(2,'0')}:${d.minute.toString().padLeft(2,'0')}';}
 
 class AppInboxOverlay extends StatefulWidget {
@@ -37,7 +38,9 @@ class _AppInboxOverlayState extends State<AppInboxOverlay> with WidgetsBindingOb
  @override void dispose(){_timer?.cancel();_foreground?.cancel();_opened?.cancel();_inboxSignal.removeListener(_refresh);WidgetsBinding.instance.removeObserver(this);super.dispose();}
  @override void didChangeAppLifecycleState(AppLifecycleState state){if(state==AppLifecycleState.resumed)unawaited(_refresh());}
  Future<void> _hook() async {
-  if(_hooks || Firebase.apps.isEmpty)return;_hooks=true;
+  if(_hooks || Firebase.apps.isEmpty)return;
+  await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(alert:true,badge:true,sound:true);
+  _hooks=true;
   _foreground=FirebaseMessaging.onMessage.listen((m){if(m.data['type']=='app_inbox')unawaited(_refresh());});
   _opened=FirebaseMessaging.onMessageOpenedApp.listen((m){if(m.data['type']=='app_inbox')unawaited(_openPush(m));});
   final initial=await FirebaseMessaging.instance.getInitialMessage();
@@ -80,8 +83,10 @@ class AppInboxScreen extends StatefulWidget {
  @override State<AppInboxScreen> createState()=>_AppInboxScreenState();
 }
 class _AppInboxScreenState extends State<AppInboxScreen> {
+ Timer? _refreshTimer;
  List<Map<String,dynamic>> _items=[];bool _loading=true,_more=false,_paging=false;String? _error;bool _openedInitial=false;
- @override void initState(){super.initState();unawaited(_load());}
+ @override void initState(){super.initState();unawaited(_load());_refreshTimer=Timer.periodic(const Duration(seconds:20),(_){if(mounted && ModalRoute.of(context)?.isCurrent==true && !_loading && !_paging)unawaited(_load());});}
+ @override void dispose(){_refreshTimer?.cancel();super.dispose();}
  Future<void> _load({bool more=false}) async {
   if(more && (_paging || !_more))return;
   if(mounted)setState((){if(more)_paging=true;else {_loading=true;_error=null;}});
@@ -123,15 +128,22 @@ class _InboxDetail extends StatefulWidget {
  @override State<_InboxDetail> createState()=>_InboxDetailState();
 }
 class _InboxDetailState extends State<_InboxDetail> {
- bool _saved=false;
- @override void initState(){super.initState();WidgetsBinding.instance.addPostFrameCallback((_)=>_markRead());}
+ bool _saved=false,_deleted=false;late Map<String,dynamic> _data;Timer? _timer;
+ @override void initState(){super.initState();_data=Map<String,dynamic>.from(widget.item);WidgetsBinding.instance.addPostFrameCallback((_){unawaited(_reload());unawaited(_markRead());});_timer=Timer.periodic(const Duration(seconds:15),(_)=>_reload());}
+ @override void dispose(){_timer?.cancel();super.dispose();}
+ Future<void> _reload() async {
+  try{final data=await _call('/client/inbox/${widget.item['id']}');if(mounted)setState(()=>_data=data);}
+  on ApiError catch(error){if(error.status==404 && mounted){setState(()=>_deleted=true);_inboxSignal.value++;}}
+  catch(_){/* Connection failures must not be interpreted as deletion. */}
+ }
  Future<void> _markRead() async {try {await _call('/client/inbox/${widget.item['id']}/read','POST');if(mounted)setState(()=>_saved=true);_inboxSignal.value++;}catch(_){}}
  @override Widget build(BuildContext context){
-  final item=widget.item;final payload=Map<String,dynamic>.from(item['payload'] as Map? ?? {});final prize=payload['prize_token'];
+  if(_deleted)return Scaffold(appBar:AppBar(),body:Center(child:Padding(padding:const EdgeInsets.all(28),child:Column(mainAxisSize:MainAxisSize.min,children:[const Icon(Icons.notifications_off_outlined,size:44,color:_muted),const SizedBox(height:18),const Text('Заведение удалило это сообщение.',textAlign:TextAlign.center,style:TextStyle(color:_ink,fontSize:20)),const SizedBox(height:18),FilledButton(onPressed:()=>Navigator.pop(context),child:const Text('К уведомлениям'))]))));
+  final item=_data;final payload=Map<String,dynamic>.from(item['payload'] as Map? ?? {});final prize=payload['prize_token'];
   return Scaffold(backgroundColor:const Color(0xFFF5F8FC),appBar:AppBar(backgroundColor:const Color(0xFFF5F8FC)),body:SingleChildScrollView(padding:const EdgeInsets.fromLTRB(22,10,22,40),child:Container(padding:const EdgeInsets.all(26),decoration:BoxDecoration(color:Colors.white,borderRadius:BorderRadius.circular(32)),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
    Container(padding:const EdgeInsets.all(18),decoration:BoxDecoration(gradient:const LinearGradient(colors:[_aqua,Color(0xFFD5C4FA)]),borderRadius:BorderRadius.circular(23)),child:Icon(_icon('${item['kind']}'),size:34,color:_ink)),const SizedBox(height:24),Text('${item['establishment_name'] ?? ''}',style:const TextStyle(color:_muted,fontWeight:FontWeight.w700)),const SizedBox(height:8),Text('${item['title']}',style:const TextStyle(fontSize:28,height:1.15,fontWeight:FontWeight.w900,color:_ink)),const SizedBox(height:20),SelectableText('${item['body']}',style:const TextStyle(color:_ink,fontSize:16,height:1.6)),const SizedBox(height:24),
    if(prize!=null)...[const Text('Покажите код сотруднику при получении приза.',style:TextStyle(color:_muted,height:1.5)),const SizedBox(height:12),Center(child:QrImageView(data:'${payload['redeem_url'] ?? prize}',size:220)),SelectableText('$prize',style:const TextStyle(fontSize:12,color:_muted))],
-   if(payload['coupon_id']!=null)const Padding(padding:EdgeInsets.only(top:8),child:Text('Купон добавлен к вашей карте. Он доступен в предложениях заведения.',style:TextStyle(color:_muted,height:1.5))),
+   if(payload['coupon_id']!=null)Padding(padding:const EdgeInsets.only(top:8),child:Text('Купон доступен в профиле, в разделе «Купоны и сертификаты». Заведение может изменить или отозвать предложение.',style:const TextStyle(color:_muted,height:1.5))),
    if(payload['run_id']!=null && prize==null)const Padding(padding:EdgeInsets.only(top:8),child:Text('Карточка розыгрыша находится в предложениях заведения на главном экране.',style:TextStyle(color:_muted,height:1.5))),
    if(!_saved)TextButton(onPressed:_markRead,child:const Text('Отметить прочитанным')),
    const SizedBox(height:18),Text(_when(item['created_at']),style:const TextStyle(color:_muted,fontSize:12))

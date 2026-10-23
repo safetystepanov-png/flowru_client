@@ -1,3 +1,4 @@
+import 'client_benefits.dart';
 import 'app_inbox.dart';
 import 'flowru_future_ui.dart';
 import 'flowru_order_design.dart';
@@ -4678,6 +4679,10 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
   }
 
   Future<void> showCertificates() async {
+    await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => AppBenefitsScreen(onCertificates: showGiftCertificates)));
+  }
+
+  Future<void> showGiftCertificates() async {
     final codeInput = TextEditingController();
     var busy = false;
     var dialogAlive = true;
@@ -5263,7 +5268,7 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
           const SizedBox(height: 10),
           ProfileSettingsRow(
               icon: Icons.card_giftcard_rounded,
-              title: 'Мои сертификаты',
+              title: 'Купоны и сертификаты',
               subtitle: 'Активировать, подарить или получить по коду',
               onTap: showCertificates),
           const SizedBox(height: 18),
