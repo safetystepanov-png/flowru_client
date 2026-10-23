@@ -1,3 +1,4 @@
+export 'raffle_visual.dart' show AppRaffleDetails, AppRaffleCard;
 import 'client_benefits.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -151,30 +152,3 @@ class _InboxDetailState extends State<_InboxDetail> {
  }
 }
 
-class AppRaffleDetails extends StatelessWidget {
- final Map<String,dynamic> draw;final bool joining;final VoidCallback? onJoin;final String? imageUrl;
- const AppRaffleDetails({super.key,required this.draw,required this.joining,this.onJoin,this.imageUrl});
- @override Widget build(BuildContext context){
-  final joined=draw['is_joined']==true;
-  final ended=['drawn','finished','completed','cancelled','canceled'].contains('${draw['status']}');
-  return TweenAnimationBuilder<double>(tween:Tween(begin:0,end:1),duration:const Duration(milliseconds:450),curve:Curves.easeOutCubic,builder:(context,value,child)=>Opacity(opacity:value,child:Transform.translate(offset:Offset(0,18*(1-value)),child:child)),child:Container(
-   height:MediaQuery.sizeOf(context).height*.86,
-   decoration:const BoxDecoration(gradient:LinearGradient(begin:Alignment.topLeft,end:Alignment.bottomRight,colors:[Color(0xFFF2FFF9),Color(0xFFF5F2FF),Color(0xFFFFF8F3)]),borderRadius:BorderRadius.vertical(top:Radius.circular(32))),
-   child:SafeArea(top:false,child:Column(children:[
-    Padding(padding:const EdgeInsets.fromLTRB(24,12,12,0),child:Row(children:[const Icon(Icons.auto_awesome_rounded,color:_ink,size:18),const SizedBox(width:8),const Text('FLOWRU · РОЗЫГРЫШ',style:TextStyle(color:_ink,fontSize:11,fontWeight:FontWeight.w900,letterSpacing:1.2)),const Spacer(),IconButton(onPressed:()=>Navigator.of(context).pop(),icon:const Icon(Icons.close_rounded,color:_ink))])),
-    Expanded(child:SingleChildScrollView(padding:const EdgeInsets.fromLTRB(24,8,24,24),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-     if(imageUrl!=null && imageUrl!.isNotEmpty)ShaderMask(shaderCallback:(r)=>const LinearGradient(begin:Alignment.topCenter,end:Alignment.bottomCenter,colors:[Colors.transparent,Colors.white,Colors.white,Colors.transparent],stops:[0,.15,.8,1]).createShader(r),blendMode:BlendMode.dstIn,child:ClipRRect(borderRadius:BorderRadius.circular(28),child:Image.network(imageUrl!,height:180,width:double.infinity,fit:BoxFit.cover,errorBuilder:(_,__,___)=>const SizedBox.shrink()))),
-     const SizedBox(height:12),Text('${draw['title'] ?? 'Ваш следующий приятный сюрприз'}',style:const TextStyle(color:_ink,fontSize:30,fontWeight:FontWeight.w900,height:1.12)),const SizedBox(height:20),
-     Container(width:double.infinity,padding:const EdgeInsets.all(22),decoration:BoxDecoration(color:Colors.white.withOpacity(.85),border:Border.all(color:Colors.white,width:2),borderRadius:BorderRadius.circular(26),boxShadow:const [BoxShadow(color:Color(0x0D304065),blurRadius:24,offset:Offset(0,10))]),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Icon(Icons.emoji_events_rounded,color:Color(0xFFDC9565),size:36),const SizedBox(height:12),const Text('ВАШ ВОЗМОЖНЫЙ ПРИЗ',style:TextStyle(color:_muted,fontSize:10,fontWeight:FontWeight.w800,letterSpacing:1)),const SizedBox(height:8),Text('${draw['prize_text'] ?? draw['description'] ?? 'Подарок от заведения'}',style:const TextStyle(color:_ink,fontSize:21,fontWeight:FontWeight.w800,height:1.3))])),
-     const SizedBox(height:20),Wrap(spacing:10,runSpacing:10,children:[_tag(Icons.groups_rounded,'${draw['participants_count'] ?? 0} участников'),_tag(Icons.schedule_rounded,_when(draw['draw_at']))]),const SizedBox(height:24),
-     const Text('Как участвовать',style:TextStyle(color:_ink,fontSize:18,fontWeight:FontWeight.w800)),const SizedBox(height:10),Text('${draw['post_text'] ?? draw['full_text'] ?? draw['rules'] ?? 'Нажмите кнопку участия. Результат появится в приложении после подведения итогов.'}',style:const TextStyle(color:_muted,fontSize:15,height:1.6)),
-     if(draw['winner_user_name']!=null && '${draw['winner_user_name']}'.isNotEmpty)Padding(padding:const EdgeInsets.only(top:20),child:Text('Победитель: ${draw['winner_user_name']}',style:const TextStyle(color:_ink,fontWeight:FontWeight.w800))),
-    ]))),
-    Padding(padding:const EdgeInsets.fromLTRB(24,12,24,18),child:SizedBox(width:double.infinity,child:FilledButton.icon(
-     style:FilledButton.styleFrom(backgroundColor:_ink,disabledBackgroundColor:const Color(0xFFE0E8EC),padding:const EdgeInsets.all(19),shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(22))),
-     onPressed:joining||joined||ended||onJoin==null?null:(){Navigator.of(context).pop();onJoin!();},
-     icon:Icon(joined?Icons.check_circle_rounded:Icons.auto_awesome_rounded),label:Text(joining?'Подключаем удачу…':ended?'Розыгрыш завершён':joined?'Вы в списке участников':'Участвовать в розыгрыше',style:const TextStyle(fontWeight:FontWeight.w800,fontSize:15)))))
-   ]))));
- }
- Widget _tag(IconData icon,String value)=>Container(padding:const EdgeInsets.symmetric(horizontal:12,vertical:10),decoration:BoxDecoration(color:Colors.white.withOpacity(.8),borderRadius:BorderRadius.circular(14)),child:Row(mainAxisSize:MainAxisSize.min,children:[Icon(icon,size:17,color:_muted),const SizedBox(width:7),Text(value,style:const TextStyle(color:_ink,fontSize:12,fontWeight:FontWeight.w700))]));
-}

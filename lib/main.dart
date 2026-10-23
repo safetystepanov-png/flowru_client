@@ -4253,7 +4253,7 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
           icon: Icons.celebration_rounded,
           color: kLoginViolet,
           imageUrl: extractImageUrl(activeDraw),
-          rawData: activeDraw,
+          rawData: {...activeDraw, 'establishment_name': nonEmpty(establishment['name']) ?? 'Заведение'},
           isRaffle: true,
         ),
       );
@@ -8660,7 +8660,8 @@ class _EstablishmentFullScreenState extends State<EstablishmentFullScreen> {
           imageUrl: extractImageUrl(e),
           rawData: {
             ...e,
-            'establishment_id': intOrNull(widget.item['establishment_id'])
+            'establishment_id': intOrNull(widget.item['establishment_id']),
+            'establishment_name': name
           },
           isRaffle: true));
     }
@@ -12893,6 +12894,7 @@ class _PromoShowcaseCardState extends State<PromoShowcaseCard>
   @override
   Widget build(BuildContext context) {
     final item = widget.item;
+    if (item.isRaffle && (item.rawData ?? {}).isNotEmpty) return AppRaffleCard(draw: item.rawData!, imageUrl: item.imageUrl, onTap: widget.onTap, compact: true);
     final imageUrl = (item.imageUrl ?? '').trim();
     final hasImage = imageUrl.isNotEmpty;
     final title = item.title.trim();
@@ -13946,6 +13948,7 @@ class BenefitFeaturedCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (item.isRaffle && (item.rawData ?? {}).isNotEmpty) return AppRaffleCard(draw: item.rawData!, imageUrl: item.imageUrl, onTap: onTap);
     final tagLower = item.tag.toLowerCase();
     final label = item.isRaffle
         ? 'Розыгрыш'
@@ -14543,114 +14546,7 @@ class RaffleCommandCard extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final title = nonEmpty(draw['title']) ?? 'Розыгрыш';
-    final prize = nonEmpty(draw['prize_text']) ??
-        nonEmpty(draw['description']) ??
-        'Приз от заведения';
-    final participants = toInt(draw['participants_count']);
-    final isJoined = draw['is_joined'] == true;
-    final buttonTitle = draw['join_button_title']?.toString() ??
-        (isJoined ? 'Вы участвуете' : 'Участвовать');
-    final drawAt = formatClientDateTime(draw['draw_at']);
-    final imageUrl = extractImageUrl(draw);
-
-    return GestureDetector(
-      onTap: () => openDetails(context),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(32),
-          gradient: LinearGradient(colors: [
-            kLoginCardStrong,
-            kLoginCard,
-            Colors.white.withOpacity(0.80)
-          ], begin: Alignment.topLeft, end: Alignment.bottomRight),
-          border: Border.all(color: kLoginStroke, width: 1.15),
-          boxShadow: [
-            BoxShadow(
-                color: kLoginViolet.withOpacity(0.16),
-                blurRadius: 28,
-                offset: const Offset(0, 16))
-          ],
-        ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          if (imageUrl != null && imageUrl.trim().isNotEmpty) ...[
-            ClipRRect(
-              borderRadius: BorderRadius.circular(22),
-              child: SizedBox(
-                height: 156,
-                width: double.infinity,
-                child: Image.network(imageUrl,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
-                        color: kLoginViolet.withOpacity(0.10),
-                        alignment: Alignment.center,
-                        child: const Icon(Icons.celebration_rounded,
-                            color: kLoginViolet, size: 42))),
-              ),
-            ),
-            const SizedBox(height: 14),
-          ],
-          Row(children: [
-            Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                    gradient:
-                        const LinearGradient(colors: [kLoginBlue, kLoginPink]),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                          color: kLoginBlue.withOpacity(0.22),
-                          blurRadius: 18,
-                          offset: const Offset(0, 9))
-                    ]),
-                child:
-                    const Icon(Icons.celebration_rounded, color: Colors.white)),
-            const SizedBox(width: 13),
-            Expanded(
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                  const Text('Розыгрыш',
-                      style: TextStyle(
-                          color: kLoginInkSoft, fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 3),
-                  Text(title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          color: kLoginInk,
-                          fontSize: 21,
-                          height: 1.05,
-                          fontWeight: FontWeight.w900)),
-                ])),
-            const Icon(Icons.open_in_full_rounded, color: kLoginInkSoft),
-          ]),
-          const SizedBox(height: 14),
-          Text(prize,
-              style: const TextStyle(
-                  color: kLoginInkSoft,
-                  height: 1.35,
-                  fontWeight: FontWeight.w700)),
-          const SizedBox(height: 12),
-          Wrap(spacing: 8, runSpacing: 8, children: [
-            if (participants > 0)
-              LightChip(
-                  icon: Icons.groups_rounded, text: '$participants участников'),
-            if (drawAt.isNotEmpty)
-              LightChip(icon: Icons.schedule_rounded, text: drawAt),
-          ]),
-          const SizedBox(height: 14),
-          PrimaryButton(
-              text: joining ? 'Отправляем...' : buttonTitle,
-              loading: joining,
-              onTap: joining || isJoined ? null : onJoin),
-        ]),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => AppRaffleCard(draw: draw, imageUrl: extractImageUrl(draw), onTap: () => openDetails(context));
 }
 
 class StatsConstellation extends StatelessWidget {
