@@ -1,3 +1,4 @@
+import 'raffle_visual.dart' show AppRaffleDetails;
 export 'raffle_visual.dart' show AppRaffleDetails, AppRaffleCard;
 import 'client_benefits.dart';
 import 'dart:async';
@@ -143,7 +144,7 @@ class _InboxDetailState extends State<_InboxDetail> {
   final item=_data;final payload=Map<String,dynamic>.from(item['payload'] as Map? ?? {});final prize=payload['prize_token'];
   return Scaffold(backgroundColor:const Color(0xFFF5F8FC),appBar:AppBar(backgroundColor:const Color(0xFFF5F8FC)),body:SingleChildScrollView(padding:const EdgeInsets.fromLTRB(22,10,22,40),child:Container(padding:const EdgeInsets.all(26),decoration:BoxDecoration(color:Colors.white,borderRadius:BorderRadius.circular(32)),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
    Container(padding:const EdgeInsets.all(18),decoration:BoxDecoration(gradient:const LinearGradient(colors:[_aqua,Color(0xFFD5C4FA)]),borderRadius:BorderRadius.circular(23)),child:Icon(_icon('${item['kind']}'),size:34,color:_ink)),const SizedBox(height:24),Text('${item['establishment_name'] ?? ''}',style:const TextStyle(color:_muted,fontWeight:FontWeight.w700)),const SizedBox(height:8),Text('${item['title']}',style:const TextStyle(fontSize:28,height:1.15,fontWeight:FontWeight.w900,color:_ink)),const SizedBox(height:20),SelectableText('${item['body']}',style:const TextStyle(color:_ink,fontSize:16,height:1.6)),const SizedBox(height:24),
-   if(prize!=null)...[const Text('Покажите код сотруднику при получении приза.',style:TextStyle(color:_muted,height:1.5)),const SizedBox(height:12),Center(child:QrImageView(data:'${payload['redeem_url'] ?? prize}',size:220)),SelectableText('$prize',style:const TextStyle(fontSize:12,color:_muted))],
+   if(prize!=null && payload['run_id']!=null)FilledButton.icon(onPressed:()=>showModalBottomSheet<void>(context:context,isScrollControlled:true,builder:(_)=>AppRaffleDetails(draw:{'run_id':payload['run_id'],'title':item['title'],'prize_text':payload['prize_text'] ?? item['body'],'establishment_name':item['establishment_name']},joining:false)),icon:const Icon(Icons.card_giftcard_rounded),label:const Text('Мой приз и QR получения')),
    if(payload['coupon_id']!=null)Padding(padding:const EdgeInsets.only(top:8),child:Text('Купон доступен в профиле, в разделе «Купоны и сертификаты». Заведение может изменить или отозвать предложение.',style:const TextStyle(color:_muted,height:1.5))),
    if(payload['run_id']!=null && prize==null)const Padding(padding:EdgeInsets.only(top:8),child:Text('Карточка розыгрыша находится в предложениях заведения на главном экране.',style:TextStyle(color:_muted,height:1.5))),
    if(!_saved)TextButton(onPressed:_markRead,child:const Text('Отметить прочитанным')),
