@@ -142,6 +142,16 @@ class _InboxDetailState extends State<_InboxDetail> {
  @override Widget build(BuildContext context){
   if(_deleted)return Scaffold(appBar:AppBar(),body:Center(child:Padding(padding:const EdgeInsets.all(28),child:Column(mainAxisSize:MainAxisSize.min,children:[const Icon(Icons.notifications_off_outlined,size:44,color:_muted),const SizedBox(height:18),const Text('Заведение удалило это сообщение.',textAlign:TextAlign.center,style:TextStyle(color:_ink,fontSize:20)),const SizedBox(height:18),FilledButton(onPressed:()=>Navigator.pop(context),child:const Text('К уведомлениям'))]))));
   final item=_data;final payload=Map<String,dynamic>.from(item['payload'] as Map? ?? {});final prize=payload['prize_token'];
+  if(payload['run_id']!=null && const ['raffle','prize'].contains('${item['kind']}')) {
+   return Scaffold(backgroundColor:const Color(0xFF14243C),body:SafeArea(child:Align(alignment:Alignment.bottomCenter,child:AppRaffleDetails(draw:{
+    'run_id':payload['run_id'], 'title':item['title'],
+    'prize_text':payload['prize_text'] ?? item['body'],
+    'establishment_name':item['establishment_name'],
+    'status':payload['status'] ?? (payload['is_winner']==true?'finished':'open'),
+    'draw_at':payload['draw_at'],
+   },joining:false))));
+  }
+
   return Scaffold(backgroundColor:const Color(0xFFF5F8FC),appBar:AppBar(backgroundColor:const Color(0xFFF5F8FC)),body:SingleChildScrollView(padding:const EdgeInsets.fromLTRB(22,10,22,40),child:Container(padding:const EdgeInsets.all(26),decoration:BoxDecoration(color:Colors.white,borderRadius:BorderRadius.circular(32)),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
    Container(padding:const EdgeInsets.all(18),decoration:BoxDecoration(gradient:const LinearGradient(colors:[_aqua,Color(0xFFD5C4FA)]),borderRadius:BorderRadius.circular(23)),child:Icon(_icon('${item['kind']}'),size:34,color:_ink)),const SizedBox(height:24),Text('${item['establishment_name'] ?? ''}',style:const TextStyle(color:_muted,fontWeight:FontWeight.w700)),const SizedBox(height:8),Text('${item['title']}',style:const TextStyle(fontSize:28,height:1.15,fontWeight:FontWeight.w900,color:_ink)),const SizedBox(height:20),SelectableText('${item['body']}',style:const TextStyle(color:_ink,fontSize:16,height:1.6)),const SizedBox(height:24),
    if(prize!=null && payload['run_id']!=null)FilledButton.icon(onPressed:()=>showModalBottomSheet<void>(context:context,isScrollControlled:true,builder:(_)=>AppRaffleDetails(draw:{'run_id':payload['run_id'],'title':item['title'],'prize_text':payload['prize_text'] ?? item['body'],'establishment_name':item['establishment_name']},joining:false)),icon:const Icon(Icons.card_giftcard_rounded),label:const Text('Мой приз и QR получения')),

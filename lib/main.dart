@@ -12753,7 +12753,9 @@ class BenefitOrbitPanel extends StatelessWidget {
                 ),
               ];
 
-              final raffleCard = AspectRatio(
+              final raffleCard = draw.isNotEmpty
+                  ? AppRaffleCard(draw: draw, imageUrl: drawImage, onTap: () => openRaffle(context))
+                  : AspectRatio(
                 aspectRatio: 1,
                 child: BenefitActionCard(
                   title: draw.isNotEmpty ? raffleTitle : 'Розыгрыши',
