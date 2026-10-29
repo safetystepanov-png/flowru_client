@@ -1,3 +1,4 @@
+import 'modifier_choices.dart';
 import 'client_benefits.dart';
 import 'app_inbox.dart';
 import 'flowru_future_ui.dart';
@@ -21530,18 +21531,9 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
       }
     }
 
-    String? expandedGroupId;
-    int optionPage = 0;
+    String? expandedGroupId = product.groups.length == 1 ? product.groups.first.id : null;
     var lastRenderedTotal = product.basePrice;
     var totalRollDirection = 1;
-
-    final groupRailController = PageController(
-      viewportFraction: 0.34,
-    );
-
-    final optionRailController = PageController(
-      viewportFraction: 0.38,
-    );
 
     final sourceRender = sourceContext.findRenderObject();
     final screenSize = MediaQuery.of(context).size;
@@ -21660,401 +21652,6 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
               return items.map((item) => item.title).join(', ');
             }
 
-            _PreorderModifierGroup? activeGroup;
-
-            for (final group in product.groups) {
-              if (group.id == expandedGroupId) {
-                activeGroup = group;
-                break;
-              }
-            }
-
-            void openGroup(_PreorderModifierGroup group) {
-              HapticFeedback.mediumImpact();
-
-              final current = selected[group.id] ?? const <_PreorderModifier>[];
-
-              var target = 0;
-
-              if (current.isNotEmpty) {
-                final selectedIndex = group.options.indexWhere(
-                  (option) => option.id == current.first.id,
-                );
-
-                if (selectedIndex >= 0) {
-                  target = selectedIndex;
-                }
-              }
-
-              setDialogState(() {
-                expandedGroupId = group.id;
-                optionPage = target;
-              });
-
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (!optionRailController.hasClients) return;
-
-                optionRailController.animateToPage(
-                  target,
-                  duration: const Duration(milliseconds: 430),
-                  curve: Curves.easeOutCubic,
-                );
-              });
-            }
-
-            void closeGroup() {
-              HapticFeedback.selectionClick();
-              setDialogState(() => expandedGroupId = null);
-            }
-
-            void moveOption(
-              _PreorderModifierGroup group,
-              int direction,
-            ) {
-              if (group.options.isEmpty) return;
-
-              final target = (optionPage + direction)
-                  .clamp(0, group.options.length - 1)
-                  .toInt();
-
-              if (target == optionPage) return;
-
-              HapticFeedback.selectionClick();
-
-              optionRailController.animateToPage(
-                target,
-                duration: const Duration(milliseconds: 420),
-                curve: Curves.easeOutCubic,
-              );
-            }
-
-            Widget groupDeckCard(
-              _PreorderModifierGroup group,
-            ) {
-              final chosen = selected[group.id] ?? const <_PreorderModifier>[];
-
-              final opened = expandedGroupId == group.id;
-
-              return GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () {
-                  if (opened) {
-                    closeGroup();
-                  } else {
-                    openGroup(group);
-                  }
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 240),
-                  margin: const EdgeInsets.symmetric(
-                    horizontal: 4,
-                    vertical: 5,
-                  ),
-                  padding: const EdgeInsets.fromLTRB(
-                    10,
-                    8,
-                    9,
-                    7,
-                  ),
-                  decoration: BoxDecoration(
-                    gradient: opened
-                        ? const LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              _v6Terra,
-                              Color(0xFF16D1DD),
-                            ],
-                          )
-                        : chosen.isNotEmpty
-                            ? LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [
-                                  Colors.white,
-                                  _v6Terra.withOpacity(0.065),
-                                ],
-                              )
-                            : null,
-                    color: opened ? null : Colors.white.withOpacity(0.91),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: opened
-                          ? Colors.transparent
-                          : chosen.isNotEmpty
-                              ? _v6Terra.withOpacity(0.20)
-                              : _v6Ink.withOpacity(0.04),
-                    ),
-                    boxShadow: opened
-                        ? [
-                            BoxShadow(
-                              color: _v6Terra.withOpacity(0.20),
-                              blurRadius: 15,
-                              offset: const Offset(0, 6),
-                            ),
-                          ]
-                        : [
-                            BoxShadow(
-                              color: _v6Ink.withOpacity(0.04),
-                              blurRadius: 9,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            width: 23,
-                            height: 23,
-                            decoration: BoxDecoration(
-                              color: opened
-                                  ? Colors.white.withOpacity(0.18)
-                                  : chosen.isNotEmpty
-                                      ? _v6Terra.withOpacity(0.10)
-                                      : _v6Cream2,
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              opened
-                                  ? Icons.tune_rounded
-                                  : chosen.isNotEmpty
-                                      ? Icons.check_rounded
-                                      : Icons.swipe_rounded,
-                              color: opened
-                                  ? Colors.white
-                                  : chosen.isNotEmpty
-                                      ? _v6TerraDeep
-                                      : _v6Muted,
-                              size: 13,
-                            ),
-                          ),
-                          const Spacer(),
-                          if (group.isRequired)
-                            Container(
-                              width: 5,
-                              height: 5,
-                              decoration: BoxDecoration(
-                                color: opened ? Colors.white : _v6Terra,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                        ],
-                      ),
-                      const Spacer(),
-                      Text(
-                        group.id == 'variant'
-                            ? 'Размер / вариант'
-                            : group.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: opened ? Colors.white : _v6Ink,
-                          fontSize: 10.2,
-                          height: 1,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        groupSummary(group),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: opened
-                              ? Colors.white.withOpacity(0.68)
-                              : _v6Muted,
-                          fontSize: 7.4,
-                          height: 1,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }
-
-            Widget premiumOptionCard(
-              _PreorderModifierGroup group,
-              _PreorderModifier option,
-              int index,
-            ) {
-              final active = isSelected(group, option);
-              final centered = optionPage == index;
-
-              return AnimatedScale(
-                duration: const Duration(milliseconds: 230),
-                curve: Curves.easeOutBack,
-                scale: centered ? 1.0 : 0.87,
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () {
-                    HapticFeedback.mediumImpact();
-
-                    setDialogState(
-                      () => toggleOption(
-                        group,
-                        option,
-                      ),
-                    );
-                  },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 230),
-                    margin: const EdgeInsets.symmetric(
-                      horizontal: 4,
-                      vertical: 5,
-                    ),
-                    padding: const EdgeInsets.fromLTRB(
-                      9,
-                      8,
-                      8,
-                      7,
-                    ),
-                    decoration: BoxDecoration(
-                      gradient: active
-                          ? const LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                Color(0xFFD28C5A),
-                                Color(0xFFE7B85F),
-                                Color(0xFFC7774D),
-                              ],
-                            )
-                          : LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                Colors.white.withOpacity(0.98),
-                                const Color(0xFFFFFBF5),
-                              ],
-                            ),
-                      borderRadius: BorderRadius.circular(15),
-                      border: Border.all(
-                        width: active ? 1.2 : 1,
-                        color: active
-                            ? Colors.white.withOpacity(0.75)
-                            : _v6Ink.withOpacity(0.05),
-                      ),
-                      boxShadow: active
-                          ? [
-                              BoxShadow(
-                                color: _v6Terra.withOpacity(0.27),
-                                blurRadius: 16,
-                                offset: const Offset(0, 7),
-                              ),
-                            ]
-                          : centered
-                              ? [
-                                  BoxShadow(
-                                    color: _v6Ink.withOpacity(0.09),
-                                    blurRadius: 12,
-                                    offset: const Offset(0, 6),
-                                  ),
-                                ]
-                              : null,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              width: 20,
-                              height: 20,
-                              decoration: BoxDecoration(
-                                color: active
-                                    ? Colors.white.withOpacity(0.20)
-                                    : _v6Cream2,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                active
-                                    ? Icons.check_rounded
-                                    : Icons.touch_app_rounded,
-                                color: active ? Colors.white : _v6TerraDeep,
-                                size: 11,
-                              ),
-                            ),
-                            const Spacer(),
-                            if (active)
-                              Container(
-                                width: 5,
-                                height: 5,
-                                decoration: const BoxDecoration(
-                                  color: Colors.white,
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                          ],
-                        ),
-                        const Spacer(),
-                        Text(
-                          option.title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: active ? Colors.white : _v6Ink,
-                            fontSize: 9.3,
-                            height: 1.03,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          option.priceDelta > 0
-                              ? '+${option.priceDelta} ₽'
-                              : 'без доплаты',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: active
-                                ? Colors.white.withOpacity(0.72)
-                                : _v6TerraDeep,
-                            fontSize: 7.3,
-                            height: 1,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            }
-
-            Widget optionDeckOverlay(
-              _PreorderModifierGroup group,
-            ) {
-              return Material(
-                color: Colors.transparent,
-                child: SizedBox(
-                  height: 102,
-                  child: PageView.builder(
-                    controller: optionRailController,
-                    clipBehavior: Clip.none,
-                    physics: const BouncingScrollPhysics(),
-                    itemCount: group.options.length,
-                    onPageChanged: (index) {
-                      setDialogState(() {
-                        optionPage = index;
-                      });
-                    },
-                    itemBuilder: (context, index) {
-                      return premiumOptionCard(
-                        group,
-                        group.options[index],
-                        index,
-                      );
-                    },
-                  ),
-                ),
-              );
-            }
-
             final imageUrl = _fidelityProductImageUrl(product);
 
             // FLOWRU_PREORDER_V34_TALL_PRODUCT_PREVIEW_20260919
@@ -22166,7 +21763,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
               final currentKey = ValueKey<int>(total);
 
               return SizedBox(
-                height: 29,
+                height: MediaQuery.textScalerOf(context).scale(30),
                 child: ClipRect(
                   child: AnimatedSwitcher(
                     duration: const Duration(milliseconds: 430),
@@ -22274,7 +21871,7 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                             'ИТОГО',
                             style: TextStyle(
                               color: _v6Muted,
-                              fontSize: 8.2,
+                              fontSize: 12,
                               fontWeight: FontWeight.w900,
                               letterSpacing: 1.2,
                             ),
@@ -22338,133 +21935,45 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
             }
 
             Widget modifierDeck() {
-              if (product.groups.isEmpty) {
-                return const SizedBox.shrink();
-              }
-
-              return Container(
-                height: 82,
-                padding: const EdgeInsets.only(
-                  top: 4,
-                  bottom: 4,
-                ),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Color(0x00FFFFFF),
-                      Color(0x4DFFFFFF),
-                    ],
-                  ),
-                  border: Border(
-                    bottom: BorderSide(
-                      color: _v6Ink.withOpacity(0.04),
-                    ),
-                  ),
-                ),
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    const cardWidth = 116.0;
-                    const gap = 6.0;
-                    final contentWidth = product.groups.length * cardWidth +
-                        math.max(0, product.groups.length - 1) * gap;
-
-                    return SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      physics: const BouncingScrollPhysics(),
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          minWidth: constraints.maxWidth,
+              return Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(children: [
+                  for (final group in product.groups)
+                    FlowruModifierChoices(
+                      title: group.id == 'variant' ? 'Размер / вариант' : group.title,
+                      summary: groupSummary(group),
+                      rule: group.allowsMultiple
+                          ? (group.maxSelected == null ? 'Можно выбрать несколько вариантов' : 'Можно выбрать до ${group.maxSelected} вариантов')
+                          : 'Выберите один вариант',
+                      requiredChoice: group.isRequired || group.minSelected > 0,
+                      expanded: expandedGroupId == group.id,
+                      onExpand: () {
+                        HapticFeedback.selectionClick();
+                        setDialogState(() => expandedGroupId = expandedGroupId == group.id ? null : group.id);
+                      },
+                      options: [for (final option in group.options)
+                        FlowruModifierOption(
+                          title: option.title,
+                          price: option.priceDelta > 0 ? '+${option.priceDelta} ₽' : option.priceDelta < 0 ? '${option.priceDelta} ₽' : 'Без доплаты',
+                          selected: isSelected(group, option),
+                          multiple: group.allowsMultiple,
+                          enabled: !group.allowsMultiple || isSelected(group, option) || group.maxSelected == null ||
+                              (selected[group.id]?.length ?? 0) < group.maxSelected!,
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            setDialogState(() => toggleOption(group, option));
+                          },
                         ),
-                        child: Row(
-                          mainAxisAlignment:
-                              contentWidth <= constraints.maxWidth
-                                  ? MainAxisAlignment.center
-                                  : MainAxisAlignment.start,
-                          children: [
-                            for (var index = 0;
-                                index < product.groups.length;
-                                index++) ...[
-                              if (index > 0) const SizedBox(width: gap),
-                              SizedBox(
-                                width: cardWidth,
-                                child: groupDeckCard(product.groups[index]),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              );
-            }
-
-            Widget backgroundDecor() {
-              return Stack(
-                fit: StackFit.expand,
-                children: [
-                  const DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          Color(0xFFFFFBF5),
-                          Color(0xFFF8F0E6),
-                          Color(0xFFFFFCF8),
-                        ],
-                      ),
+                      ],
                     ),
-                  ),
-                  Positioned(
-                    left: -95,
-                    bottom: 10,
-                    child: Container(
-                      width: 210,
-                      height: 210,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: RadialGradient(
-                          colors: [
-                            _v6Terra.withOpacity(0.12),
-                            Colors.transparent,
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    right: -110,
-                    top: 205,
-                    child: Container(
-                      width: 230,
-                      height: 230,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: RadialGradient(
-                          colors: [
-                            _v6Sage.withOpacity(0.10),
-                            Colors.transparent,
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+                ]),
               );
             }
 
             final groupedHeight = math.min(
-              MediaQuery.of(dialogContext).size.height * 0.90,
-              650.0,
-            );
-            // FLOWRU_PREORDER_CART_CARDS_POLISH_V37_20260923
-            final focusedHeroHeight = (groupedHeight - 82 - 102 - 90 - 16)
-                .clamp(164.0, 362.0)
-                .toDouble();
-
+              (MediaQuery.of(dialogContext).size.height - MediaQuery.of(dialogContext).padding.vertical - 44).clamp(180.0, 760.0),
+              760.0,
+            ).toDouble();
             return SafeArea(
               child: Center(
                 child: Padding(
@@ -22495,89 +22004,18 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
                         ),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(32),
-                          child: product.groups.isEmpty
-                              ? Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    heroImage(),
-                                    footer(),
-                                  ],
-                                )
-                              : SizedBox(
-                                  height: groupedHeight,
-                                  child: Stack(
-                                    children: [
-                                      Positioned.fill(
-                                        child: backgroundDecor(),
-                                      ),
-                                      // FLOWRU_PREORDER_V36_FIX_MODIFIER_LAYOUT_20260919
-                                      // FLOWRU_PREORDER_V35_MODIFIER_FOCUS_20260919
-                                      // Opening a modifier is a separate state:
-                                      // compact the photo and put choices in the
-                                      // normal column flow. Nothing can overlap
-                                      // or block the other modifier cards.
-                                      Column(
-                                        children: [
-                                          AnimatedSize(
-                                            duration: const Duration(
-                                              milliseconds: 310,
-                                            ),
-                                            curve: Curves.easeOutCubic,
-                                            child: activeGroup == null
-                                                ? heroImage()
-                                                : heroImage(
-                                                    height: focusedHeroHeight,
-                                                  ),
-                                          ),
-                                          modifierDeck(),
-                                          if (activeGroup != null)
-                                            TweenAnimationBuilder<double>(
-                                              key: ValueKey(activeGroup.id),
-                                              tween: Tween<double>(
-                                                begin: 0,
-                                                end: 1,
-                                              ),
-                                              duration: const Duration(
-                                                milliseconds: 300,
-                                              ),
-                                              curve: Curves.easeOutCubic,
-                                              builder: (context, value, child) {
-                                                return Opacity(
-                                                  opacity: value,
-                                                  child: Transform.translate(
-                                                    offset: Offset(
-                                                      0,
-                                                      16 * (1 - value),
-                                                    ),
-                                                    child: child,
-                                                  ),
-                                                );
-                                              },
-                                              child: Padding(
-                                                padding:
-                                                    const EdgeInsets.fromLTRB(
-                                                  12,
-                                                  5,
-                                                  12,
-                                                  4,
-                                                ),
-                                                child: optionDeckOverlay(
-                                                  activeGroup,
-                                                ),
-                                              ),
-                                            )
-                                          else
-                                            const Expanded(
-                                              child: SizedBox(),
-                                            ),
-                                          if (activeGroup != null)
-                                            const Spacer(),
-                                          footer(),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
+                          child: SizedBox(
+                            height: groupedHeight,
+                            child: Column(children: [
+                              Expanded(child: SingleChildScrollView(
+                                child: Column(children: [
+                                  heroImage(height: 246),
+                                  modifierDeck(),
+                                ]),
+                              )),
+                              footer(),
+                            ]),
+                          ),
                         ),
                       ),
                     ),
@@ -22623,8 +22061,6 @@ class _ClientPreorderScreenState extends State<ClientPreorderScreen>
       },
     );
 
-    groupRailController.dispose();
-    optionRailController.dispose();
   }
 
   Widget _background() => FutureScene(

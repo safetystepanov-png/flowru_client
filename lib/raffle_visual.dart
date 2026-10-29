@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import 'main.dart' show AuthStorage, FlowApi;
+import 'main.dart' show AuthStorage, FlowApi, ApiError;
 
 const _navy = Color(0xFF14243C);
 const _mint = Color(0xFFB9F5E4);
@@ -269,12 +269,13 @@ class _AppRaffleDetailsState extends State<AppRaffleDetails> {
   late Map<String, dynamic> _draw;
   Timer? _timer;
   bool _fetching = false;
+  bool _deleted = false;
   String? _error;
   @override void initState() { super.initState(); _draw = {...widget.draw}; _refresh(); _timer = Timer.periodic(const Duration(seconds: 10), (_) => _refresh()); }
   @override void dispose() { _timer?.cancel(); super.dispose(); }
   @override void didUpdateWidget(covariant AppRaffleDetails oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.draw['run_id'] != widget.draw['run_id']) { _draw = {...widget.draw}; _error = null; _refresh(); }
+    if (oldWidget.draw['run_id'] != widget.draw['run_id']) { _draw = {...widget.draw}; _deleted = false; _error = null; _refresh(); }
   }
   Future<void> _refresh() async {
     final run = int.tryParse('${widget.draw['run_id']}');
@@ -288,9 +289,22 @@ class _AppRaffleDetailsState extends State<AppRaffleDetails> {
         _draw.remove('prize_qr'); _draw.remove('prize_state'); _draw.remove('prize_expires_at');
         _draw = {..._draw, ...result}; _error = null;
       });
+    } on ApiError catch (error) {
+      if (mounted) setState(() {
+        _draw.remove('prize_qr');
+        if (error.status == 404) { _deleted = true; _draw.clear(); _timer?.cancel(); }
+        else { _error = 'refresh_failed'; }
+      });
     } catch (_) {
       if (mounted) setState(() { _draw.remove('prize_qr'); _error = 'refresh_failed'; });
     } finally { _fetching = false; }
   }
-  @override Widget build(BuildContext context) => _RaffleDetailsView(draw: _draw, joining: widget.joining, onJoin: widget.onJoin, imageUrl: widget.imageUrl, error: _error, onRetry: _refresh);
+  @override Widget build(BuildContext context) => _deleted
+    ? SizedBox(height: MediaQuery.sizeOf(context).height * .65, child: Material(color: _paper, borderRadius: const BorderRadius.vertical(top: Radius.circular(30)), child: Padding(padding: const EdgeInsets.all(28), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+      const Icon(Icons.auto_awesome_outlined, size: 54, color: _muted), const SizedBox(height: 22),
+      const Text('Розыгрыш удалён', textAlign: TextAlign.center, style: TextStyle(color: _navy, fontSize: 28, fontWeight: FontWeight.w900)), const SizedBox(height: 12),
+      const Text('Заведение удалило этот розыгрыш. Его условия и приз больше недоступны.', textAlign: TextAlign.center, style: TextStyle(color: _muted, height: 1.5)), const SizedBox(height: 26),
+      _PrimaryAction(label: 'Понятно', icon: Icons.check_rounded, onTap: () => Navigator.pop(context)),
+    ]))))
+    : _RaffleDetailsView(draw: _draw, joining: widget.joining, onJoin: widget.onJoin, imageUrl: widget.imageUrl, error: _error, onRetry: _refresh);
 }
