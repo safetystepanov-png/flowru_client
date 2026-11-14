@@ -7643,15 +7643,16 @@ class FlowruEstablishmentEntry extends StatelessWidget {
 class _EstablishmentPreviewImage extends StatelessWidget {
   final String? imageUrl;
   final String title;
+  final BoxFit fit;
   const _EstablishmentPreviewImage(
-      {required this.imageUrl, required this.title});
+      {required this.imageUrl, required this.title, this.fit = BoxFit.cover});
 
   @override
   Widget build(BuildContext context) {
     if (imageUrl != null && imageUrl!.trim().isNotEmpty) {
       return Image.network(
         imageUrl!,
-        fit: BoxFit.cover,
+        fit: fit,
         errorBuilder: (_, __, ___) => _fallback(),
       );
     }
@@ -26908,32 +26909,38 @@ class _VenueCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final image = (item['image_url'] ?? '').toString();
     final offer = (item['intro_offer'] ?? '').toString().trim();
-    const fallback = DecoratedBox(
-      decoration: BoxDecoration(gradient: LinearGradient(colors: [
-        FlowColors.bgDeep, Color(0xFFE8DFFF),
-      ])),
-      child: Center(child: Icon(Icons.storefront_rounded, size: 42, color: FlowColors.ink2)),
+    final panelImage = _EstablishmentPreviewImage(
+      imageUrl: image.startsWith('https://') ? image : null,
+      title: (item['name'] ?? '').toString(),
+      fit: BoxFit.contain,
     );
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Material(
-        color: FlowColors.paper,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20),
-          side: const BorderSide(color: FlowColors.line)),
+        color: const Color(0xBFFFFFFF),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26),
+          side: const BorderSide(color: Colors.white, width: 1.15)),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              SizedBox.square(dimension: 76,
-                child: ColoredBox(color: FlowColors.paper2,
-                  child: image.startsWith('https://')
-                    ? Image.network(image, fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) => fallback)
-                    : fallback)),
-              const SizedBox(width: 12),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          child: IntrinsicHeight(
+            child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              // Fill the left contour, keeping the full square artwork visible.
+              SizedBox(width: 92,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 92),
+                  child: DecoratedBox(
+                    decoration: const BoxDecoration(gradient: LinearGradient(
+                      begin: Alignment.topLeft, end: Alignment.bottomRight,
+                      colors: [Color(0xFF3BA7C9), Color(0xFF0B5278), FlowColors.ink],
+                    )),
+                    child: panelImage,
+                  ),
+                ),
+              ),
+              Expanded(child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text((item['name'] ?? '').toString(), style: const TextStyle(
                   fontSize: 17, fontWeight: FontWeight.w900, color: FlowColors.ink)),
                 const SizedBox(height: 3),
@@ -26953,10 +26960,12 @@ class _VenueCard extends StatelessWidget {
                 const SizedBox(height: 5),
                 Text(label, style: const TextStyle(
                   color: FlowColors.ink2, fontSize: 13, fontWeight: FontWeight.w800)),
-              ])),
-              const SizedBox(width: 5),
+              ]))),
               if (onTap != null)
-                const Icon(Icons.chevron_right_rounded, size: 19, color: FlowColors.ink2),
+                const Padding(
+                  padding: EdgeInsets.only(right: 10),
+                  child: Icon(Icons.chevron_right_rounded, size: 19, color: FlowColors.ink2),
+                ),
             ]),
           ),
         ),
