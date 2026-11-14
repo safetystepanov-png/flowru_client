@@ -2,7 +2,7 @@ name: flowru_client
 description: Flowru client loyalty app
 publish_to: "none"
 
-version: 1.5.2+131
+version: 1.5.3+132
 environment:
   sdk: ">=3.3.0 <4.0.0"
 

@@ -692,6 +692,14 @@ class FlowApi {
               token: token)
           .timeout(const Duration(seconds: 18));
 
+  Future<Map<String, dynamic>> discoverEstablishments(String token) =>
+      _request(path: '/client/establishments/discover', token: token)
+          .timeout(const Duration(seconds: 18));
+
+  Future<Map<String, dynamic>> joinDiscoveredEstablishment(String token, int id) =>
+      _request(path: '/client/establishments/discover/$id/join', method: 'POST', token: token)
+          .timeout(const Duration(seconds: 18));
+
   Future<Map<String, dynamic>> linkedEstablishments(String token) =>
       _request(path: '/client/establishments', token: token)
           .timeout(const Duration(seconds: 15));
@@ -4363,7 +4371,54 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
             })));
   }
 
+  Future<List<Map<String, dynamic>>> _fetchVenueDirectory() async {
+    final token = await getFreshAccessToken();
+    if (token == null || token.isEmpty) return [];
+    final response = await api.discoverEstablishments(token);
+    final items = response['items'];
+    return items is List
+        ? items.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()
+        : [];
+  }
+
+  Future<void> _openVenueDirectory({bool forPickup = false}) async {
+    final token = await getFreshAccessToken();
+    if (!mounted || token == null || token.isEmpty) return;
+    final id = await Navigator.of(context).push<int>(MaterialPageRoute(
+      builder: (_) => FlowruVenueDirectory(
+        linkedIds: establishments.map((e) => intOrNull(e['establishment_id']) ?? 0).toSet(),
+        fetch: _fetchVenueDirectory,
+        join: (id) async {
+          final current = await getFreshAccessToken();
+          if (current == null || current.isEmpty) throw StateError('Session expired');
+          await api.joinDiscoveredEstablishment(current, id);
+        },
+      ),
+    ));
+    if (!mounted || id == null) return;
+    selectedEstablishmentId = id;
+    await loadAll();
+    if (!mounted) return;
+    for (final entry in establishments) {
+      if (intOrNull(entry['establishment_id']) == id) {
+        if (forPickup) {
+          await _openPickupPlaces();
+        } else {
+          await openEstablishmentPage(entry);
+        }
+        return;
+      }
+    }
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      content: Text('Заведение добавлено. Обновите главную, чтобы открыть карточку.')));
+  }
+
   Future<void> _openPickupPlaces() async {
+    if (establishments.isEmpty) {
+      await _openVenueDirectory(forPickup: true);
+      return;
+    }
+
     await showDialog<void>(
         context: context,
         builder: (sheetContext) => Dialog(
@@ -4589,11 +4644,17 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
           ),
           const SizedBox(height: 10),
           if (establishments.isEmpty)
-            EmptyState(
-              icon: Icons.storefront_rounded,
-              title: 'Заведений пока нет',
-              subtitle:
-                  'Покажите QR на кассе или добавьте заведение по QR/ссылке.',
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                const EmptyState(icon: Icons.storefront_rounded,
+                  title: 'Выберите своё первое заведение',
+                  subtitle: 'Найдите заведение по городу и подключитесь прямо здесь.'),
+                const SizedBox(height: 12),
+                FlowruVenuePreview(fetch: _fetchVenueDirectory, open: () => _openVenueDirectory()),
+                FilledButton.icon(onPressed: () => _openVenueDirectory(),
+                  icon: const Icon(Icons.search), label: const Text('Найти заведение')),
+              ]),
             )
           else
             Column(
@@ -4615,6 +4676,9 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
                 );
               }),
             ),
+          if (establishments.isNotEmpty)
+            TextButton.icon(onPressed: () => _openVenueDirectory(),
+              icon: const Icon(Icons.add_location_alt_outlined), label: const Text('Найти ещё заведение')),
         ],
       ),
     );
@@ -26687,4 +26751,166 @@ class _PreorderCartLine {
       product.basePrice +
       modifiers.fold<int>(0, (sum, modifier) => sum + modifier.priceDelta);
   int get total => unitPrice * quantity;
+}
+
+class FlowruVenueDirectory extends StatefulWidget {
+  const FlowruVenueDirectory({super.key, required this.fetch, required this.join,
+    required this.linkedIds});
+  final Future<List<Map<String, dynamic>>> Function() fetch;
+  final Future<void> Function(int id) join;
+  final Set<int> linkedIds;
+
+  @override
+  State<FlowruVenueDirectory> createState() => _FlowruVenueDirectoryState();
+}
+
+class _FlowruVenueDirectoryState extends State<FlowruVenueDirectory> {
+  late Future<List<Map<String, dynamic>>> results = widget.fetch();
+  final search = TextEditingController();
+  String? city;
+  int? joining;
+
+  @override
+  void dispose() {
+    search.dispose();
+    super.dispose();
+  }
+
+  Future<void> select(int id) async {
+    if (joining != null) return;
+    setState(() => joining = id);
+    try {
+      if (!widget.linkedIds.contains(id)) await widget.join(id);
+      if (mounted) Navigator.of(context).pop(id);
+    } on ApiError catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Не удалось присоединиться. Попробуйте ещё раз.')));
+    } finally {
+      if (mounted) setState(() => joining = null);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF6FBFF),
+      appBar: AppBar(title: const Text('Найти заведение')),
+      body: SafeArea(child: FutureBuilder<List<Map<String, dynamic>>>(
+        future: results,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return Center(child: TextButton.icon(
+              onPressed: () => setState(() => results = widget.fetch()),
+              icon: const Icon(Icons.refresh), label: const Text('Не удалось загрузить. Повторить')));
+          }
+          final all = snapshot.data ?? <Map<String, dynamic>>[];
+          final cities = <String, String>{};
+          for (final item in all) {
+            final label = (item['city'] ?? '').toString().trim();
+            if (label.isNotEmpty) cities.putIfAbsent(label.toLowerCase(), () => label);
+          }
+          final activeCity = cities.containsKey(city) ? city : null;
+          final q = search.text.trim().toLowerCase();
+          final visible = all.where((e) =>
+            (activeCity == null || e['city'].toString().trim().toLowerCase() == activeCity) &&
+            "${e['name']} ${e['address']} ${e['city']}".toLowerCase().contains(q)
+          ).toList();
+          return Column(children: [
+            Padding(padding: const EdgeInsets.fromLTRB(20, 8, 20, 12), child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('Выберите, где хотите заказать', style: TextStyle(fontSize: 23, fontWeight: FontWeight.w800, color: FlowColors.ink)),
+              const SizedBox(height: 8),
+              const Text('После подключения откроются меню и возможности заведения.'),
+              const SizedBox(height: 14),
+              DropdownButtonFormField<String>(
+                value: activeCity ?? '',
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Город', prefixIcon: Icon(Icons.location_city_outlined)),
+                items: [
+                  const DropdownMenuItem(value: '', child: Text('Все города')),
+                  for (final e in cities.entries) DropdownMenuItem(value: e.key, child: Text(e.value)),
+                ],
+                onChanged: (v) => setState(() => city = v),
+              ),
+              TextField(controller: search, onChanged: (_) => setState(() {}),
+                decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Название или адрес')),
+            ])),
+            Expanded(child: visible.isEmpty
+              ? Center(child: Padding(padding: const EdgeInsets.all(24),
+                child: Text(all.isEmpty ? 'В каталоге пока нет заведений. Можно добавить заведение по его ссылке.' : 'Ничего не найдено. Попробуйте другой город или запрос.', textAlign: TextAlign.center)))
+              : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 20),
+                itemCount: visible.length,
+                itemBuilder: (context, i) {
+                  final item = visible[i];
+                  final id = intOrNull(item['id']) ?? 0;
+                  final image = (item['image_url'] ?? '').toString();
+                  final address = (item['address'] ?? '').toString();
+                  const fallback = ColoredBox(color: Color(0xFFE5F0F6), child: Center(child: Icon(Icons.storefront_rounded)));
+                  return Card(margin: const EdgeInsets.only(bottom: 12), child: Padding(
+                    padding: const EdgeInsets.all(14), child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Row(children: [
+                          ClipRRect(borderRadius: BorderRadius.circular(12), child: SizedBox(
+                            width: 58, height: 58, child: image.startsWith('https://')
+                              ? Image.network(image, fit: BoxFit.cover, errorBuilder: (_, __, ___) => fallback)
+                              : fallback)),
+                          const SizedBox(width: 12),
+                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text((item['name'] ?? '').toString(), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+                            Text([item['city'], if (address.isNotEmpty) address].join(' · ')),
+                          ])),
+                        ]),
+                        const SizedBox(height: 8),
+                        SizedBox(width: double.infinity, child: FilledButton(
+                          onPressed: id <= 0 || joining != null ? null : () => select(id),
+                          child: Text(joining == id ? 'Подключаем…' : widget.linkedIds.contains(id) ? 'Открыть' : 'Присоединиться'),
+                        )),
+                      ])));
+                })),
+          ]);
+        },
+      )),
+    );
+  }
+}
+
+class FlowruVenuePreview extends StatefulWidget {
+  const FlowruVenuePreview({super.key, required this.fetch, required this.open});
+  final Future<List<Map<String, dynamic>>> Function() fetch;
+  final VoidCallback open;
+
+  @override
+  State<FlowruVenuePreview> createState() => _FlowruVenuePreviewState();
+}
+
+class _FlowruVenuePreviewState extends State<FlowruVenuePreview> {
+  late final Future<List<Map<String, dynamic>>> preview = widget.fetch();
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: preview,
+      builder: (context, snapshot) {
+        final rows = snapshot.data;
+        if (rows == null || rows.isEmpty) return const SizedBox.shrink();
+        return Column(children: [
+          for (final row in rows.take(3))
+            Card(child: ListTile(
+              leading: const Icon(Icons.storefront_outlined),
+              title: Text((row['name'] ?? '').toString()),
+              subtitle: Text([row['city'], row['address']]
+                .where((v) => v != null && v.toString().trim().isNotEmpty).join(' · ')),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: widget.open,
+            )),
+          const SizedBox(height: 8),
+        ]);
+      },
+    );
+  }
 }
