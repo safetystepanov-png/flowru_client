@@ -18,6 +18,7 @@ import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:app_links/app_links.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -4643,20 +4644,7 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
             ],
           ),
           const SizedBox(height: 10),
-          if (establishments.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                const EmptyState(icon: Icons.storefront_rounded,
-                  title: 'Выберите своё первое заведение',
-                  subtitle: 'Найдите заведение по городу и подключитесь прямо здесь.'),
-                const SizedBox(height: 12),
-                FlowruVenuePreview(fetch: _fetchVenueDirectory, open: () => _openVenueDirectory()),
-                FilledButton.icon(onPressed: () => _openVenueDirectory(),
-                  icon: const Icon(Icons.search), label: const Text('Найти заведение')),
-              ]),
-            )
-          else
+          if (establishments.isNotEmpty)
             Column(
               children: List.generate(establishments.length, (index) {
                 final e = establishments[index];
@@ -4676,9 +4664,11 @@ class _ClientShellState extends State<ClientShell> with WidgetsBindingObserver {
                 );
               }),
             ),
-          if (establishments.isNotEmpty)
-            TextButton.icon(onPressed: () => _openVenueDirectory(),
-              icon: const Icon(Icons.add_location_alt_outlined), label: const Text('Найти ещё заведение')),
+          FlowruVenuePreview(
+            fetch: _fetchVenueDirectory,
+            open: () => _openVenueDirectory(),
+            linkedIds: establishments.map((e) => intOrNull(e['establishment_id']) ?? 0).toSet(),
+          ),
         ],
       ),
     );
@@ -26769,6 +26759,37 @@ class _FlowruVenueDirectoryState extends State<FlowruVenueDirectory> {
   final search = TextEditingController();
   String? city;
   int? joining;
+  bool onlyNew = false;
+  bool citySelected = false;
+  static const cityKey = 'flowru_directory_city';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCity();
+  }
+
+  Future<void> _loadCity() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (mounted && !citySelected) setState(() => city = prefs.getString(cityKey));
+    } catch (_) {
+      // The directory still works without local preferences.
+    }
+  }
+
+  Future<void> _selectCity(String? value) async {
+    setState(() {
+      citySelected = true;
+      city = value;
+    });
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(cityKey, value ?? '');
+    } catch (_) {
+      // Keep the current selection for this visit.
+    }
+  }
 
   @override
   void dispose() {
@@ -26795,8 +26816,11 @@ class _FlowruVenueDirectoryState extends State<FlowruVenueDirectory> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF6FBFF),
-      appBar: AppBar(title: const Text('Найти заведение')),
+      backgroundColor: FlowColors.bg,
+      appBar: AppBar(
+        backgroundColor: FlowColors.bg, foregroundColor: FlowColors.ink,
+        title: const Text('Каталог Flowru', style: TextStyle(fontWeight: FontWeight.w900)),
+      ),
       body: SafeArea(child: FutureBuilder<List<Map<String, dynamic>>>(
         future: results,
         builder: (context, snapshot) {
@@ -26817,72 +26841,152 @@ class _FlowruVenueDirectoryState extends State<FlowruVenueDirectory> {
           final activeCity = cities.containsKey(city) ? city : null;
           final q = search.text.trim().toLowerCase();
           final visible = all.where((e) =>
+            (!onlyNew || e['is_new'] == true) &&
             (activeCity == null || e['city'].toString().trim().toLowerCase() == activeCity) &&
             "${e['name']} ${e['address']} ${e['city']}".toLowerCase().contains(q)
           ).toList();
-          return Column(children: [
-            Padding(padding: const EdgeInsets.fromLTRB(20, 8, 20, 12), child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('Выберите, где хотите заказать', style: TextStyle(fontSize: 23, fontWeight: FontWeight.w800, color: FlowColors.ink)),
-              const SizedBox(height: 8),
-              const Text('После подключения откроются меню и возможности заведения.'),
-              const SizedBox(height: 14),
-              DropdownButtonFormField<String>(
-                value: activeCity ?? '',
-                isExpanded: true,
-                decoration: const InputDecoration(labelText: 'Город', prefixIcon: Icon(Icons.location_city_outlined)),
-                items: [
-                  const DropdownMenuItem(value: '', child: Text('Все города')),
-                  for (final e in cities.entries) DropdownMenuItem(value: e.key, child: Text(e.value)),
-                ],
-                onChanged: (v) => setState(() => city = v),
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 24),
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            children: [
+              const _VenueHero(title: 'Новые места рядом',
+                subtitle: 'Выберите город, найдите заведение и добавьте его в Flowru'),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(color: FlowColors.paper,
+                  border: Border.all(color: FlowColors.line), borderRadius: BorderRadius.circular(22)),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  DropdownButtonFormField<String>(
+                    key: ValueKey(activeCity),
+                    value: activeCity ?? '',
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Город', prefixIcon: Icon(Icons.location_city_outlined)),
+                    items: [
+                      const DropdownMenuItem(value: '', child: Text('Все города')),
+                      for (final e in cities.entries) DropdownMenuItem(value: e.key,
+                        child: Text(e.value, overflow: TextOverflow.ellipsis)),
+                    ],
+                    onChanged: _selectCity,
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(controller: search, onChanged: (_) => setState(() {}),
+                    decoration: InputDecoration(prefixIcon: const Icon(Icons.search),
+                      hintText: 'Название или адрес',
+                      suffixIcon: q.isEmpty ? null : IconButton(
+                        tooltip: 'Очистить поиск', onPressed: () => setState(search.clear),
+                        icon: const Icon(Icons.close))),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(spacing: 8, children: [
+                    ChoiceChip(label: const Text('Все заведения'), selected: !onlyNew,
+                      onSelected: (_) => setState(() => onlyNew = false)),
+                    ChoiceChip(label: const Text('Новые'), selected: onlyNew,
+                      onSelected: (_) => setState(() => onlyNew = true)),
+                  ]),
+                ]),
               ),
-              TextField(controller: search, onChanged: (_) => setState(() {}),
-                decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Название или адрес')),
-            ])),
-            Expanded(child: visible.isEmpty
-              ? Center(child: Padding(padding: const EdgeInsets.all(24),
-                child: Text(all.isEmpty ? 'В каталоге пока нет заведений. Можно добавить заведение по его ссылке.' : 'Ничего не найдено. Попробуйте другой город или запрос.', textAlign: TextAlign.center)))
-              : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 20),
-                itemCount: visible.length,
-                itemBuilder: (context, i) {
-                  final item = visible[i];
-                  final id = intOrNull(item['id']) ?? 0;
-                  final image = (item['image_url'] ?? '').toString();
-                  final address = (item['address'] ?? '').toString();
-                  const fallback = ColoredBox(color: Color(0xFFE5F0F6), child: Center(child: Icon(Icons.storefront_rounded)));
-                  return Card(margin: const EdgeInsets.only(bottom: 12), child: Padding(
-                    padding: const EdgeInsets.all(14), child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Row(children: [
-                          ClipRRect(borderRadius: BorderRadius.circular(12), child: SizedBox(
-                            width: 58, height: 58, child: image.startsWith('https://')
-                              ? Image.network(image, fit: BoxFit.cover, errorBuilder: (_, __, ___) => fallback)
-                              : fallback)),
-                          const SizedBox(width: 12),
-                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Text((item['name'] ?? '').toString(), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-                            Text([item['city'], if (address.isNotEmpty) address].join(' · ')),
-                          ])),
-                        ]),
-                        const SizedBox(height: 8),
-                        SizedBox(width: double.infinity, child: FilledButton(
-                          onPressed: id <= 0 || joining != null ? null : () => select(id),
-                          child: Text(joining == id ? 'Подключаем…' : widget.linkedIds.contains(id) ? 'Открыть' : 'Присоединиться'),
-                        )),
-                      ])));
-                })),
-          ]);
+              const SizedBox(height: 14),
+              if (visible.isEmpty)
+                Padding(padding: const EdgeInsets.all(18), child: Text(
+                  all.isEmpty ? 'В каталоге пока нет заведений. Добавить заведение можно по его ссылке.'
+                      : onlyNew && q.isEmpty ? 'В этом списке пока нет новых мест.'
+                      : 'Ничего не найдено. Попробуйте другой город или запрос.',
+                  textAlign: TextAlign.center, style: const TextStyle(color: FlowColors.soft))),
+              for (final item in visible)
+                _VenueCard(
+                  item: item,
+                  label: joining == intOrNull(item['id']) ? 'Подключаем…'
+                      : widget.linkedIds.contains(intOrNull(item['id'])) ? 'Открыть' : 'Присоединиться',
+                  onTap: joining != null || (intOrNull(item['id']) ?? 0) <= 0
+                      ? null : () => select(intOrNull(item['id'])!),
+                ),
+            ],
+          );
         },
       )),
     );
   }
 }
 
+class _VenueCard extends StatelessWidget {
+  const _VenueCard({required this.item, required this.label, this.onTap});
+  final Map<String, dynamic> item;
+  final String label;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final image = (item['image_url'] ?? '').toString();
+    final offer = (item['intro_offer'] ?? '').toString().trim();
+    const fallback = DecoratedBox(
+      decoration: BoxDecoration(gradient: LinearGradient(colors: [
+        FlowColors.bgDeep, Color(0xFFE8DFFF),
+      ])),
+      child: Center(child: Icon(Icons.storefront_rounded, size: 42, color: FlowColors.ink2)),
+    );
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24), color: FlowColors.paper,
+        border: Border.all(color: FlowColors.line),
+        boxShadow: const [BoxShadow(color: Color(0x120A2B47), blurRadius: 20, offset: Offset(0, 7))],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Padding(padding: const EdgeInsets.fromLTRB(16, 14, 16, 12), child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text((item['name'] ?? '').toString(), style: const TextStyle(
+              fontSize: 21, fontWeight: FontWeight.w900, color: FlowColors.ink)),
+            const SizedBox(height: 4),
+            Text([item['city'], item['address']]
+              .where((v) => v != null && v.toString().trim().isNotEmpty).join(' · '),
+              style: const TextStyle(color: FlowColors.soft, fontSize: 14)),
+          ],
+        )),
+        SizedBox(height: 126, child: image.startsWith('https://')
+          ? Image.network(image, fit: BoxFit.cover, errorBuilder: (_, __, ___) => fallback)
+          : fallback),
+        Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 14), child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Wrap(spacing: 8, runSpacing: 6, children: [
+              if (item['is_new'] == true) const _VenueTag('Новое'),
+              if (item['pickup_available'] == true) const _VenueTag('Предзаказ'),
+              if (item['delivery_available'] == true) const _VenueTag('Доставка'),
+            ]),
+            if (offer.isNotEmpty) ...[
+              const SizedBox(height: 9),
+              const Text('Попробуйте впервые', style: TextStyle(fontWeight: FontWeight.w800, color: FlowColors.ink2)),
+              Text(offer, style: const TextStyle(color: FlowColors.muted)),
+            ],
+            const SizedBox(height: 8),
+            FilledButton(onPressed: onTap, style: FilledButton.styleFrom(
+              backgroundColor: FlowColors.ink, minimumSize: const Size(0, 48),
+            ), child: Text(label, textAlign: TextAlign.center)),
+          ],
+        )),
+      ]),
+    );
+  }
+}
+
+class _VenueTag extends StatelessWidget {
+  const _VenueTag(this.label);
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(color: FlowColors.bgDeep, borderRadius: BorderRadius.circular(24)),
+    child: Padding(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      child: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: FlowColors.ink2))),
+  );
+}
+
 class FlowruVenuePreview extends StatefulWidget {
-  const FlowruVenuePreview({super.key, required this.fetch, required this.open});
+  const FlowruVenuePreview({super.key, required this.fetch, required this.open, required this.linkedIds});
   final Future<List<Map<String, dynamic>>> Function() fetch;
   final VoidCallback open;
+  final Set<int> linkedIds;
 
   @override
   State<FlowruVenuePreview> createState() => _FlowruVenuePreviewState();
@@ -26892,25 +26996,52 @@ class _FlowruVenuePreviewState extends State<FlowruVenuePreview> {
   late final Future<List<Map<String, dynamic>>> preview = widget.fetch();
 
   @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<List<Map<String, dynamic>>>(
-      future: preview,
-      builder: (context, snapshot) {
-        final rows = snapshot.data;
-        if (rows == null || rows.isEmpty) return const SizedBox.shrink();
-        return Column(children: [
-          for (final row in rows.take(3))
-            Card(child: ListTile(
-              leading: const Icon(Icons.storefront_outlined),
-              title: Text((row['name'] ?? '').toString()),
-              subtitle: Text([row['city'], row['address']]
-                .where((v) => v != null && v.toString().trim().isNotEmpty).join(' · ')),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: widget.open,
-            )),
-          const SizedBox(height: 8),
-        ]);
-      },
-    );
-  }
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 12),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      _VenueHero(
+        title: widget.linkedIds.isEmpty ? 'Найдите своё место' : 'Открывайте новые места',
+        subtitle: 'Заведения вашего города в Flowru',
+        action: TextButton.icon(
+          onPressed: widget.open, icon: const Icon(Icons.explore_outlined),
+          label: Text(widget.linkedIds.isEmpty ? 'Найти заведение' : 'Найти ещё заведение'),
+          style: TextButton.styleFrom(foregroundColor: Colors.white, backgroundColor: const Color(0x33FFFFFF)),
+        ),
+      ),
+      FutureBuilder<List<Map<String, dynamic>>>(future: preview, builder: (context, snapshot) {
+        final rows = (snapshot.data ?? []).where((row) =>
+          !widget.linkedIds.contains(intOrNull(row['id']))).take(2).toList();
+        if (rows.isEmpty) return const SizedBox.shrink();
+        return Padding(padding: const EdgeInsets.only(top: 12), child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [for (final row in rows) _VenueCard(
+            item: row, label: 'Посмотреть в каталоге', onTap: widget.open)],
+        ));
+      }),
+    ]),
+  );
+}
+
+class _VenueHero extends StatelessWidget {
+  const _VenueHero({required this.title, required this.subtitle, this.action});
+  final String title;
+  final String subtitle;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(18),
+    decoration: BoxDecoration(borderRadius: BorderRadius.circular(24),
+      gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+        colors: [FlowColors.ink, FlowColors.ink2, Color(0xFF5332A6)])),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const Icon(Icons.explore_outlined, color: FlowColors.aqua, size: 26),
+      const SizedBox(height: 8),
+      Text(title, style: const TextStyle(color: Colors.white, fontSize: 25, fontWeight: FontWeight.w900)),
+      const SizedBox(height: 4),
+      Text(subtitle, style: const TextStyle(color: Color(0xFFE2F8FA), fontSize: 14)),
+      if (action != null) ...[const SizedBox(height: 8), action!],
+    ]),
+  );
 }
