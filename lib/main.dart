@@ -286,8 +286,233 @@ void main() {
   runApp(const FlowruClientApp());
 }
 
-class FlowruClientApp extends StatelessWidget {
+class FlowruClientApp extends StatefulWidget {
   const FlowruClientApp({super.key});
+
+  @override
+  State<FlowruClientApp> createState() => _FlowruClientAppState();
+}
+
+class _FlowruClientAppState extends State<FlowruClientApp> with WidgetsBindingObserver {
+  bool _checkingVersion = false;
+  final Set<String> _shownVersions = {};
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_checkAppVersionNotice());
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) unawaited(_checkAppVersionNotice());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // FLOWRU_APP_VERSION_NOTICE_V4_20260909
+
+  bool _isNewerAppVersion(
+    String latest,
+    String current,
+  ) {
+    ({List<int> version, int build}) parse(String value) {
+      final normalized = value.trim().split('-').first;
+
+      final plusParts = normalized.split('+');
+      final versionText = plusParts.first.trim();
+
+      final build =
+          plusParts.length > 1 ? int.tryParse(plusParts[1].trim()) ?? 0 : 0;
+
+      final version = versionText
+          .split('.')
+          .map((part) => int.tryParse(part) ?? 0)
+          .toList();
+
+      return (version: version, build: build);
+    }
+
+    final latestParsed = parse(latest);
+    final currentParsed = parse(current);
+
+    final maxLength = latestParsed.version.length > currentParsed.version.length
+        ? latestParsed.version.length
+        : currentParsed.version.length;
+
+    for (var i = 0; i < maxLength; i++) {
+      final latestValue =
+          i < latestParsed.version.length ? latestParsed.version[i] : 0;
+
+      final currentValue =
+          i < currentParsed.version.length ? currentParsed.version[i] : 0;
+
+      if (latestValue > currentValue) return true;
+      if (latestValue < currentValue) return false;
+    }
+
+    return latestParsed.build > currentParsed.build;
+  }
+
+  Future<void> _checkAppVersionNotice() async {
+    if (!mounted || kIsWeb || _checkingVersion) return;
+    _checkingVersion = true;
+    try {
+      final String? platform;
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        platform = 'ios';
+      } else if (defaultTargetPlatform == TargetPlatform.android) {
+        platform = 'android';
+      } else {
+        platform = null;
+      }
+
+      if (platform == null) {
+        return;
+      }
+
+      final installedVersion = await _flowruInstalledAppVersion();
+
+      final prefs = await SharedPreferences.getInstance();
+      final key = 'flowru.versionPolicy.v1.$platform';
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final lastAttempt = prefs.getInt('$key.attempt') ?? 0;
+      final lastSuccess = prefs.getInt('$key.success') ?? 0;
+      bool recent(int since, Duration maxAge) =>
+          now >= since && now - since < maxAge.inMilliseconds;
+      Map<String, dynamic>? data;
+      final saved = prefs.getString(key);
+      if (saved != null) {
+        try {
+          final decoded = jsonDecode(saved);
+          if (decoded is Map<String, dynamic>) data = decoded;
+        } on FormatException {
+          // Fetch a clean copy.
+        }
+      }
+      if (!recent(lastSuccess, const Duration(hours: 24)) &&
+          !recent(lastAttempt, const Duration(minutes: 30))) {
+        await prefs.setInt('$key.attempt', now);
+        try {
+          final response = await http.get(Uri.https(
+            'mapi.flowru.ru', '/api/v1/app/version', {'platform': platform},
+          )).timeout(const Duration(seconds: 5));
+          if (response.statusCode == 200) {
+            final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+            if (decoded is Map<String, dynamic> &&
+                RegExp(r'^\d+(?:\.\d+){2}(?:\+\d+)?$').hasMatch(
+                  (decoded['latest_version'] ?? '').toString(),
+                )) {
+              data = decoded;
+              await prefs.setString(key, jsonEncode(decoded));
+              await prefs.setInt('$key.success', now);
+            }
+          }
+        } catch (_) {
+          // The last valid response is still usable offline.
+        }
+      }
+      if (data == null) return;
+
+      final latest = (data['latest_version'] ?? '').toString().trim();
+
+      final message = (data['message'] ?? '').toString().trim();
+
+      final fallbackDownloadUrl = platform == 'ios'
+          ? 'https://apps.apple.com/ru/app/flowru/id6765469553'
+          : 'https://mapi.flowru.ru/downloads/flowru-client.apk';
+
+      final configuredUrl = (data['download_url'] ?? '').toString().trim();
+      final downloadUrl = configuredUrl.isEmpty ? fallbackDownloadUrl : configuredUrl;
+
+      final forceUpdate = data['force_update'] == true &&
+          recent(prefs.getInt('$key.success') ?? 0, const Duration(hours: 24));
+
+      if (latest.isEmpty ||
+          !_isNewerAppVersion(
+            latest,
+            installedVersion,
+          ) ||
+          !mounted) {
+        return;
+      }
+
+      final navContext = appInboxNavigatorKey.currentContext;
+      if (navContext == null || !navContext.mounted ||
+          WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed ||
+          !_shownVersions.add(latest)) return;
+      await showDialog<void>(
+        context: navContext,
+        barrierDismissible: !forceUpdate,
+        builder: (dialogContext) {
+          return PopScope(
+            canPop: !forceUpdate,
+            child: AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
+              title: Text(
+                forceUpdate
+                    ? '\u0422\u0440\u0435\u0431\u0443\u0435\u0442\u0441\u044f \u043e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u0438\u0435'
+                    : '\u0414\u043e\u0441\u0442\u0443\u043f\u043d\u043e \u043e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u0438\u0435',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  color: FlowColors.ink,
+                ),
+              ),
+              content: Text(
+                message.isEmpty
+                    ? '\u0414\u043e\u0441\u0442\u0443\u043f\u043d\u0430 \u043d\u043e\u0432\u0430\u044f \u0432\u0435\u0440\u0441\u0438\u044f Flowru $latest.'
+                    : message,
+                style: const TextStyle(
+                  color: FlowColors.muted,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              actions: [
+                if (!forceUpdate)
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    child: const Text('\u041f\u043e\u0437\u0436\u0435'),
+                  ),
+                FilledButton(
+                  onPressed: () async {
+                    final uri = Uri.tryParse(downloadUrl);
+
+                    if (uri == null) {
+                      return;
+                    }
+
+                    await launchUrl(
+                      uri,
+                      mode: LaunchMode.externalApplication,
+                    );
+
+                    if (!forceUpdate && dialogContext.mounted) {
+                      Navigator.of(dialogContext).pop();
+                    }
+                  },
+                  child: const Text(
+                      '\u041e\u0431\u043d\u043e\u0432\u0438\u0442\u044c'),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    } catch (_) {
+      // A version check must never block login or startup.
+    } finally {
+      _checkingVersion = false;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1288,177 +1513,6 @@ class BootstrapScreen extends StatefulWidget {
 }
 
 class _BootstrapScreenState extends State<BootstrapScreen> {
-  // FLOWRU_APP_VERSION_NOTICE_V4_20260909
-
-  bool _isNewerAppVersion(
-    String latest,
-    String current,
-  ) {
-    ({List<int> version, int build}) parse(String value) {
-      final normalized = value.trim().split('-').first;
-
-      final plusParts = normalized.split('+');
-      final versionText = plusParts.first.trim();
-
-      final build =
-          plusParts.length > 1 ? int.tryParse(plusParts[1].trim()) ?? 0 : 0;
-
-      final version = versionText
-          .split('.')
-          .map((part) => int.tryParse(part) ?? 0)
-          .toList();
-
-      return (version: version, build: build);
-    }
-
-    final latestParsed = parse(latest);
-    final currentParsed = parse(current);
-
-    final maxLength = latestParsed.version.length > currentParsed.version.length
-        ? latestParsed.version.length
-        : currentParsed.version.length;
-
-    for (var i = 0; i < maxLength; i++) {
-      final latestValue =
-          i < latestParsed.version.length ? latestParsed.version[i] : 0;
-
-      final currentValue =
-          i < currentParsed.version.length ? currentParsed.version[i] : 0;
-
-      if (latestValue > currentValue) return true;
-      if (latestValue < currentValue) return false;
-    }
-
-    return latestParsed.build > currentParsed.build;
-  }
-
-  Future<void> _checkAppVersionNotice() async {
-    try {
-      final String? platform;
-      if (defaultTargetPlatform == TargetPlatform.iOS) {
-        platform = 'ios';
-      } else if (defaultTargetPlatform == TargetPlatform.android) {
-        platform = 'android';
-      } else {
-        platform = null;
-      }
-
-      if (platform == null) {
-        return;
-      }
-
-      final installedVersion = await _flowruInstalledAppVersion();
-
-      final response = await http
-          .get(
-            Uri.parse(
-              'https://mapi.flowru.ru/api/v1/app/version?platform=$platform',
-            ),
-          )
-          .timeout(
-            const Duration(seconds: 5),
-          );
-
-      if (response.statusCode != 200 || !mounted) {
-        return;
-      }
-
-      final data = jsonDecode(
-        utf8.decode(
-          response.bodyBytes,
-        ),
-      );
-
-      if (data is! Map) {
-        return;
-      }
-
-      final latest = (data['latest_version'] ?? '').toString().trim();
-
-      final message = (data['message'] ?? '').toString().trim();
-
-      final fallbackDownloadUrl = platform == 'ios'
-          ? 'https://apps.apple.com/ru/app/flowru/id6765469553'
-          : 'https://mapi.flowru.ru/downloads/flowru-client.apk';
-
-      final downloadUrl =
-          (data['download_url'] ?? fallbackDownloadUrl).toString().trim();
-
-      final forceUpdate = data['force_update'] == true;
-
-      if (latest.isEmpty ||
-          !_isNewerAppVersion(
-            latest,
-            installedVersion,
-          ) ||
-          !mounted) {
-        return;
-      }
-
-      await showDialog<void>(
-        context: context,
-        barrierDismissible: !forceUpdate,
-        builder: (dialogContext) {
-          return PopScope(
-            canPop: !forceUpdate,
-            child: AlertDialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(24),
-              ),
-              title: Text(
-                forceUpdate
-                    ? '\u0422\u0440\u0435\u0431\u0443\u0435\u0442\u0441\u044f \u043e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u0438\u0435'
-                    : '\u0414\u043e\u0441\u0442\u0443\u043f\u043d\u043e \u043e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u0438\u0435',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w900,
-                  color: FlowColors.ink,
-                ),
-              ),
-              content: Text(
-                message.isEmpty
-                    ? '\u0414\u043e\u0441\u0442\u0443\u043f\u043d\u0430 \u043d\u043e\u0432\u0430\u044f \u0432\u0435\u0440\u0441\u0438\u044f Flowru $latest.'
-                    : message,
-                style: const TextStyle(
-                  color: FlowColors.muted,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              actions: [
-                if (!forceUpdate)
-                  TextButton(
-                    onPressed: () => Navigator.of(dialogContext).pop(),
-                    child: const Text('\u041f\u043e\u0437\u0436\u0435'),
-                  ),
-                FilledButton(
-                  onPressed: () async {
-                    final uri = Uri.tryParse(downloadUrl);
-
-                    if (uri == null) {
-                      return;
-                    }
-
-                    await launchUrl(
-                      uri,
-                      mode: LaunchMode.externalApplication,
-                    );
-
-                    if (!forceUpdate && dialogContext.mounted) {
-                      Navigator.of(dialogContext).pop();
-                    }
-                  },
-                  child: const Text(
-                      '\u041e\u0431\u043d\u043e\u0432\u0438\u0442\u044c'),
-                ),
-              ],
-            ),
-          );
-        },
-      );
-    } catch (_) {
-      // ???????? ?????????? ?? ?????? ?????? ?????? ??????????.
-    }
-  }
-
   @override
   void initState() {
     super.initState();
@@ -1467,7 +1521,6 @@ class _BootstrapScreenState extends State<BootstrapScreen> {
 
   Future<void> _boot() async {
     // FLOWRU_CLIENT_STARTUP_QR_V39_20260929
-    unawaited(_checkAppVersionNotice());
 
     if (!mounted) {
       return;
